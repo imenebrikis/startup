@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.3",
+    "@tailwindcss/vite": "^4.2.4",
+    "lucide-react": "^1.9.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.14.1"
+    "react-router-dom": "^7.14.1",
+    "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

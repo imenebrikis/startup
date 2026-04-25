@@ -3,6 +3,9 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import AddListing from "./pages/AddListing";
+import Browse from "./pages/Browse";
+import ListingDetail from "./pages/ListingDetail";
 
 function App() {
   return (
@@ -12,6 +15,9 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/add-listing" element={<AddListing />} />
+        <Route path="/browse" element={<Browse />} />
+        <Route path="/listing/:id" element={<ListingDetail />} />
       </Routes>
     </BrowserRouter>
   );
