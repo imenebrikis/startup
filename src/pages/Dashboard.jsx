@@ -46,13 +46,33 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(2)
 
+      const { data: verifiedListings } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_verified', true)
+        .order('created_at', { ascending: false })
+        .limit(2)
+
       const activityItems = []
+
+      const timeAgo = (dateStr) => {
+        const date = new Date(dateStr)
+        const seconds = Math.floor((new Date() - date) / 1000)
+        let interval = seconds / 86400
+        if (interval >= 1) return `Il y a ${Math.floor(interval)} jour${Math.floor(interval) > 1 ? 's' : ''}`
+        interval = seconds / 3600
+        if (interval >= 1) return `Il y a ${Math.floor(interval)} heure${Math.floor(interval) > 1 ? 's' : ''}`
+        interval = seconds / 60
+        if (interval >= 1) return `Il y a ${Math.floor(interval)} minute${Math.floor(interval) > 1 ? 's' : ''}`
+        return "À l'instant"
+      }
 
       requests?.forEach(r => {
         if (r.listings) {
           activityItems.push({
             text: "Nouvelle demande d'échange reçue",
-            sub: `${r.listings.title} — ${new Date(r.created_at).toLocaleDateString('fr-DZ')}`,
+            sub: `${r.listings.title} à ${r.listings.wilaya} - ${timeAgo(r.created_at)}`,
             time: new Date(r.created_at)
           })
         }
@@ -61,13 +81,21 @@ export default function Dashboard() {
       messages?.forEach(m => {
         activityItems.push({
           text: "Nouveau message reçu",
-          sub: new Date(m.created_at).toLocaleDateString('fr-DZ'),
+          sub: `${timeAgo(m.created_at)}`,
           time: new Date(m.created_at)
         })
       })
 
+      verifiedListings?.forEach(l => {
+        activityItems.push({
+          text: "Votre annonce a été vérifiée",
+          sub: `${l.title} à ${l.wilaya} - ${timeAgo(l.created_at)}`,
+          time: new Date(l.created_at)
+        })
+      })
+
       activityItems.sort((a, b) => b.time - a.time)
-      setActivity(activityItems.slice(0, 3))
+      setActivity(activityItems.slice(0, 4))
 
     } catch (err) {
       console.error(err)
@@ -101,7 +129,7 @@ export default function Dashboard() {
 
   const navLinks = [
     { to: '/browse', icon: <Search className="w-5 h-5" />, label: 'Parcourir' },
-    { to: '/my-listings', icon: <List className="w-5 h-5" />, label: 'Mes annonces' },
+  { to: '/profile', icon: <List className="w-5 h-5" />, label: 'Mes annonces' },
     { to: '/my-exchanges', icon: <Repeat className="w-5 h-5" />, label: 'Mes échanges' },
     { to: '/messages', icon: <MessageSquare className="w-5 h-5" />, label: 'Messages' },
     { to: '/profile', icon: <User className="w-5 h-5" />, label: 'Profil' },
@@ -206,7 +234,7 @@ export default function Dashboard() {
             gap: '16px', marginBottom: '40px'
           }}>
             {[
-              { label: 'Mes annonces', value: stats.listings, to: '/my-listings' },
+             { label: 'Mes annonces', value: stats.listings, to: '/profile' },
               { label: 'Échanges en attente', value: stats.exchanges, to: '/my-exchanges' },
               { label: 'Messages', value: stats.messages, to: '/messages' },
             ].map(({ label, value, to }) => (

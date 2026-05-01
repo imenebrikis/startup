@@ -6,7 +6,6 @@ import Profile from "./pages/Profile";
 import AddListing from "./pages/AddListing";
 import Browse from "./pages/Browse";
 import ListingDetail from "./pages/ListingDetail";
-
 function App() {
   return (
     <BrowserRouter>
@@ -22,5 +21,4 @@ function App() {
     </BrowserRouter>
   );
 }
-
 export default App;

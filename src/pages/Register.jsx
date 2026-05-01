@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
 
-/* ─── Inject keyframe animations once ─────────────────────────────────────── */
+
 const styleTag = document.createElement("style");
 styleTag.textContent = `
   @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Inter:wght@400;500;600&display=swap');
