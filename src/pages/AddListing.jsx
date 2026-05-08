@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Upload,
   X,
@@ -138,9 +138,10 @@ const helperStyle = {
 
 export default function AddListing() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = Boolean(id);
   const fileInputRef = useRef(null);
 
-  const [user, setUser] = useState(null);
   const [initials, setInitials] = useState("?");
 
   const [title, setTitle] = useState("");
@@ -150,12 +151,15 @@ export default function AddListing() {
   const [quartier, setQuartier] = useState("");
   const [address, setAddress] = useState("");
   const [rooms, setRooms] = useState("");
+  const [size, setSize] = useState("");
+  const [houseRules, setHouseRules] = useState("");
   const [type, setType] = useState("exchange");
   const [price, setPrice] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableTo, setAvailableTo] = useState("");
   const [photos, setPhotos] = useState([]);
   const [previews, setPreviews] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -168,7 +172,6 @@ export default function AddListing() {
       if (!user) {
         navigate("/");
       } else {
-        setUser(user);
         const fullName = user.user_metadata?.full_name;
         if (fullName) {
           setInitials(
@@ -185,19 +188,53 @@ export default function AddListing() {
     });
   }, [navigate]);
 
+  useEffect(() => {
+    if (!id) return;
+    supabase
+      .from("listings")
+      .select("*")
+      .eq("id", id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setTitle(data.title || "");
+        setDescription(data.description || "");
+        setWilaya(data.wilaya || "");
+        setCity(data.city || "");
+        setQuartier(data.quartier || "");
+        setAddress(data.address || "");
+        setRooms(data.rooms?.toString() || "");
+        setSize(data.size?.toString() || "");
+        setHouseRules(data.house_rules || "");
+        setAmenities(data.amenities || []);
+        if (data.is_for_exchange && data.is_for_sale) setType("both");
+        else if (data.is_for_sale) setType("sale");
+        else setType("exchange");
+        setPrice(data.price?.toString() || "");
+        setAvailableFrom(data.available_from || "");
+        setAvailableTo(data.available_to || "");
+        setExistingImages(data.images || []);
+      });
+  }, [id]);
+
   const handleFiles = (files) => {
-    const accepted = Array.from(files).slice(0, 5 - photos.length);
+    const slots = 5 - existingImages.length - photos.length;
+    const accepted = Array.from(files).slice(0, slots);
     if (accepted.length === 0) return;
-    const newPhotos = [...photos, ...accepted].slice(0, 5);
+    const newPhotos = [...photos, ...accepted];
     setPhotos(newPhotos);
-    const newPreviews = newPhotos.map((f) => URL.createObjectURL(f));
-    setPreviews(newPreviews);
+    setPreviews(newPhotos.map((f) => URL.createObjectURL(f)));
   };
 
   const removePhoto = (index) => {
-    const updated = photos.filter((_, i) => i !== index);
-    setPhotos(updated);
-    setPreviews(updated.map((f) => URL.createObjectURL(f)));
+    if (index < existingImages.length) {
+      setExistingImages((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      const newIndex = index - existingImages.length;
+      const updated = photos.filter((_, i) => i !== newIndex);
+      setPhotos(updated);
+      setPreviews(updated.map((f) => URL.createObjectURL(f)));
+    }
   };
 
   const handleDrop = (e) => {
@@ -235,9 +272,7 @@ export default function AddListing() {
         imageUrls.push(urlData.publicUrl);
       }
 
-      // Insert listing
-      const { error: insertError } = await supabase.from("listings").insert({
-        user_id: currentUser.id,
+      const listingPayload = {
         title,
         description,
         wilaya,
@@ -245,20 +280,33 @@ export default function AddListing() {
         quartier,
         address,
         rooms: parseInt(rooms),
+        size: size ? parseInt(size) : null,
+        house_rules: type === "exchange" || type === "both" ? houseRules || null : null,
         is_for_exchange: type === "exchange" || type === "both",
         is_for_sale: type === "sale" || type === "both",
         price: type === "sale" || type === "both" ? parseFloat(price) : null,
         available_from: availableFrom || null,
         available_to: availableTo || null,
-        images: imageUrls,
+        images: [...existingImages, ...imageUrls],
         amenities,
         is_verified: false,
-      });
+      };
 
-      if (insertError) throw insertError;
+      if (isEdit) {
+        const { error: updateError } = await supabase
+          .from("listings")
+          .update(listingPayload)
+          .eq("id", id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from("listings")
+          .insert({ ...listingPayload, user_id: currentUser.id });
+        if (insertError) throw insertError;
+      }
 
       setSuccess(true);
-      setTimeout(() => navigate("/dashboard"), 2000);
+      setTimeout(() => navigate(isEdit ? "/profile" : "/dashboard"), 2000);
     } catch (err) {
       setError(err.message || "Une erreur est survenue.");
     } finally {
@@ -348,10 +396,12 @@ export default function AddListing() {
               lineHeight: 1.2,
             }}
           >
-            Publier une annonce
+            {isEdit ? "Modifier l'annonce" : "Publier une annonce"}
           </h1>
           <p style={{ fontSize: "15px", color: "#4B3FD8", fontWeight: "500" }}>
-            Partagez votre propriété avec la communauté DarBelDar
+            {isEdit
+              ? "Mettez à jour votre annonce — elle sera re-vérifiée par notre équipe"
+              : "Partagez votre propriété avec la communauté DarBelDar"}
           </p>
         </div>
 
@@ -369,7 +419,9 @@ export default function AddListing() {
               fontWeight: "500",
             }}
           >
-            ✅ Votre annonce a été soumise et est en attente de vérification !
+            {isEdit
+              ? "✅ Votre annonce a été mise à jour et est en attente de re-vérification !"
+              : "✅ Votre annonce a été soumise et est en attente de vérification !"}
           </div>
         )}
         {error && (
@@ -514,20 +566,41 @@ export default function AddListing() {
                 </p>
               </div>
 
-              {/* 6. Chambres */}
-              <div>
-                <label style={labelStyle}>Nombre de chambres *</label>
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  value={rooms}
-                  onChange={(e) => setRooms(e.target.value)}
-                  placeholder="ex: 3"
-                  style={inputStyle}
-                  onFocus={(e) => (e.target.style.borderColor = "#4B3FD8")}
-                  onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-                />
+              {/* 6. Chambres + Superficie */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "16px",
+                }}
+              >
+                <div>
+                  <label style={labelStyle}>Nombre de chambres *</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={rooms}
+                    onChange={(e) => setRooms(e.target.value)}
+                    placeholder="ex: 3"
+                    style={inputStyle}
+                    onFocus={(e) => (e.target.style.borderColor = "#4B3FD8")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Superficie (m²)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={size}
+                    onChange={(e) => setSize(e.target.value)}
+                    placeholder="ex: 85"
+                    style={inputStyle}
+                    onFocus={(e) => (e.target.style.borderColor = "#4B3FD8")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+                  />
+                </div>
               </div>
 
               {/* 6b. Équipements */}
@@ -642,6 +715,23 @@ export default function AddListing() {
                 </div>
               )}
 
+              {/* 8b. Règles de la maison (échange uniquement) */}
+              {(type === "exchange" || type === "both") && (
+                <div style={{ animation: "fadeIn 0.2s ease" }}>
+                  <label style={labelStyle}>Règles de la maison</label>
+                  <textarea
+                    rows={4}
+                    value={houseRules}
+                    onChange={(e) => setHouseRules(e.target.value)}
+                    placeholder="ex: Non-fumeur, pas d'animaux, respect du calme après 22h..."
+                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                    onFocus={(e) => (e.target.style.borderColor = "#4B3FD8")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+                  />
+                  <p style={helperStyle}>Ces règles seront visibles par les candidats à l'échange</p>
+                </div>
+              )}
+
               {/* 9. Disponibilité */}
               <div
                 style={{
@@ -681,7 +771,7 @@ export default function AddListing() {
                 {/* Drop zone */}
                 <div
                   onClick={() =>
-                    photos.length < 5 && fileInputRef.current?.click()
+                    existingImages.length + photos.length < 5 && fileInputRef.current?.click()
                   }
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -694,10 +784,10 @@ export default function AddListing() {
                     borderRadius: "14px",
                     padding: "36px 24px",
                     textAlign: "center",
-                    cursor: photos.length < 5 ? "pointer" : "default",
+                    cursor: existingImages.length + photos.length < 5 ? "pointer" : "default",
                     background: dragOver ? "#f0eeff" : "#ffffff",
                     transition: "all 0.2s",
-                    opacity: photos.length >= 5 ? 0.5 : 1,
+                    opacity: existingImages.length + photos.length >= 5 ? 0.5 : 1,
                   }}
                 >
                   <Upload
@@ -733,7 +823,7 @@ export default function AddListing() {
                 />
 
                 {/* Previews */}
-                {previews.length > 0 && (
+                {(existingImages.length > 0 || previews.length > 0) && (
                   <div
                     style={{
                       display: "flex",
@@ -742,7 +832,7 @@ export default function AddListing() {
                       marginTop: "14px",
                     }}
                   >
-                    {previews.map((src, i) => (
+                    {[...existingImages, ...previews].map((src, i) => (
                       <div key={i} style={{ position: "relative" }}>
                         <img
                           src={src}
@@ -795,7 +885,7 @@ export default function AddListing() {
             style={{ display: "flex", gap: "16px", justifyContent: "center" }}
           >
             <Link
-              to="/dashboard"
+              to={isEdit ? "/profile" : "/dashboard"}
               style={{
                 padding: "13px 32px",
                 borderRadius: "999px",
@@ -846,7 +936,11 @@ export default function AddListing() {
                   e.currentTarget.style.background = "#4B3FD8";
               }}
             >
-              {loading ? "Envoi en cours..." : "Soumettre pour vérification"}
+              {loading
+                ? "Envoi en cours..."
+                : isEdit
+                  ? "Mettre à jour"
+                  : "Soumettre pour vérification"}
             </button>
           </div>
         </form>

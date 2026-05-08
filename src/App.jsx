@@ -19,6 +19,7 @@ function App() {
         <Route path="/browse" element={<Browse />} />
         <Route path="/listing/:id" element={<ListingDetail />} />
         <Route path="/my-exchanges" element={<Exchanges />} />
+        <Route path="/modifier-annonce/:id" element={<AddListing />} />
       </Routes>
     </BrowserRouter>
   );

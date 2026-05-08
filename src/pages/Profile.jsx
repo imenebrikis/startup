@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search,
@@ -13,12 +13,23 @@ import {
   Edit2,
   Save,
   X,
-  Calendar,
   Bed,
-  Star,
   Eye,
-} from "lucide-react"; // Added Eye icon
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
+
+// ── NEW: SHADCN IMPORTS ────────────────────────────────────────────────────
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const WILAYAS = [
   "Adrar",
@@ -110,93 +121,95 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const fetchData = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/");
+        return;
+      }
+
+      setUser(user);
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(profileData || {});
+      setEditForm({
+        full_name:
+          profileData?.full_name || user.user_metadata?.full_name || "",
+        wilaya: profileData?.wilaya || "",
+        quartier: profileData?.quartier || "",
+        phone: profileData?.phone || "",
+      });
+
+      const { count: listingsCount } = await supabase
+        .from("listings")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      const { count: exchangesCount } = await supabase
+        .from("exchanges")
+        .select("*", { count: "exact", head: true })
+        .eq("requester_id", user.id)
+        .eq("status", "accepted");
+
+      const { count: salesCount } = await supabase
+        .from("listings")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_for_sale", true)
+        .eq("is_verified", true);
+
+      setStats({
+        listings: listingsCount || 0,
+        exchanges: exchangesCount || 0,
+        sales: salesCount || 0,
+      });
+
+      const { data: listingsData } = await supabase
+        .from("listings")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      setListings(listingsData || []);
+
+      const { data: exchangesData } = await supabase
+        .from("exchanges")
+        .select(
+          "*, listings(title, wilaya, city, images), profiles!requester_id(full_name)",
+        )
+        .eq("requester_id", user.id)
+        .order("created_at", { ascending: false });
+
+      setExchanges(exchangesData || []);
+
+      const userListingIds = listingsData?.map((l) => l.id) || [];
+      if (userListingIds.length > 0) {
+        const { data: reviewsData } = await supabase
+          .from("reviews")
+          .select("*, profiles!reviewer_id(full_name), listings(title)")
+          .in("listing_id", userListingIds)
+          .order("created_at", { ascending: false });
+        setReviews(reviewsData || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
   useEffect(() => {
     fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/");
-      return;
-    }
-
-    setUser(user);
-
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    setProfile(profileData || {});
-    setEditForm({
-      full_name: profileData?.full_name || user.user_metadata?.full_name || "",
-      wilaya: profileData?.wilaya || "",
-      quartier: profileData?.quartier || "",
-      phone: profileData?.phone || "",
-    });
-
-    const { count: listingsCount } = await supabase
-      .from("listings")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_verified", true);
-
-    const { count: exchangesCount } = await supabase
-      .from("exchanges")
-      .select("*", { count: "exact", head: true })
-      .eq("requester_id", user.id)
-      .eq("status", "accepted");
-
-    const { count: salesCount } = await supabase
-      .from("listings")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_for_sale", true)
-      .eq("is_verified", true);
-
-    setStats({
-      listings: listingsCount || 0,
-      exchanges: exchangesCount || 0,
-      sales: salesCount || 0,
-    });
-
-    const { data: listingsData } = await supabase
-      .from("listings")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    setListings(listingsData || []);
-
-    const { data: exchangesData } = await supabase
-      .from("exchanges")
-      .select(
-        "*, listings(title, wilaya, city, images), profiles!requester_id(full_name)",
-      )
-      .or(`requester_id.eq.${user.id}`)
-      .order("created_at", { ascending: false });
-
-    setExchanges(exchangesData || []);
-
-    const userListingIds = listingsData?.map((l) => l.id) || [];
-    if (userListingIds.length > 0) {
-      const { data: reviewsData } = await supabase
-        .from("reviews")
-        .select("*, profiles!reviewer_id(full_name), listings(title)")
-        .in("listing_id", userListingIds)
-        .order("created_at", { ascending: false });
-      setReviews(reviewsData || []);
-    }
-
-    setLoading(false);
-  };
+  }, [fetchData]);
 
   const handleSave = async () => {
-    await supabase.from("profiles").update(editForm).eq("id", user.id);
+    await supabase.from("profiles").upsert({ id: user.id, ...editForm });
     setIsEditing(false);
     fetchData();
   };
@@ -204,6 +217,29 @@ export default function Profile() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
+  };
+
+  // ── DELETE LISTING FUNCTION ─────────────────────────────────────────────
+  const handleDeleteListing = async (listingId) => {
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", listingId);
+
+      if (error) throw error;
+
+      const deleted = listings.find((l) => l.id === listingId);
+      setListings((prev) => prev.filter((listing) => listing.id !== listingId));
+      setStats((prev) => ({
+        ...prev,
+        listings: Math.max(0, prev.listings - 1),
+        sales: deleted?.is_for_sale ? Math.max(0, prev.sales - 1) : prev.sales,
+      }));
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      alert("Une erreur est survenue lors de la suppression de l'annonce.");
+    }
   };
 
   const initials = (editForm.full_name || user?.email?.[0] || "?")
@@ -318,7 +354,7 @@ export default function Profile() {
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {navLinks.map(({ to, icon, label }) => (
               <Link
-                key={to}
+                key={to + label}
                 to={to}
                 style={{
                   display: "flex",
@@ -720,7 +756,7 @@ export default function Profile() {
                         flexDirection: "column",
                       }}
                     >
-                      {/* Image Container matching "Capture d'écran 2026-05-04 132449.png" */}
+                      {/* Image Container */}
                       <div
                         style={{
                           height: "200px",
@@ -806,7 +842,7 @@ export default function Profile() {
                           {listing.rooms} chambres
                         </div>
 
-                        {/* Footer section of card with the "Voir" button */}
+                        {/* Top Footer (Status Badge and View Link) */}
                         <div
                           style={{
                             marginTop: "auto",
@@ -861,6 +897,160 @@ export default function Profile() {
                             Voir
                           </Link>
                         </div>
+
+                        {/* ── NEW: EDIT AND DELETE BUTTONS ── */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            marginTop: "16px",
+                            paddingTop: "16px",
+                            borderTop: "1px solid #e5e7eb",
+                          }}
+                        >
+                          <button
+                            onClick={() =>
+                              navigate(`/modifier-annonce/${listing.id}`)
+                            }
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "6px",
+                              padding: "8px",
+                              borderRadius: "8px",
+                              background: "#f3f4f6",
+                              color: "#374151",
+                              border: "none",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              cursor: "pointer",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#e5e7eb")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "#f3f4f6")
+                            }
+                          >
+                            <Edit2 style={{ width: "14px", height: "14px" }} />{" "}
+                            Modifier
+                          </button>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "8px",
+                                  borderRadius: "8px",
+                                  background: "#FEE2E2",
+                                  color: "#991B1B",
+                                  border: "none",
+                                  fontSize: "13px",
+                                  fontWeight: "600",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Supprimer
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent
+                              style={{
+                                borderRadius: "16px",
+                                padding: "24px",
+                                background: "#fff",
+                                border: "1px solid #e5e7eb",
+                                boxShadow:
+                                  "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+                                maxWidth: "400px",
+                                margin: "auto",
+                              }}
+                            >
+                              <AlertDialogHeader
+                                style={{ marginBottom: "24px" }}
+                              >
+                                <AlertDialogTitle
+                                  style={{
+                                    fontFamily:
+                                      "'Bricolage Grotesque', sans-serif",
+                                    fontSize: "18px",
+                                    fontWeight: "600",
+                                    color: "#111827",
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Êtes-vous absolument sûr ?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription
+                                  style={{
+                                    fontSize: "14px",
+                                    color: "#6B7280",
+                                    lineHeight: "1.5",
+                                  }}
+                                >
+                                  Cette action ne peut pas être annulée. Cela
+                                  supprimera définitivement votre annonce et
+                                  retirera les données de nos serveurs.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+
+                              {/* The fixed footer with perfect spacing and inline-styled buttons */}
+                              <AlertDialogFooter
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "flex-end",
+                                  gap: "12px",
+                                }}
+                              >
+                                <AlertDialogCancel asChild>
+                                  <button
+                                    style={{
+                                      padding: "10px 16px",
+                                      borderRadius: "8px",
+                                      background: "#ffffff",
+                                      color: "#374151",
+                                      border: "1px solid #D1D5DB",
+                                      fontSize: "14px",
+                                      fontWeight: "500",
+                                      cursor: "pointer",
+                                      margin: 0, // Prevents default margin issues
+                                    }}
+                                  >
+                                    Annuler
+                                  </button>
+                                </AlertDialogCancel>
+
+                                <AlertDialogAction asChild>
+                                  <button
+                                    onClick={() =>
+                                      handleDeleteListing(listing.id)
+                                    }
+                                    style={{
+                                      padding: "10px 16px",
+                                      borderRadius: "8px",
+                                      background: "#111827", // Dark Shadcn button color
+                                      color: "#ffffff",
+                                      border: "none",
+                                      fontSize: "14px",
+                                      fontWeight: "500",
+                                      cursor: "pointer",
+                                      margin: 0,
+                                    }}
+                                  >
+                                    Continuer
+                                  </button>
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          {/* ────────────────────────────────────────────────── */}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -869,7 +1059,6 @@ export default function Profile() {
             </div>
           )}
 
-          {/* ... Other tab contents (exchanges, reviews) remain the same ... */}
           {activeTab === "exchanges" && (
             <div>
               {exchanges.length === 0 ? (
@@ -880,7 +1069,7 @@ export default function Profile() {
                     color: "#717182",
                   }}
                 >
-                  Aucun échange pour le moment
+                  Aucun échange pour le moment.
                 </div>
               ) : (
                 <div
@@ -890,72 +1079,60 @@ export default function Profile() {
                     gap: "16px",
                   }}
                 >
-                  {exchanges.map((exchange) => (
+                  {exchanges.map((ex) => (
                     <div
-                      key={exchange.id}
+                      key={ex.id}
                       style={{
                         background: "#fff",
-                        borderRadius: "16px",
                         border: "1px solid #e5e7eb",
-                        padding: "16px",
+                        borderRadius: "16px",
+                        padding: "20px",
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "space-between",
                         gap: "16px",
                       }}
                     >
-                      <div
-                        style={{
-                          width: "48px",
-                          height: "48px",
-                          background: "#0A3D3D",
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontWeight: "600",
-                          fontSize: "16px",
-                        }}
-                      >
-                        {exchange.profiles?.full_name?.[0] || "?"}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "500", marginBottom: "4px" }}>
-                          {exchange.listings?.title}
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: "600",
+                            fontSize: "15px",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          {ex.listings?.title || "Annonce supprimée"}
                         </div>
                         <div style={{ fontSize: "13px", color: "#717182" }}>
-                          {exchange.listings?.wilaya} •{" "}
-                          {new Date(exchange.created_at).toLocaleDateString(
-                            "fr-FR",
-                          )}
+                          {ex.listings?.wilaya}
                         </div>
                       </div>
-                      <div
+                      <span
                         style={{
                           padding: "6px 14px",
                           borderRadius: "100px",
                           fontSize: "12px",
-                          fontWeight: "500",
+                          fontWeight: "600",
                           background:
-                            exchange.status === "accepted"
+                            ex.status === "accepted"
                               ? "#D1FAE5"
-                              : exchange.status === "pending"
-                                ? "#FEF3C7"
-                                : "#FEE2E2",
+                              : ex.status === "rejected"
+                                ? "#FEE2E2"
+                                : "#FEF3C7",
                           color:
-                            exchange.status === "accepted"
+                            ex.status === "accepted"
                               ? "#065F46"
-                              : exchange.status === "pending"
-                                ? "#92400E"
-                                : "#991B1B",
+                              : ex.status === "rejected"
+                                ? "#991B1B"
+                                : "#92400E",
                         }}
                       >
-                        {exchange.status === "accepted"
+                        {ex.status === "accepted"
                           ? "Accepté"
-                          : exchange.status === "pending"
-                            ? "En attente"
-                            : "Refusé"}
-                      </div>
+                          : ex.status === "rejected"
+                            ? "Refusé"
+                            : "En attente"}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -973,7 +1150,7 @@ export default function Profile() {
                     color: "#717182",
                   }}
                 >
-                  Aucun avis reçu
+                  Aucun avis reçu pour le moment.
                 </div>
               ) : (
                 <div
@@ -983,76 +1160,53 @@ export default function Profile() {
                     gap: "16px",
                   }}
                 >
-                  {reviews.map((review) => (
+                  {reviews.map((rv) => (
                     <div
-                      key={review.id}
+                      key={rv.id}
                       style={{
                         background: "#fff",
-                        borderRadius: "16px",
                         border: "1px solid #e5e7eb",
+                        borderRadius: "16px",
                         padding: "20px",
                       }}
                     >
                       <div
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          marginBottom: "12px",
+                          justifyContent: "space-between",
+                          marginBottom: "8px",
                         }}
                       >
+                        <span style={{ fontWeight: "600", fontSize: "14px" }}>
+                          {rv.profiles?.full_name || "Utilisateur"}
+                        </span>
+                        <span style={{ fontSize: "13px", color: "#717182" }}>
+                          {rv.listings?.title}
+                        </span>
+                      </div>
+                      {rv.rating && (
                         <div
                           style={{
-                            width: "40px",
-                            height: "40px",
-                            background: "#0A3D3D",
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            fontWeight: "600",
                             fontSize: "14px",
+                            color: "#F59E0B",
+                            marginBottom: "6px",
                           }}
                         >
-                          {review.profiles?.full_name?.[0] || "?"}
+                          {"★".repeat(rv.rating)}
+                          {"☆".repeat(5 - rv.rating)}
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: "500", fontSize: "14px" }}>
-                            {review.profiles?.full_name || "Utilisateur"}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#717182" }}>
-                            {review.listings?.title} •{" "}
-                            {new Date(review.created_at).toLocaleDateString(
-                              "fr-FR",
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: "2px" }}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              style={{
-                                width: "16px",
-                                height: "16px",
-                                fill:
-                                  star <= review.rating ? "#F59E0B" : "none",
-                                stroke:
-                                  star <= review.rating ? "#F59E0B" : "#D1D5DB",
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {review.comment}
-                      </p>
+                      )}
+                      {rv.comment && (
+                        <p
+                          style={{
+                            fontSize: "14px",
+                            color: "#374151",
+                            margin: 0,
+                          }}
+                        >
+                          {rv.comment}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
