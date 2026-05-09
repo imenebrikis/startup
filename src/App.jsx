@@ -7,6 +7,7 @@ import AddListing from "./pages/AddListing";
 import Browse from "./pages/Browse";
 import ListingDetail from "./pages/ListingDetail";
 import Exchanges from "./pages/Exchanges";
+import Messages from "./pages/Messages";
 function App() {
   return (
     <BrowserRouter>
@@ -15,11 +16,13 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/:id" element={<Profile />} />
         <Route path="/add-listing" element={<AddListing />} />
         <Route path="/browse" element={<Browse />} />
         <Route path="/listing/:id" element={<ListingDetail />} />
         <Route path="/my-exchanges" element={<Exchanges />} />
         <Route path="/modifier-annonce/:id" element={<AddListing />} />
+        <Route path="/messages" element={<Messages />} />
       </Routes>
     </BrowserRouter>
   );

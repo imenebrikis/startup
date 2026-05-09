@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Search,
   List,
@@ -15,6 +15,7 @@ import {
   X,
   Bed,
   Eye,
+  Heart,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
@@ -104,7 +105,9 @@ const WILAYAS = [
 ];
 
 export default function Profile() {
+  const { id: paramId } = useParams();
   const [user, setUser] = useState(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ listings: 0, exchanges: 0, sales: 0 });
   const [activeTab, setActiveTab] = useState("annonces");
@@ -118,77 +121,67 @@ export default function Profile() {
   const [listings, setListings] = useState([]);
   const [exchanges, setExchanges] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [savedListings, setSavedListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/");
-        return;
-      }
-
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { navigate("/"); return; }
       setUser(user);
+
+      // Whose profile are we viewing?
+      const targetId = paramId || user.id;
+      const own = !paramId || paramId === user.id;
+      setIsOwnProfile(own);
 
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user.id)
+        .eq("id", targetId)
         .single();
 
       setProfile(profileData || {});
       setEditForm({
-        full_name:
-          profileData?.full_name || user.user_metadata?.full_name || "",
+        full_name: profileData?.full_name || (own ? user.user_metadata?.full_name || "" : ""),
         wilaya: profileData?.wilaya || "",
         quartier: profileData?.quartier || "",
         phone: profileData?.phone || "",
       });
 
-      const { count: listingsCount } = await supabase
-        .from("listings")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id);
+      const [{ count: listingsCount }, { count: exchangesCount }, { count: salesCount }] =
+        await Promise.all([
+          supabase.from("listings").select("*", { count: "exact", head: true }).eq("user_id", targetId),
+          supabase.from("exchanges").select("*", { count: "exact", head: true }).eq("requester_id", targetId).eq("status", "accepted"),
+          supabase.from("listings").select("*", { count: "exact", head: true }).eq("user_id", targetId).eq("is_for_sale", true).eq("is_verified", true),
+        ]);
 
-      const { count: exchangesCount } = await supabase
-        .from("exchanges")
-        .select("*", { count: "exact", head: true })
-        .eq("requester_id", user.id)
-        .eq("status", "accepted");
-
-      const { count: salesCount } = await supabase
-        .from("listings")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_for_sale", true)
-        .eq("is_verified", true);
-
-      setStats({
-        listings: listingsCount || 0,
-        exchanges: exchangesCount || 0,
-        sales: salesCount || 0,
-      });
+      setStats({ listings: listingsCount || 0, exchanges: exchangesCount || 0, sales: salesCount || 0 });
 
       const { data: listingsData } = await supabase
         .from("listings")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", targetId)
         .order("created_at", { ascending: false });
-
       setListings(listingsData || []);
 
-      const { data: exchangesData } = await supabase
-        .from("exchanges")
-        .select(
-          "*, listings(title, wilaya, city, images), profiles!requester_id(full_name)",
-        )
-        .eq("requester_id", user.id)
-        .order("created_at", { ascending: false });
+      // Exchanges and favorites are private — only fetch for own profile
+      if (own) {
+        const { data: exchangesData } = await supabase
+          .from("exchanges")
+          .select("*, listings(title, wilaya, city, images), profiles!requester_id(full_name)")
+          .eq("requester_id", targetId)
+          .order("created_at", { ascending: false });
+        setExchanges(exchangesData || []);
 
-      setExchanges(exchangesData || []);
+        const { data: savedData } = await supabase
+          .from("user_favorites")
+          .select("*, listings(id, title, wilaya, rooms, images, is_for_exchange, is_for_sale)")
+          .eq("user_id", targetId)
+          .order("created_at", { ascending: false });
+        setSavedListings(savedData || []);
+      }
 
       const userListingIds = listingsData?.map((l) => l.id) || [];
       if (userListingIds.length > 0) {
@@ -202,7 +195,7 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, paramId]);
 
   useEffect(() => {
     fetchData();
@@ -242,12 +235,14 @@ export default function Profile() {
     }
   };
 
-  const initials = (editForm.full_name || user?.email?.[0] || "?")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  // Navbar always shows the logged-in user's initials
+  const navInitials = (user?.user_metadata?.full_name || user?.email?.[0] || "?")
+    .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  // Profile card shows the viewed user's initials
+  const initials = isOwnProfile
+    ? (editForm.full_name || user?.email?.[0] || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : (profile?.full_name || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const navLinks = [
     { to: "/browse", icon: <Search className="w-5 h-5" />, label: "Parcourir" },
@@ -335,7 +330,7 @@ export default function Profile() {
               fontSize: "14px",
             }}
           >
-            {initials}
+            {navInitials}
           </div>
         </div>
       </nav>
@@ -415,7 +410,7 @@ export default function Profile() {
               position: "relative",
             }}
           >
-            {!isEditing && (
+            {isOwnProfile && !isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
                 style={{
@@ -465,7 +460,7 @@ export default function Profile() {
                 {initials}
               </div>
 
-              {isEditing ? (
+              {isOwnProfile && isEditing ? (
                 <div style={{ width: "100%", maxWidth: "400px" }}>
                   <div style={{ marginBottom: "12px" }}>
                     <input
@@ -591,7 +586,7 @@ export default function Profile() {
                       marginBottom: "8px",
                     }}
                   >
-                    {editForm.full_name || "Utilisateur"}
+                    {(isOwnProfile ? editForm.full_name : profile?.full_name) || "Utilisateur"}
                   </div>
                   <div
                     style={{
@@ -619,18 +614,20 @@ export default function Profile() {
                     <Phone style={{ width: "16px", height: "16px" }} />
                     {profile?.phone || "Non renseigné"}
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      color: "#717182",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <Mail style={{ width: "14px", height: "14px" }} />
-                    {user?.email}
-                  </div>
+                  {isOwnProfile && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        color: "#717182",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <Mail style={{ width: "14px", height: "14px" }} />
+                      {user?.email}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -682,9 +679,10 @@ export default function Profile() {
           >
             <div style={{ display: "flex", gap: "32px" }}>
               {[
-                { id: "annonces", label: "Mes annonces" },
-                { id: "exchanges", label: "Mes échanges" },
+                { id: "annonces", label: isOwnProfile ? "Mes annonces" : "Annonces" },
+                ...(isOwnProfile ? [{ id: "exchanges", label: "Mes échanges" }] : []),
                 { id: "reviews", label: "Avis reçus" },
+                ...(isOwnProfile ? [{ id: "likes", label: "Maisons aimées" }] : []),
               ].map(({ id, label }) => (
                 <button
                   key={id}
@@ -898,8 +896,8 @@ export default function Profile() {
                           </Link>
                         </div>
 
-                        {/* ── NEW: EDIT AND DELETE BUTTONS ── */}
-                        <div
+                        {/* ── EDIT AND DELETE BUTTONS (own profile only) ── */}
+                        {isOwnProfile && <div
                           style={{
                             display: "flex",
                             gap: "8px",
@@ -1049,8 +1047,8 @@ export default function Profile() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                          {/* ────────────────────────────────────────────────── */}
-                        </div>
+                          {/* ─────────────────────────────────────────────── */}
+                        </div>}
                       </div>
                     </div>
                   ))}
@@ -1209,6 +1207,100 @@ export default function Profile() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === "likes" && (
+            <div>
+              {savedListings.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "64px 48px", color: "#717182" }}>
+                  <Heart style={{ width: "40px", height: "40px", color: "#d1d5db", margin: "0 auto 16px", display: "block" }} />
+                  <p style={{ fontSize: "15px", marginBottom: "8px", fontWeight: "500", color: "#374151" }}>
+                    Aucune maison sauvegardée
+                  </p>
+                  <p style={{ fontSize: "13px", marginBottom: "20px" }}>
+                    Parcourez les annonces et cliquez sur le cœur pour sauvegarder vos coups de cœur.
+                  </p>
+                  <Link
+                    to="/browse"
+                    style={{
+                      display: "inline-block", padding: "12px 24px",
+                      background: "#ADEBB3", color: "#0A3D3D",
+                      borderRadius: "100px", textDecoration: "none",
+                      fontSize: "14px", fontWeight: "600",
+                    }}
+                  >
+                    Parcourir les annonces
+                  </Link>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "24px" }}>
+                  {savedListings.map((saved) => {
+                    const l = saved.listings;
+                    if (!l) return null;
+                    return (
+                      <div key={saved.id} style={{
+                        background: "#fff", borderRadius: "20px",
+                        border: "1px solid #e5e7eb", overflow: "hidden",
+                        display: "flex", flexDirection: "column",
+                      }}>
+                        <div style={{ height: "180px", background: "#F7F7EC", position: "relative" }}>
+                          {l.images?.[0] ? (
+                            <img src={l.images[0]} alt={l.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Heart style={{ width: "32px", height: "32px", color: "#d1d5db" }} />
+                            </div>
+                          )}
+                          <div style={{
+                            position: "absolute", top: "12px", right: "12px",
+                            background: "#ADEBB3", borderRadius: "50%",
+                            width: "32px", height: "32px",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            <Heart style={{ width: "16px", height: "16px", color: "#0A3D3D", fill: "#0A3D3D" }} />
+                          </div>
+                        </div>
+                        <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <h3 style={{
+                            fontFamily: "'Bricolage Grotesque', sans-serif",
+                            fontSize: "17px", fontWeight: "600", margin: 0,
+                          }}>{l.title}</h3>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#4B3FD8" }}>
+                            <MapPin style={{ width: "13px", height: "13px" }} />
+                            {l.wilaya}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#717182" }}>
+                            <Bed style={{ width: "13px", height: "13px" }} />
+                            {l.rooms} chambre{l.rooms > 1 ? "s" : ""}
+                          </div>
+                          <div style={{ marginTop: "auto", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{
+                              padding: "5px 12px", borderRadius: "100px", fontSize: "12px", fontWeight: "600",
+                              background: l.is_for_exchange ? "#F7F7EC" : "#EEF2FF",
+                              color: l.is_for_exchange ? "#0A3D3D" : "#4B3FD8",
+                            }}>
+                              {l.is_for_exchange && l.is_for_sale ? "Échange & Vente" : l.is_for_sale ? "Vente" : "Échange"}
+                            </span>
+                            <Link
+                              to={`/listing/${l.id}`}
+                              style={{
+                                display: "flex", alignItems: "center", gap: "6px",
+                                color: "#4B3FD8", textDecoration: "none",
+                                fontSize: "13px", fontWeight: "600",
+                                padding: "6px 10px", borderRadius: "8px",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f0efff")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <Eye style={{ width: "14px", height: "14px" }} /> Voir
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

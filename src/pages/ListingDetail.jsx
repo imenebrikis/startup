@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -21,10 +21,13 @@ import {
   ArrowUpDown,
   Star,
   X,
+  Maximize2,
+  BookOpen,
+  Heart,
+  MessageCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-// ── Amenity icon map ────────────────────────────────────────────────────────
 const AMENITY_ICONS = {
   Climatisation: Wind,
   Chauffage: Thermometer,
@@ -40,20 +43,7 @@ const AMENITY_ICONS = {
   Ascenseur: ArrowUpDown,
 };
 
-const MONTHS_FR = [
-  "jan",
-  "fév",
-  "mar",
-  "avr",
-  "mai",
-  "juin",
-  "juil",
-  "août",
-  "sep",
-  "oct",
-  "nov",
-  "déc",
-];
+const MONTHS_FR = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"];
 const fmtDate = (s) => {
   if (!s) return null;
   const d = new Date(s);
@@ -63,33 +53,21 @@ const fmtPrice = (p) =>
   p ? new Intl.NumberFormat("fr-DZ").format(p) + " DZD" : null;
 const initFrom = (name) =>
   name
-    ? name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
+    ? name.split(" ").map((n) => n[0]).join("").toUpperCase()
     : "?";
 
-// ── Shared styles ────────────────────────────────────────────────────────────
-const card = {
-  background: "#ffffff",
-  borderRadius: "16px",
-  border: "1px solid #e5e7eb",
-  padding: "24px",
-};
-const muted = {
-  fontSize: "13px",
-  color: "#717182",
-  fontFamily: "'Inter', sans-serif",
-};
-const label = {
-  fontSize: "13px",
+const muted = { fontSize: "13px", color: "#717182", fontFamily: "'Inter', sans-serif" };
+const label = { fontSize: "13px", fontWeight: "600", color: "#1a1a1a", fontFamily: "'Inter', sans-serif" };
+const sectionLabel = {
+  fontSize: "11px",
   fontWeight: "600",
-  color: "#1a1a1a",
+  color: "#717182",
+  textTransform: "uppercase",
+  letterSpacing: "0.07em",
   fontFamily: "'Inter', sans-serif",
+  marginBottom: "14px",
 };
 
-// ── Star component ────────────────────────────────────────────────────────────
 function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar }) {
   return (
     <div style={{ display: "flex", gap: "2px" }}>
@@ -102,8 +80,7 @@ function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar }) {
             onMouseEnter={() => setHoveredStar?.(i + 1)}
             onMouseLeave={() => setHoveredStar?.(null)}
             style={{
-              width: "16px",
-              height: "16px",
+              width: "16px", height: "16px",
               cursor: onClick ? "pointer" : "default",
               color: filled ? "#F59E0B" : "#d1d5db",
               fill: filled ? "#F59E0B" : "none",
@@ -116,24 +93,17 @@ function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar }) {
   );
 }
 
-// ── Skeleton ─────────────────────────────────────────────────────────────────
 function Skeleton({ h = 16, w = "100%", radius = 8 }) {
   return (
-    <div
-      style={{
-        height: h,
-        width: w,
-        borderRadius: radius,
-        background:
-          "linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)",
-        backgroundSize: "200% 100%",
-        animation: "shimmer 1.4s infinite",
-      }}
-    />
+    <div style={{
+      height: h, width: w, borderRadius: radius,
+      background: "linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)",
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.4s infinite",
+    }} />
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
 export default function ListingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -143,36 +113,89 @@ export default function ListingDetail() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [activeTab, setActiveTab] = useState("description");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // reviews
   const [reviews, setReviews] = useState([]);
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(null);
   const [comment, setComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  // exchange
   const [exchangeSent, setExchangeSent] = useState(false);
   const [exchangeLoading, setExchangeLoading] = useState(false);
 
-  // fetch listing + auth
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
+
+  const [contactLoading, setContactLoading] = useState(false);
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        navigate("/");
+    if (!user || !id) return;
+    supabase
+      .from("user_favorites")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("listing_id", id)
+      .maybeSingle()
+      .then(({ data }) => setIsLiked(Boolean(data)));
+  }, [id, user]);
+
+  const handleToggleLike = async () => {
+    if (!user || likeLoading) return;
+    setLikeLoading(true);
+    if (isLiked) {
+      await supabase.from("user_favorites").delete().eq("user_id", user.id).eq("listing_id", id);
+      setIsLiked(false);
+    } else {
+      await supabase.from("user_favorites").insert({ user_id: user.id, listing_id: id });
+      setIsLiked(true);
+    }
+    setLikeLoading(false);
+  };
+
+  const handleContact = async () => {
+    if (!user || !listing || contactLoading) return;
+    setContactLoading(true);
+
+    // conversations table requires participant_one < participant_two (UUID order)
+    const [p1, p2] = [user.id, listing.user_id].sort();
+
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("participant_one", p1)
+      .eq("participant_two", p2)
+      .maybeSingle();
+
+    let convId;
+    if (existing) {
+      convId = existing.id;
+    } else {
+      const { data: created, error } = await supabase
+        .from("conversations")
+        .insert({ participant_one: p1, participant_two: p2, listing_id: id })
+        .select("id")
+        .single();
+      if (error) {
+        console.error(error);
+        setContactLoading(false);
         return;
       }
+      convId = created.id;
+    }
+
+    navigate("/messages", { state: { conversationId: convId } });
+    setContactLoading(false);
+  };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { navigate("/"); return; }
       setUser(user);
       const fn = user.user_metadata?.full_name;
       setInitials(
         fn
-          ? fn
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
+          ? fn.split(" ").map((n) => n[0]).join("").toUpperCase()
           : user.email?.[0]?.toUpperCase() || "?",
       );
     });
@@ -182,999 +205,567 @@ export default function ListingDetail() {
       .select("*, profiles(full_name, wilaya, created_at, avatar_url)")
       .eq("id", id)
       .single()
-      .then(({ data }) => {
-        setListing(data);
-        setLoading(false);
-      });
+      .then(({ data }) => { setListing(data); setLoading(false); });
   }, [id, navigate]);
 
-  const fetchReviews = () =>
+  const fetchReviews = useCallback(() =>
     supabase
       .from("reviews")
       .select("*, profiles(full_name, avatar_url)")
       .eq("listing_id", id)
       .order("created_at", { ascending: false })
-      .then(({ data }) => setReviews(data || []));
+      .then(({ data }) => setReviews(data || []))
+  , [id]);
 
-  useEffect(() => {
-    fetchReviews();
-  }, [id]);
+  useEffect(() => { fetchReviews(); }, [fetchReviews]);
 
-  // photo nav
   const photos = listing?.images || [];
-  const prevPhoto = () =>
-    setPhotoIdx((i) => (i - 1 + photos.length) % photos.length);
+  const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length);
   const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photos.length);
 
-  // exchange request
   const handleExchange = async () => {
     if (!user || !listing) return;
     setExchangeLoading(true);
-
-    // 1. Fetch the current user's listings to find a house to offer
     const { data: myListings, error: fetchError } = await supabase
-      .from("listings")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("is_for_exchange", true);
-
+      .from("listings").select("id").eq("user_id", user.id).eq("is_for_exchange", true);
     if (fetchError || !myListings || myListings.length === 0) {
-      alert(
-        "Vous devez avoir publié au moins une annonce d'échange pour envoyer une demande.",
-      );
+      alert("Vous devez avoir publié au moins une annonce d'échange pour envoyer une demande.");
       setExchangeLoading(false);
       return;
     }
-
-    // For simplicity in the MVP, we auto-select their first available exchange listing
-    const offeredHouseId = myListings[0].id;
-
-    // 2. Insert into the CORRECT 'exchanges' table with all required data
     const { error } = await supabase.from("exchanges").insert({
       requester_id: user.id,
-      listing_id: id, // The house they want
-      receiver_id: listing.user_id, // The owner of the house they want
-      offered_house_id: offeredHouseId, // The house they are offering in return
+      listing_id: id,
+      receiver_id: listing.user_id,
+      offered_house_id: myListings[0].id,
       status: "pending",
-      message:
-        "Bonjour, je suis très intéressé par un échange avec votre logement !",
+      message: "Bonjour, je suis très intéressé par un échange avec votre logement !",
     });
-
-    if (error) {
-      console.error("Erreur d'insertion:", error);
-      alert("Une erreur s'est produite lors de l'envoi de la demande.");
-    } else {
-      setExchangeSent(true);
-    }
-
+    if (error) { console.error(error); alert("Une erreur s'est produite."); }
+    else setExchangeSent(true);
     setExchangeLoading(false);
   };
 
-  // submit review
   const handleReview = async () => {
     if (!rating || !user) return;
     setSubmittingReview(true);
     await supabase.from("reviews").insert({
-      listing_id: id,
-      reviewer_id: user.id,
-      rating,
-      comment,
-      created_at: new Date(),
+      listing_id: id, reviewer_id: user.id, rating, comment, created_at: new Date(),
     });
-    setRating(0);
-    setComment("");
-    setSubmittingReview(false);
+    setRating(0); setComment(""); setSubmittingReview(false);
     fetchReviews();
   };
 
   const isOwner = user && listing && user.id === listing.user_id;
+  const showExchange = listing?.is_for_exchange && !isOwner;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#ffffff",
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      {/* Navbar */}
-      <nav
-        style={{
-          borderBottom: "1px solid #e5e7eb",
-          background: "#ffffff",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-          padding: "0 32px",
-          height: "64px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Link
-          to="/dashboard"
-          style={{
-            fontSize: "22px",
-            fontWeight: "700",
-            color: "#0A3D3D",
-            textDecoration: "none",
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-          }}
-        >
-          DarBelDar
-        </Link>
-        <div
-          style={{
-            width: "40px",
-            height: "40px",
-            background: "#4B3FD8",
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontWeight: "600",
-            fontSize: "14px",
-          }}
-        >
-          {initials}
-        </div>
+    <div style={{ minHeight: "100vh", background: "#ffffff", fontFamily: "'Inter', sans-serif" }}>
+
+      {/* ── Navbar ── */}
+      <nav style={{
+        borderBottom: "1px solid #e5e7eb", background: "#ffffff",
+        position: "sticky", top: 0, zIndex: 10,
+        padding: "0 32px", height: "64px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <Link to="/dashboard" style={{
+          fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
+          textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif",
+        }}>DarBelDar</Link>
+        <div style={{
+          width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontWeight: "600", fontSize: "14px",
+        }}>{initials}</div>
       </nav>
 
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "32px 32px 80px",
-        }}
-      >
-        {/* Back link */}
-        <Link
-          to="/browse"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            color: "#4B3FD8",
-            fontSize: "14px",
-            fontWeight: "500",
-            textDecoration: "none",
-            marginBottom: "24px",
-          }}
-        >
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 32px 80px" }}>
+
+        {/* Back */}
+        <Link to="/browse" style={{
+          display: "inline-flex", alignItems: "center", gap: "6px",
+          color: "#4B3FD8", fontSize: "14px", fontWeight: "500",
+          textDecoration: "none", marginBottom: "24px",
+        }}>
           <ChevronLeft style={{ width: "16px", height: "16px" }} />
           Retour aux annonces
         </Link>
 
         {loading ? (
-          /* ── Skeleton ── */
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <Skeleton h={420} radius={16} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <Skeleton h={420} radius={20} />
             <Skeleton h={32} w="50%" />
-            <Skeleton h={16} w="30%" />
             <Skeleton h={120} />
           </div>
         ) : !listing ? (
           <p style={muted}>Annonce introuvable.</p>
         ) : (
           <>
-            {/* ── Photo carousel ── */}
-            <div
-              style={{
-                position: "relative",
-                borderRadius: "16px",
-                overflow: "hidden",
-                height: "420px",
-                background: "#F7F7EC",
-                marginBottom: "32px",
-              }}
-            >
-              {photos.length > 0 ? (
-                <>
-                  <img
-                    src={photos[photoIdx]}
-                    alt="photo"
-                    onClick={() => setIsFullscreen(true)}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                      display: "block",
-                      cursor: "pointer",
-                      background: "#000",
-                    }}
-                  />
-                  {photos.length > 1 && (
-                    <>
-                      {/* Arrows */}
-                      {[
-                        { side: "left", action: prevPhoto, Icon: ChevronLeft },
-                        {
-                          side: "right",
-                          action: nextPhoto,
-                          Icon: ChevronRight,
-                        },
-                      ].map(({ side, action, Icon }) => (
-                        <button
-                          key={side}
-                          onClick={action}
-                          style={{
-                            position: "absolute",
-                            top: "50%",
-                            [side]: "16px",
-                            transform: "translateY(-50%)",
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "50%",
-                            background: "rgba(255,255,255,0.9)",
-                            border: "none",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                          }}
-                        >
-                          <Icon
-                            style={{
-                              width: "20px",
-                              height: "20px",
-                              color: "#1a1a1a",
-                            }}
-                          />
-                        </button>
-                      ))}
-                      {/* Dots */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          bottom: "16px",
-                          left: "50%",
-                          transform: "translateX(-50%)",
-                          display: "flex",
-                          gap: "6px",
-                        }}
-                      >
-                        {photos.map((_, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setPhotoIdx(i)}
-                            style={{
-                              width: i === photoIdx ? "24px" : "8px",
-                              height: "8px",
-                              borderRadius: "999px",
-                              border: "none",
-                              background:
-                                i === photoIdx
-                                  ? "#ffffff"
-                                  : "rgba(255,255,255,0.5)",
-                              cursor: "pointer",
-                              transition: "all 0.2s",
-                              padding: 0,
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </>
-              ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Home
-                    style={{ width: "48px", height: "48px", color: "#c4c4d4" }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* ── Two-column layout ── */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 320px",
-                gap: "32px",
-                alignItems: "start",
-              }}
-            >
-              {/* LEFT */}
-              <div>
-                {/* Title + meta */}
-                <h1
-                  style={{
-                    fontFamily: "'Bricolage Grotesque', sans-serif",
-                    fontSize: "30px",
-                    fontWeight: "700",
-                    color: "#1a1a1a",
-                    marginBottom: "12px",
-                    lineHeight: 1.25,
-                  }}
-                >
-                  {listing.title}
-                </h1>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "16px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {listing.wilaya && (
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        ...muted,
-                      }}
-                    >
-                      <MapPin
-                        style={{
-                          width: "14px",
-                          height: "14px",
-                          color: "#4B3FD8",
-                        }}
-                      />
-                      {[listing.wilaya, listing.quartier || listing.city]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </span>
-                  )}
-                  {listing.rooms && (
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        ...muted,
-                      }}
-                    >
-                      <BedDouble style={{ width: "14px", height: "14px" }} />
-                      {listing.rooms} chambre{listing.rooms > 1 ? "s" : ""}
-                    </span>
-                  )}
-                  {(listing.available_from || listing.available_to) && (
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        ...muted,
-                      }}
-                    >
-                      <Calendar style={{ width: "14px", height: "14px" }} />
-                      {[
-                        fmtDate(listing.available_from),
-                        fmtDate(listing.available_to),
-                      ]
-                        .filter(Boolean)
-                        .join(" – ")}
-                    </span>
-                  )}
-                </div>
-
-                {/* Type badge */}
-                <div style={{ marginBottom: "28px" }}>
-                  {listing.is_for_exchange && listing.is_for_sale ? (
-                    <span
-                      style={{
-                        background: "linear-gradient(135deg,#0A3D3D,#4B3FD8)",
-                        color: "#fff",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        padding: "4px 14px",
-                        borderRadius: "999px",
-                      }}
-                    >
-                      Échange &amp; Vente
-                    </span>
-                  ) : listing.is_for_exchange ? (
-                    <span
-                      style={{
-                        background: "#0A3D3D",
-                        color: "#fff",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        padding: "4px 14px",
-                        borderRadius: "999px",
-                      }}
-                    >
+            {/* ── Page title ── */}
+            <div style={{ marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: "240px" }}>
+                <h1 style={{
+                  fontFamily: "'Bricolage Grotesque', sans-serif",
+                  fontSize: "32px", fontWeight: "700",
+                  color: "#1a1a1a", marginBottom: "10px", lineHeight: 1.2,
+                }}>{listing.title}</h1>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {listing.is_for_exchange && (
+                    <span style={{ background: "#0A3D3D", color: "#fff", fontSize: "12px", fontWeight: "600", padding: "4px 14px", borderRadius: "999px" }}>
                       Échange
                     </span>
-                  ) : (
-                    <span
-                      style={{
-                        background: "#4B3FD8",
-                        color: "#fff",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        padding: "4px 14px",
-                        borderRadius: "999px",
-                      }}
-                    >
+                  )}
+                  {listing.is_for_sale && (
+                    <span style={{ background: "#4B3FD8", color: "#fff", fontSize: "12px", fontWeight: "600", padding: "4px 14px", borderRadius: "999px" }}>
                       Vente
                     </span>
                   )}
                 </div>
+              </div>
+            </div>
 
-                {/* Tabs */}
-                <div
-                  style={{
-                    display: "flex",
-                    borderBottom: "2px solid #e5e7eb",
-                    marginBottom: "24px",
-                    gap: "0",
-                  }}
-                >
-                  {["description", "équipements", "carte", "avis"].map(
-                    (tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        style={{
-                          padding: "10px 20px",
-                          border: "none",
-                          background: "none",
-                          fontSize: "14px",
-                          fontWeight: activeTab === tab ? "700" : "500",
-                          color: activeTab === tab ? "#4B3FD8" : "#717182",
-                          cursor: "pointer",
-                          fontFamily: "'Inter', sans-serif",
-                          borderBottom:
-                            activeTab === tab
-                              ? "2px solid #4B3FD8"
-                              : "2px solid transparent",
-                          marginBottom: "-2px",
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      </button>
-                    ),
+            {/* ── Bento grid ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px", alignItems: "start" }}>
+
+              {/* ════ LEFT COLUMN ════ */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+
+                {/* Main image */}
+                <div style={{
+                  borderRadius: "20px", overflow: "hidden",
+                  height: "370px", background: "#F7F7EC", position: "relative",
+                }}>
+                  {photos.length > 0 ? (
+                    <>
+                      <img
+                        src={photos[photoIdx]}
+                        alt="photo principale"
+                        onClick={() => setIsFullscreen(true)}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: "pointer" }}
+                      />
+                      {photos.length > 1 && (
+                        <>
+                          <button onClick={prevPhoto} style={{
+                            position: "absolute", top: "50%", left: "14px",
+                            transform: "translateY(-50%)", width: "38px", height: "38px",
+                            borderRadius: "50%", background: "rgba(255,255,255,0.92)",
+                            border: "none", display: "flex", alignItems: "center",
+                            justifyContent: "center", cursor: "pointer",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                          }}>
+                            <ChevronLeft style={{ width: "18px", height: "18px", color: "#1a1a1a" }} />
+                          </button>
+                          <button onClick={nextPhoto} style={{
+                            position: "absolute", top: "50%", right: "14px",
+                            transform: "translateY(-50%)", width: "38px", height: "38px",
+                            borderRadius: "50%", background: "rgba(255,255,255,0.92)",
+                            border: "none", display: "flex", alignItems: "center",
+                            justifyContent: "center", cursor: "pointer",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                          }}>
+                            <ChevronRight style={{ width: "18px", height: "18px", color: "#1a1a1a" }} />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Home style={{ width: "48px", height: "48px", color: "#c4c4d4" }} />
+                    </div>
                   )}
                 </div>
 
-                {/* Tab content */}
-                <div
-                  style={{
-                    background: "#F7F7EC",
-                    borderRadius: "16px",
-                    padding: "24px",
-                  }}
-                >
-                  {activeTab === "description" && (
-                    <p
-                      style={{
-                        fontSize: "15px",
-                        color: "#1a1a1a",
-                        lineHeight: 1.7,
-                        margin: 0,
-                      }}
-                    >
-                      {listing.description || (
-                        <span style={muted}>Aucune description fournie.</span>
-                      )}
-                    </p>
-                  )}
-
-                  {activeTab === "équipements" &&
-                    (listing.amenities?.length > 0 ? (
-                      <div
+                {/* Thumbnail strip */}
+                {photos.length > 1 && (
+                  <div style={{ display: "flex", gap: "10px", height: "88px" }}>
+                    {photos.slice(0, 4).map((src, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setPhotoIdx(i)}
                         style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3,1fr)",
-                          gap: "12px",
+                          flex: 1, borderRadius: "12px", overflow: "hidden", padding: 0,
+                          border: i === photoIdx ? "2.5px solid #0A3D3D" : "2.5px solid transparent",
+                          cursor: "pointer", background: "none",
+                          transition: "border-color 0.15s",
                         }}
                       >
-                        {listing.amenities.map((name) => {
-                          const Icon = AMENITY_ICONS[name] || Wifi;
-                          return (
-                            <div
-                              key={name}
-                              style={{
-                                background: "#fff",
-                                borderRadius: "12px",
-                                border: "1px solid #e5e7eb",
-                                padding: "14px 16px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                              }}
-                            >
-                              <Icon
-                                style={{
-                                  width: "18px",
-                                  height: "18px",
-                                  color: "#4B3FD8",
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <span
-                                style={{
-                                  fontSize: "13px",
-                                  fontWeight: "500",
-                                  color: "#1a1a1a",
-                                }}
-                              >
-                                {name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p style={muted}>Aucun équipement renseigné.</p>
+                        <img src={src} alt={`miniature ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      </button>
                     ))}
-
-                  {activeTab === "carte" && (
-                    <div
-                      style={{
-                        height: "300px",
-                        borderRadius: "12px",
-                        background: "#e8e8e8",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "12px",
-                      }}
-                    >
-                      <MapPin
+                    {photos.length > 4 && (
+                      <button
+                        onClick={() => setIsFullscreen(true)}
                         style={{
-                          width: "36px",
-                          height: "36px",
-                          color: "#4B3FD8",
-                        }}
-                      />
-                      <p style={{ ...label, fontSize: "15px" }}>
-                        Carte disponible prochainement
-                      </p>
-                      <p
-                        style={{
-                          ...muted,
-                          fontSize: "12px",
-                          textAlign: "center",
-                          maxWidth: "280px",
+                          flex: 1, borderRadius: "12px", background: "#1a1a1a",
+                          border: "none", cursor: "pointer",
+                          display: "flex", flexDirection: "column",
+                          alignItems: "center", justifyContent: "center", gap: "5px",
                         }}
                       >
-                        La localisation exacte est protégée pour la
-                        confidentialité
-                      </p>
-                    </div>
-                  )}
+                        <span style={{ fontSize: "20px", color: "#fff" }}>⊞</span>
+                        <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600", fontFamily: "'Inter', sans-serif" }}>Voir tout</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                  {activeTab === "avis" && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "16px",
-                      }}
-                    >
-                      {reviews.length === 0 && (
-                        <p style={muted}>Aucun avis pour le moment.</p>
-                      )}
-                      {reviews.map((r) => (
-                        <div
-                          key={r.id}
+                {/* ── Owner card (green) ── */}
+                <div style={{ background: "#ADEBB3", borderRadius: "20px", padding: "28px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#0A3D3D", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Propriétaire
+                    </span>
+                    {showExchange && (
+                      exchangeSent ? (
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D", background: "rgba(10,61,61,0.12)", padding: "8px 16px", borderRadius: "999px" }}>
+                          ✓ Demande envoyée
+                        </span>
+                      ) : (
+                        <button
+                          onClick={handleExchange}
+                          disabled={exchangeLoading}
                           style={{
-                            background: "#fff",
-                            borderRadius: "12px",
-                            border: "1px solid #e5e7eb",
-                            padding: "16px",
+                            padding: "10px 22px", borderRadius: "999px",
+                            background: "#0A3D3D", color: "#fff", border: "none",
+                            fontSize: "13px", fontWeight: "700", cursor: exchangeLoading ? "wait" : "pointer",
+                            fontFamily: "'Inter', sans-serif",
+                            transition: "background 0.18s",
                           }}
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "12px",
-                              marginBottom: "8px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: "36px",
-                                height: "36px",
-                                background: "#0A3D3D",
-                                borderRadius: "50%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#fff",
-                                fontSize: "13px",
-                                fontWeight: "600",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {initFrom(r.profiles?.full_name)}
-                            </div>
-                            <div>
-                              <p style={{ ...label, marginBottom: "2px" }}>
-                                {r.profiles?.full_name || "Utilisateur"}
-                              </p>
-                              <Stars rating={r.rating} />
-                            </div>
-                            <span
-                              style={{
-                                ...muted,
-                                marginLeft: "auto",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {fmtDate(r.created_at)}
-                            </span>
-                          </div>
-                          {r.comment && (
-                            <p
-                              style={{
-                                fontSize: "14px",
-                                color: "#1a1a1a",
-                                lineHeight: 1.6,
-                                margin: 0,
-                              }}
-                            >
-                              {r.comment}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                          {exchangeLoading ? "Envoi…" : "Demande d'échange"}
+                        </button>
+                      )
+                    )}
+                    {isOwner && (
+                      <span style={{ fontSize: "12px", color: "#0A3D3D80", fontStyle: "italic" }}>Votre annonce</span>
+                    )}
+                  </div>
 
-                      {/* Add review form — only for non-owners */}
-                      {!isOwner && user && (
-                        <div
-                          style={{
-                            background: "#fff",
-                            borderRadius: "12px",
-                            border: "1px solid #e5e7eb",
-                            padding: "20px",
-                            marginTop: "8px",
-                          }}
-                        >
-                          <p
-                            style={{
-                              ...label,
-                              marginBottom: "12px",
-                              fontSize: "14px",
-                            }}
-                          >
-                            Laisser un avis
-                          </p>
-                          <Stars
-                            rating={rating}
-                            onClick={setRating}
-                            hoveredStar={hoveredStar}
-                            setHoveredStar={setHoveredStar}
-                          />
-                          <textarea
-                            rows={3}
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            placeholder="Partagez votre expérience..."
-                            style={{
-                              width: "100%",
-                              marginTop: "12px",
-                              padding: "10px 14px",
-                              borderRadius: "10px",
-                              border: "1.5px solid #e5e7eb",
-                              fontSize: "14px",
-                              fontFamily: "'Inter', sans-serif",
-                              resize: "vertical",
-                              outline: "none",
-                              boxSizing: "border-box",
-                            }}
-                          />
-                          <button
-                            onClick={handleReview}
-                            disabled={!rating || submittingReview}
-                            style={{
-                              marginTop: "10px",
-                              padding: "10px 24px",
-                              borderRadius: "999px",
-                              border: "none",
-                              background: !rating ? "#9ca3af" : "#4B3FD8",
-                              color: "#fff",
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              cursor: !rating ? "not-allowed" : "pointer",
-                              fontFamily: "'Inter', sans-serif",
-                            }}
-                          >
-                            {submittingReview
-                              ? "Publication..."
-                              : "Publier l'avis"}
-                          </button>
-                        </div>
-                      )}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "8px" }}>
+                    <div style={{
+                      width: "84px", height: "84px", background: "#0A3D3D",
+                      borderRadius: "50%", display: "flex", alignItems: "center",
+                      justifyContent: "center", color: "#ADEBB3",
+                      fontWeight: "700", fontSize: "30px",
+                      fontFamily: "'Bricolage Grotesque', sans-serif",
+                      marginBottom: "4px",
+                    }}>
+                      {initFrom(listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name : null) || "P")}
                     </div>
+                    <p style={{
+                      fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
+                      fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
+                    }}>
+                      {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || "Propriétaire"}
+                    </p>
+                    {listing.profiles?.wilaya && (
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#0A3D3D", fontWeight: "500" }}>
+                        <MapPin style={{ width: "13px", height: "13px" }} />
+                        {listing.profiles.wilaya}
+                      </span>
+                    )}
+                    {listing.profiles?.created_at && (
+                      <span style={{ fontSize: "12px", color: "rgba(10,61,61,0.6)" }}>
+                        Membre depuis {fmtDate(listing.profiles.created_at)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Sale contact */}
+                  {listing.is_for_sale && !isOwner && (
+                    <button style={{
+                      marginTop: "20px", width: "100%", padding: "12px",
+                      borderRadius: "999px", border: "1.5px solid #0A3D3D",
+                      background: "transparent", color: "#0A3D3D",
+                      fontSize: "14px", fontWeight: "700", cursor: "pointer",
+                      fontFamily: "'Inter', sans-serif",
+                    }}>
+                      Contacter le vendeur
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* RIGHT — sticky sidebar */}
-              <div
-                style={{
-                  position: "sticky",
-                  top: "80px",
-                  ...card,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                }}
-              >
-                {/* Exchange button */}
-                {listing.is_for_exchange &&
-                  (exchangeSent ? (
-                    <div
-                      style={{
-                        background: "#d1fae5",
-                        border: "1px solid #6ee7b7",
-                        borderRadius: "12px",
-                        padding: "14px 16px",
-                        color: "#065f46",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                      }}
-                    >
-                      ✅ Demande envoyée avec succès !
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleExchange}
-                      disabled={exchangeLoading || isOwner}
-                      style={{
-                        width: "100%",
-                        padding: "13px",
-                        borderRadius: "999px",
-                        border: "none",
-                        background: isOwner ? "#9ca3af" : "#4B3FD8",
-                        color: "#fff",
-                        fontSize: "14px",
-                        fontWeight: "700",
-                        cursor: isOwner ? "not-allowed" : "pointer",
-                        fontFamily: "'Inter', sans-serif",
-                        transition: "background 0.18s",
-                      }}
-                    >
-                      {exchangeLoading ? "Envoi..." : "Demande d'échange"}
-                    </button>
-                  ))}
+              {/* ════ RIGHT COLUMN ════ */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
 
-                {/* Price + contact */}
-                {listing.is_for_sale && (
-                  <div>
-                    {listing.price && (
-                      <p
-                        style={{
-                          fontSize: "22px",
-                          fontWeight: "800",
-                          color: "#4B3FD8",
-                          margin: "0 0 12px",
-                          fontFamily: "'Bricolage Grotesque', sans-serif",
-                        }}
-                      >
-                        {fmtPrice(listing.price)}
-                      </p>
-                    )}
+                {/* ── Heart + Contact row ── */}
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    onClick={handleToggleLike}
+                    disabled={likeLoading}
+                    style={{
+                      flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                      gap: "8px", padding: "13px", borderRadius: "12px",
+                      border: `1.5px solid ${isLiked ? "#fca5a5" : "#e5e7eb"}`,
+                      background: isLiked ? "#fff1f2" : "#fff",
+                      color: isLiked ? "#ef4444" : "#717182",
+                      fontSize: "14px", fontWeight: "600", cursor: likeLoading ? "wait" : "pointer",
+                      fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                    }}
+                  >
+                    <Heart style={{ width: "17px", height: "17px", fill: isLiked ? "#ef4444" : "none" }} />
+                    {isLiked ? "Sauvegardé" : "Sauvegarder"}
+                  </button>
+                  {!isOwner && (
                     <button
+                      onClick={handleContact}
+                      disabled={contactLoading}
                       style={{
-                        width: "100%",
-                        padding: "13px",
-                        borderRadius: "999px",
-                        border: "1.5px solid #4B3FD8",
-                        background: "transparent",
-                        color: "#4B3FD8",
-                        fontSize: "14px",
-                        fontWeight: "700",
-                        cursor: "pointer",
+                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                        gap: "8px", padding: "13px", borderRadius: "12px",
+                        border: "none", background: "#ADEBB3",
+                        color: "#0A3D3D", fontSize: "14px", fontWeight: "700",
+                        cursor: contactLoading ? "wait" : "pointer",
                         fontFamily: "'Inter', sans-serif",
+                        opacity: contactLoading ? 0.65 : 1, transition: "opacity 0.15s",
                       }}
                     >
-                      Contacter le vendeur
+                      <MessageCircle style={{ width: "17px", height: "17px" }} />
+                      {contactLoading ? "Chargement…" : "Contacter"}
                     </button>
+                  )}
+                </div>
+
+                {/* Availability / info card */}
+                <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
+                  <p style={sectionLabel}>
+                    Disponibilités{listing.profiles?.full_name ? ` de ${listing.profiles.full_name}` : ""}
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+                    {(listing.available_from || listing.available_to) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#F7F7EC", borderRadius: "8px", padding: "7px 14px" }}>
+                        <Calendar style={{ width: "14px", height: "14px", color: "#4B3FD8" }} />
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#1a1a1a" }}>
+                          {[fmtDate(listing.available_from), fmtDate(listing.available_to)].filter(Boolean).join(" – ")}
+                        </span>
+                      </div>
+                    )}
+                    {listing.wilaya && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                        <MapPin style={{ width: "14px", height: "14px", color: "#717182" }} />
+                        <span style={{ fontSize: "13px", color: "#717182" }}>
+                          {[listing.wilaya, listing.city || listing.quartier].filter(Boolean).join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {listing.price && (
+                    <p style={{
+                      fontSize: "24px", fontWeight: "800", color: "#4B3FD8",
+                      margin: "14px 0 0", fontFamily: "'Bricolage Grotesque', sans-serif",
+                    }}>
+                      {fmtPrice(listing.price)}
+                    </p>
+                  )}
+                </div>
+
+                {/* ── Stats bar (green) ── */}
+                <div style={{
+                  background: "#ADEBB3", borderRadius: "16px",
+                  padding: "20px 24px", display: "flex", alignItems: "center",
+                }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px" }}>
+                    <BedDouble style={{ width: "20px", height: "20px", color: "#0A3D3D" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
+                      {listing.rooms} chambre{listing.rooms > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {listing.size && (
+                    <div style={{
+                      flex: 1, display: "flex", alignItems: "center", gap: "10px",
+                      borderLeft: "1px solid rgba(10,61,61,0.2)", paddingLeft: "20px",
+                    }}>
+                      <Maximize2 style={{ width: "18px", height: "18px", color: "#0A3D3D" }} />
+                      <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
+                        {listing.size} m² superficie
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                {listing.description && (
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
+                    <p style={sectionLabel}>Description</p>
+                    <p style={{ fontSize: "14px", color: "#1a1a1a", lineHeight: 1.75, margin: 0 }}>
+                      {listing.description}
+                    </p>
                   </div>
                 )}
 
-                <hr
-                  style={{
-                    border: "none",
-                    borderTop: "1px solid #e5e7eb",
-                    margin: 0,
-                  }}
-                />
+                {/* Amenities */}
+                {listing.amenities?.length > 0 && (
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
+                    <p style={sectionLabel}>Équipements</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+                      {listing.amenities.map((name) => {
+                        const Icon = AMENITY_ICONS[name] || Wifi;
+                        return (
+                          <div key={name} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <Icon style={{ width: "16px", height: "16px", color: "#717182", flexShrink: 0 }} />
+                            <span style={{ fontSize: "13px", color: "#1a1a1a" }}>{name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                {/* Owner info */}
-                <Link
-                  to="/profile"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "14px",
-                    textDecoration: "none",
-                    color: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "48px",
-                      height: "48px",
-                      background: "#0A3D3D",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontWeight: "700",
-                      fontSize: "16px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {initFrom(
-                      listing.profiles?.full_name ||
-                        (isOwner
-                          ? user?.user_metadata?.full_name ||
-                            user?.email?.split("@")[0]
-                          : null) ||
-                        "Propriétaire",
+                {/* ── Rules (green, exchange only) ── */}
+                {listing.is_for_exchange && listing.house_rules && (
+                  <div style={{ background: "#ADEBB3", borderRadius: "16px", padding: "20px 24px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                      <BookOpen style={{ width: "15px", height: "15px", color: "#0A3D3D" }} />
+                      <p style={{ ...sectionLabel, color: "#0A3D3D", marginBottom: 0 }}>Règles du logement</p>
+                    </div>
+                    <p style={{ fontSize: "14px", color: "#0A3D3D", lineHeight: 1.75, margin: 0 }}>
+                      {listing.house_rules}
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Neighborhood placeholder ── */}
+                <div style={{
+                  borderRadius: "16px", border: "1.5px dashed #d1d5db",
+                  height: "220px", background: "#f9fafb",
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: "8px",
+                }}>
+                  <MapPin style={{ width: "32px", height: "32px", color: "#d1d5db" }} />
+                  <p style={{ fontSize: "13px", fontWeight: "600", color: "#9ca3af", margin: 0, fontFamily: "'Inter', sans-serif" }}>
+                    Carte du quartier
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#c4c4d4", margin: 0, fontFamily: "'Inter', sans-serif" }}>
+                    Disponible prochainement
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Reviews — full width below grid ── */}
+            <div style={{ marginTop: "40px" }}>
+              <h2 style={{
+                fontFamily: "'Bricolage Grotesque', sans-serif",
+                fontSize: "22px", fontWeight: "700", color: "#1a1a1a",
+                marginBottom: "20px",
+              }}>
+                Avis ({reviews.length})
+              </h2>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {reviews.length === 0 && (
+                  <p style={muted}>Aucun avis pour le moment.</p>
+                )}
+                {reviews.map((r) => (
+                  <div key={r.id} style={{
+                    background: "#F7F7EC", borderRadius: "14px", padding: "18px 20px",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                      <div style={{
+                        width: "36px", height: "36px", background: "#0A3D3D",
+                        borderRadius: "50%", display: "flex", alignItems: "center",
+                        justifyContent: "center", color: "#fff", fontSize: "13px",
+                        fontWeight: "600", flexShrink: 0,
+                      }}>
+                        {initFrom(r.profiles?.full_name)}
+                      </div>
+                      <div>
+                        <p style={{ ...label, marginBottom: "2px" }}>{r.profiles?.full_name || "Utilisateur"}</p>
+                        <Stars rating={r.rating} />
+                      </div>
+                      <span style={{ ...muted, marginLeft: "auto", fontSize: "12px" }}>
+                        {fmtDate(r.created_at)}
+                      </span>
+                    </div>
+                    {r.comment && (
+                      <p style={{ fontSize: "14px", color: "#1a1a1a", lineHeight: 1.6, margin: 0 }}>{r.comment}</p>
                     )}
                   </div>
-                  <div>
-                    <p
+                ))}
+
+                {!isOwner && user && (
+                  <div style={{ border: "1px solid #e5e7eb", borderRadius: "14px", padding: "20px", marginTop: "8px" }}>
+                    <p style={{ ...label, marginBottom: "12px", fontSize: "14px" }}>Laisser un avis</p>
+                    <Stars rating={rating} onClick={setRating} hoveredStar={hoveredStar} setHoveredStar={setHoveredStar} />
+                    <textarea
+                      rows={3}
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Partagez votre expérience..."
                       style={{
-                        ...label,
-                        fontSize: "14px",
-                        marginBottom: "2px",
+                        width: "100%", marginTop: "12px", padding: "10px 14px",
+                        borderRadius: "10px", border: "1.5px solid #e5e7eb",
+                        fontSize: "14px", fontFamily: "'Inter', sans-serif",
+                        resize: "vertical", outline: "none", boxSizing: "border-box",
+                      }}
+                    />
+                    <button
+                      onClick={handleReview}
+                      disabled={!rating || submittingReview}
+                      style={{
+                        marginTop: "10px", padding: "10px 24px",
+                        borderRadius: "999px", border: "none",
+                        background: !rating ? "#9ca3af" : "#4B3FD8",
+                        color: "#fff", fontSize: "13px", fontWeight: "600",
+                        cursor: !rating ? "not-allowed" : "pointer",
+                        fontFamily: "'Inter', sans-serif",
                       }}
                     >
-                      {listing.profiles?.full_name ||
-                        (isOwner
-                          ? user?.user_metadata?.full_name ||
-                            user?.email?.split("@")[0]
-                          : null) ||
-                        "Propriétaire"}
-                    </p>
-                    {listing.profiles?.wilaya && (
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: "#4B3FD8",
-                          fontWeight: "500",
-                          marginBottom: "2px",
-                        }}
-                      >
-                        {listing.profiles.wilaya}
-                      </p>
-                    )}
-                    {(listing.profiles?.created_at ||
-                      (isOwner && user?.created_at)) && (
-                      <p style={{ ...muted, fontSize: "11px" }}>
-                        Membre depuis{" "}
-                        {fmtDate(
-                          listing.profiles?.created_at ||
-                            (isOwner ? user?.created_at : null),
-                        )}
-                      </p>
-                    )}
+                      {submittingReview ? "Publication…" : "Publier l'avis"}
+                    </button>
                   </div>
-                </Link>
+                )}
               </div>
             </div>
           </>
         )}
       </div>
 
-      {/* ── Fullscreen Modal ── */}
+      {/* ── Fullscreen modal ── */}
       {isFullscreen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.9)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.92)", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
           <button
             onClick={() => setIsFullscreen(false)}
             style={{
-              position: "absolute",
-              top: "24px",
-              right: "24px",
-              background: "rgba(255,255,255,0.1)",
-              border: "none",
-              borderRadius: "50%",
-              width: "48px",
-              height: "48px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              cursor: "pointer",
-              zIndex: 101,
+              position: "absolute", top: "24px", right: "24px",
+              background: "rgba(255,255,255,0.1)", border: "none",
+              borderRadius: "50%", width: "48px", height: "48px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", cursor: "pointer", zIndex: 101,
             }}
           >
             <X style={{ width: "24px", height: "24px" }} />
           </button>
-
           <img
             src={photos[photoIdx]}
             alt="fullscreen"
-            style={{
-              maxWidth: "90vw",
-              maxHeight: "90vh",
-              objectFit: "contain",
-            }}
+            style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain" }}
           />
-
           {photos.length > 1 && (
             <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevPhoto();
-                }}
-                style={{
-                  position: "absolute",
-                  left: "24px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none",
-                  color: "#fff",
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  zIndex: 101,
-                }}
-              >
+              <button onClick={(e) => { e.stopPropagation(); prevPhoto(); }} style={{
+                position: "absolute", left: "24px", top: "50%",
+                transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)",
+                border: "none", color: "#fff", width: "48px", height: "48px",
+                borderRadius: "50%", display: "flex", alignItems: "center",
+                justifyContent: "center", cursor: "pointer", zIndex: 101,
+              }}>
                 <ChevronLeft style={{ width: "24px", height: "24px" }} />
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextPhoto();
-                }}
-                style={{
-                  position: "absolute",
-                  right: "24px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none",
-                  color: "#fff",
-                  width: "48px",
-                  height: "48px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  zIndex: 101,
-                }}
-              >
+              <button onClick={(e) => { e.stopPropagation(); nextPhoto(); }} style={{
+                position: "absolute", right: "24px", top: "50%",
+                transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)",
+                border: "none", color: "#fff", width: "48px", height: "48px",
+                borderRadius: "50%", display: "flex", alignItems: "center",
+                justifyContent: "center", cursor: "pointer", zIndex: 101,
+              }}>
                 <ChevronRight style={{ width: "24px", height: "24px" }} />
               </button>
             </>
