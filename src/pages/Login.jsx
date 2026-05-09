@@ -122,6 +122,11 @@ export default function Login() {
             <input className="dbd-input-l" type="password" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required />
             <label className="dbd-label-l">Password</label>
           </div>
+          <div style={{ textAlign: 'right', marginBottom: '10px', marginTop: '-6px' }}>
+            <Link to="/forgot-password" style={{ color: '#4B3FD8', fontSize: '13px', textDecoration: 'none', fontWeight: '500' }}>
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <button type="submit" className="dbd-continue-btn-l" disabled={loading}>
             {loading ? 'Logging in…' : 'Log in'}
           </button>

@@ -8,6 +8,8 @@ import Browse from "./pages/Browse";
 import ListingDetail from "./pages/ListingDetail";
 import Exchanges from "./pages/Exchanges";
 import Messages from "./pages/Messages";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 function App() {
   return (
     <BrowserRouter>
@@ -23,6 +25,8 @@ function App() {
         <Route path="/my-exchanges" element={<Exchanges />} />
         <Route path="/modifier-annonce/:id" element={<AddListing />} />
         <Route path="/messages" element={<Messages />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </BrowserRouter>
   );
