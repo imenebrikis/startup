@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { MapPin, Bed, Calendar, SlidersHorizontal, Home } from 'lucide-react'
+import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const WILAYAS = [
   'Adrar', 'Chlef', 'Laghouat', 'Oum El Bouaghi', 'Batna', 'Béjaïa', 'Biskra', 'Béchar',
@@ -13,45 +13,52 @@ const WILAYAS = [
   'Illizi', 'Bordj Bou Arreridj', 'Boumerdès', 'El Tarf', 'Tindouf', 'Tissemsilt', 'El Oued',
   'Khenchela', 'Souk Ahras', 'Tipaza', 'Mila', 'Aïn Defla', 'Naâma', 'Aïn Témouchent',
   'Ghardaïa', 'Relizane', 'Timimoun', 'Bordj Badji Mokhtar', 'Ouled Djellal', 'Béni Abbès',
-  'In Salah', 'In Guezzam', 'Touggourt', 'Djanet', "El M'Ghair", 'El Meniaa', 'Aflou',
-  'Barika', 'Ksar Chellala', 'Messaad', 'Aïn Oussera', 'Bou Saâda', 'El Abiodh Sidi Cheikh',
-  'El Kantara', 'Bir El Ater', 'Ksar El Boukhari', 'El Aricha',
+  'In Salah', 'In Guezzam', 'Touggourt', 'Djanet', "El M'Ghair", 'El Meniaa',
 ]
 
-const MONTHS_FR = [
-  'jan', 'fév', 'mar', 'avr', 'mai', 'juin',
-  'juil', 'août', 'sep', 'oct', 'nov', 'déc',
-]
+const MONTHS_FR = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc']
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr) {
   if (!dateStr) return null
   const d = new Date(dateStr)
-  return `${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`
+  return `${MONTHS_FR[d.getMonth()]} ${d.getDate()}`
 }
 
-function formatPrice(price) {
-  if (!price) return null
-  return new Intl.NumberFormat('fr-DZ').format(price) + ' DZD'
+function getInitials(name) {
+  if (!name) return ''
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// ─── Shared style tokens ──────────────────────────────────────────────────────
+// ── Shared dropdown pill style ────────────────────────────────────────────────
 
-const selectStyle = {
-  padding: '10px 14px',
-  borderRadius: '10px',
-  border: '1.5px solid #e5e7eb',
-  fontSize: '13px',
-  color: '#1a1a1a',
-  background: '#ffffff',
-  outline: 'none',
-  cursor: 'pointer',
-  fontFamily: "'Inter', sans-serif",
-  minWidth: '160px',
+const CHEVRON_DARK = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231a1a1a'/%3E%3C/svg%3E")`
+const CHEVRON_WHITE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E")`
+
+function pillSelectStyle(active) {
+  return {
+    padding: '7px 30px 7px 14px',
+    borderRadius: '999px',
+    border: `1.5px solid ${active ? '#1a1a1a' : '#d1d5db'}`,
+    background: active ? '#1a1a1a' : 'transparent',
+    color: active ? '#ffffff' : '#1a1a1a',
+    fontSize: '13px',
+    fontWeight: active ? '600' : '500',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: "'Inter', sans-serif",
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    backgroundImage: active ? CHEVRON_WHITE : CHEVRON_DARK,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 10px center',
+    flexShrink: 0,
+  }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ── SkeletonCard ──────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
   return (
@@ -60,68 +67,53 @@ function SkeletonCard() {
       border: '1px solid #e5e7eb', overflow: 'hidden',
     }}>
       <div style={{
-        height: '200px', background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 1.4s infinite',
+        height: '200px',
+        background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
+        backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
       }} />
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {[80, 60, 45].map((w, i) => (
+      <div style={{ padding: '30px 14px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {[50, 70].map((w, i) => (
           <div key={i} style={{
-            height: '12px', width: `${w}%`,
-            borderRadius: '6px',
+            height: '11px', width: `${w}%`, borderRadius: '6px', margin: '0 auto',
             background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-            backgroundSize: '200% 100%',
-            animation: 'shimmer 1.4s infinite',
+            backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
           }} />
         ))}
         <div style={{
-          height: '36px', borderRadius: '999px', marginTop: '8px',
+          height: '34px', borderRadius: '999px', marginTop: '6px',
           background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-          backgroundSize: '200% 100%',
-          animation: 'shimmer 1.4s infinite',
+          backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
         }} />
       </div>
     </div>
   )
 }
 
+// ── ListingCard ───────────────────────────────────────────────────────────────
+
 function TypeBadge({ listing }) {
   const { is_for_exchange, is_for_sale } = listing
+  let label, bg
   if (is_for_exchange && is_for_sale) {
-    return (
-      <span style={{
-        position: 'absolute', top: '10px', right: '10px',
-        background: 'linear-gradient(135deg, #0A3D3D, #4B3FD8)',
-        color: '#fff', fontSize: '11px', fontWeight: '600',
-        padding: '3px 10px', borderRadius: '999px',
-        fontFamily: "'Inter', sans-serif",
-      }}>
-        Échange &amp; Vente
-      </span>
-    )
-  }
-  if (is_for_exchange) {
-    return (
-      <span style={{
-        position: 'absolute', top: '10px', right: '10px',
-        background: '#0A3D3D', color: '#fff',
-        fontSize: '11px', fontWeight: '600',
-        padding: '3px 10px', borderRadius: '999px',
-        fontFamily: "'Inter', sans-serif",
-      }}>
-        Échange
-      </span>
-    )
+    label = 'Éch. & Vente'
+    bg = '#004949'
+  } else if (is_for_exchange) {
+    label = 'Échange'
+    bg = '#004949'
+  } else {
+    label = 'Vente'
+    bg = '#004949'
   }
   return (
     <span style={{
-      position: 'absolute', top: '10px', right: '10px',
-      background: '#4B3FD8', color: '#fff',
-      fontSize: '11px', fontWeight: '600',
+      position: 'absolute', top: '10px', left: '10px',
+      background: bg,
+      color: '#fff', fontSize: '11px', fontWeight: '600',
       padding: '3px 10px', borderRadius: '999px',
       fontFamily: "'Inter', sans-serif",
+      letterSpacing: '0.01em',
     }}>
-      Vente
+      {label}
     </span>
   )
 }
@@ -132,6 +124,7 @@ function ListingCard({ listing, navigate }) {
   const from = formatDate(listing.available_from)
   const to = formatDate(listing.available_to)
   const location = [listing.wilaya, listing.quartier || listing.city].filter(Boolean).join(', ')
+  const ownerInitials = getInitials(listing.profiles?.full_name)
 
   return (
     <div
@@ -141,16 +134,16 @@ function ListingCard({ listing, navigate }) {
         background: '#ffffff',
         borderRadius: '16px',
         border: '1px solid #e5e7eb',
-        overflow: 'hidden',
+        overflow: 'visible',
         transition: 'box-shadow 0.22s, transform 0.22s',
-        boxShadow: hovered ? '0 8px 28px rgba(0,0,0,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
+        boxShadow: hovered ? '0 8px 28px rgba(0,0,0,0.10)' : '0 1px 6px rgba(0,0,0,0.05)',
         transform: hovered ? 'translateY(-3px)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         cursor: 'default',
       }}
     >
-      {/* Photo */}
+      {/* Image + badges + avatar */}
       <div style={{ position: 'relative', flexShrink: 0 }}>
         {photo ? (
           <img
@@ -159,81 +152,110 @@ function ListingCard({ listing, navigate }) {
             style={{
               width: '100%', height: '200px',
               objectFit: 'cover', display: 'block',
+              borderRadius: '16px 16px 0 0',
             }}
           />
         ) : (
           <div style={{
             width: '100%', height: '200px',
-            background: '#F7F7EC',
+            background: '#e8e8e8',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '16px 16px 0 0',
           }}>
-            <Home style={{ width: '40px', height: '40px', color: '#c4c4d4' }} />
+            <Home style={{ width: '36px', height: '36px', color: '#c4c4d4' }} />
           </div>
         )}
+
+        {/* Type badge — top left text pill */}
         <TypeBadge listing={listing} />
+
+        {/* Owner avatar — centered at bottom edge */}
+        <div style={{
+          position: 'absolute',
+          bottom: '-20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '40px', height: '40px',
+          borderRadius: '50%',
+          border: '3px solid #ffffff',
+          background: ownerInitials ? '#4B3FD8' : '#e5e7eb',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: '700', fontSize: '12px',
+          fontFamily: "'Inter', sans-serif",
+          overflow: 'hidden',
+          flexShrink: 0,
+          zIndex: 2,
+        }}>
+          {listing.profiles?.avatar_url ? (
+            <img
+              src={listing.profiles.avatar_url}
+              alt={listing.profiles.full_name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : ownerInitials || (
+            <User style={{ width: '18px', height: '18px', color: '#aaa' }} />
+          )}
+        </div>
       </div>
 
-      {/* Body */}
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-        <h3 style={{
-          fontFamily: "'Bricolage Grotesque', sans-serif",
-          fontSize: '16px', fontWeight: '700',
-          color: '#1a1a1a', lineHeight: 1.3,
-          margin: 0,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}>
-          {listing.title}
-        </h3>
+      {/* Card body — date, location, CTA only */}
+      <div style={{
+        paddingTop: '26px',
+        paddingLeft: '14px',
+        paddingRight: '14px',
+        paddingBottom: '14px',
+        display: 'flex', flexDirection: 'column', gap: '6px', flex: 1,
+        background: '#ffffff',
+        borderRadius: '0 0 16px 16px',
+        overflow: 'hidden',
+      }}>
 
-        {location && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <MapPin style={{ width: '13px', height: '13px', color: '#4B3FD8', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#4B3FD8', fontWeight: '500' }}>{location}</span>
-          </div>
-        )}
-
-        {listing.rooms && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Bed style={{ width: '13px', height: '13px', color: '#717182', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#717182' }}>{listing.rooms} chambre{listing.rooms > 1 ? 's' : ''}</span>
-          </div>
-        )}
-
+        {/* Date row */}
         {(from || to) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Calendar style={{ width: '13px', height: '13px', color: '#717182', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#717182' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <Calendar style={{ width: '12px', height: '12px', color: '#717182', flexShrink: 0 }} />
+            <span style={{ fontSize: '12px', color: '#1a1a1a', fontWeight: '500' }}>
               {from && to ? `${from} – ${to}` : from || to}
+            </span>
+          </div>
+        )}
+
+        {/* Location row */}
+        {location && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <MapPin style={{ width: '12px', height: '12px', color: '#717182', flexShrink: 0 }} />
+            <span style={{
+              fontSize: '12px', color: '#1a1a1a', fontWeight: '500',
+              maxWidth: '160px', overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {location}
             </span>
           </div>
         )}
 
         {listing.is_for_sale && listing.price && (
           <p style={{
-            fontSize: '14px', fontWeight: '700',
-            color: '#4B3FD8', margin: 0, marginTop: '2px',
+            fontSize: '13px', fontWeight: '700', color: '#4B3FD8',
+            margin: 0, textAlign: 'center',
           }}>
-            {formatPrice(listing.price)}
+            {new Intl.NumberFormat('fr-DZ').format(listing.price)} DZD
           </p>
         )}
 
         <div style={{ flex: 1 }} />
 
-        {/* CTA */}
         <button
           onClick={() => navigate(`/listing/${listing.id}`)}
           style={{
-            marginTop: '8px',
+            marginTop: '6px',
             width: '100%',
-            padding: '10px',
+            padding: '9px',
             borderRadius: '999px',
-            border: '1.5px solid #4B3FD8',
-            background: hovered ? '#4B3FD8' : 'transparent',
-            color: hovered ? '#ffffff' : '#4B3FD8',
-            fontSize: '13px',
+            border: 'none',
+            background: hovered ? '#004949' : '#f4f4f4',
+            color: hovered ? '#ffffff' : '#004949',
+            fontSize: '12px',
             fontWeight: '600',
             cursor: 'pointer',
             transition: 'background 0.18s, color 0.18s',
@@ -247,7 +269,7 @@ function ListingCard({ listing, navigate }) {
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Browse() {
   const navigate = useNavigate()
@@ -255,13 +277,12 @@ export default function Browse() {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // filters
+  const [search, setSearch] = useState('')
   const [filterWilaya, setFilterWilaya] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterRooms, setFilterRooms] = useState('')
   const [filterDate, setFilterDate] = useState('')
 
-  // auth + fetch
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { navigate('/'); return }
@@ -272,7 +293,7 @@ export default function Browse() {
 
     supabase
       .from('listings')
-      .select('*')
+      .select('*, profiles(full_name, avatar_url)')
       .eq('is_verified', true)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -281,9 +302,15 @@ export default function Browse() {
       })
   }, [navigate])
 
-  // client-side filtering
+  const hasAnyFilter = search || filterWilaya || filterType || filterRooms || filterDate
+
   const filtered = useMemo(() => {
     return listings.filter(l => {
+      if (search) {
+        const q = search.toLowerCase()
+        const blob = [l.title, l.wilaya, l.city, l.quartier].filter(Boolean).join(' ').toLowerCase()
+        if (!blob.includes(q)) return false
+      }
       if (filterWilaya && l.wilaya !== filterWilaya) return false
       if (filterType === 'exchange' && !l.is_for_exchange) return false
       if (filterType === 'sale' && !l.is_for_sale) return false
@@ -295,196 +322,250 @@ export default function Browse() {
       if (filterDate && l.available_from && l.available_from > filterDate) return false
       return true
     })
-  }, [listings, filterWilaya, filterType, filterRooms, filterDate])
+  }, [listings, search, filterWilaya, filterType, filterRooms, filterDate])
+
+  function clearAll() {
+    setSearch('')
+    setFilterWilaya('')
+    setFilterType('')
+    setFilterRooms('')
+    setFilterDate('')
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#F7F7EC', fontFamily: "'Inter', sans-serif" }}>
 
-      {/* ── Navbar ── */}
-      <nav style={{
-        borderBottom: '1px solid #e5e7eb', background: '#ffffff',
-        position: 'sticky', top: 0, zIndex: 10,
-        padding: '0 32px', height: '64px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      {/* ══════════════════════════════════════════════════
+          BLACK TOP NAV — logo, search, favorites, chat
+      ══════════════════════════════════════════════════ */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 100,
+        background: '#004949',
+        padding: '0 28px',
+        height: '62px',
+        display: 'flex', alignItems: 'center', gap: '14px',
       }}>
+
+        {/* Logo */}
         <Link to="/dashboard" style={{
-          fontSize: '22px', fontWeight: '700', color: '#0A3D3D',
+          fontSize: '18px', fontWeight: '700', color: '#ffffff',
           textDecoration: 'none', fontFamily: "'Bricolage Grotesque', sans-serif",
+          flexShrink: 0, marginRight: '8px',
         }}>
           DarBelDar
         </Link>
-        <div style={{
-          width: '40px', height: '40px', background: '#4B3FD8',
+
+        {/* Search */}
+        <div style={{ position: 'relative', flex: 1, maxWidth: '340px' }}>
+          <Search style={{
+            position: 'absolute', left: '12px', top: '50%',
+            transform: 'translateY(-50%)',
+            width: '14px', height: '14px', color: 'rgba(255,255,255,0.45)',
+            pointerEvents: 'none',
+          }} />
+          <input
+            type="text"
+            placeholder="Rechercher une wilaya, titre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 14px 8px 34px',
+              borderRadius: '999px',
+              border: '1.5px solid rgba(255,255,255,0.15)',
+              fontSize: '13px',
+              color: '#ffffff',
+              background: 'rgba(255,255,255,0.10)',
+              outline: 'none',
+              fontFamily: "'Inter', sans-serif",
+              transition: 'border-color 0.15s',
+            }}
+            onFocus={e => e.target.style.borderColor = 'rgba(255,255,255,0.4)'}
+            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.15)'}
+          />
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Favoris → Maisons aimées tab on profile */}
+        <Link to="/profile?tab=likes" style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+          textDecoration: 'none', flexShrink: 0,
+        }}>
+          <Heart style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.85)' }} />
+          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontFamily: "'Inter', sans-serif", fontWeight: '500' }}>Favoris</span>
+        </Link>
+
+        {/* Chat → messagerie */}
+        <Link to="/messages" style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+          textDecoration: 'none', flexShrink: 0,
+        }}>
+          <MessageSquare style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.85)' }} />
+          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontFamily: "'Inter', sans-serif", fontWeight: '500' }}>Chat</span>
+        </Link>
+
+        {/* User avatar → profile */}
+        <Link to="/profile" style={{
+          width: '34px', height: '34px', background: '#4B3FD8',
           borderRadius: '50%', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '14px',
+          justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '12px',
+          flexShrink: 0, textDecoration: 'none',
         }}>
           {initials}
-        </div>
-      </nav>
+        </Link>
+
+        {/* CTA */}
+        <Link
+          to="/add-listing"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 16px',
+            borderRadius: '999px',
+            background: '#ADEBB3',
+            color: '#000000',
+            fontSize: '13px', fontWeight: '700',
+            textDecoration: 'none',
+            fontFamily: "'Inter', sans-serif",
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Plus style={{ width: '13px', height: '13px' }} />
+          Publier
+        </Link>
+      </header>
+
+      {/* ══════════════════════════════════════════════════
+          WHITE FILTER BAR — 4 centred dropdown pills
+          Order: Wilaya · Type · Chambres · Date
+      ══════════════════════════════════════════════════ */}
+      <div style={{
+        position: 'sticky', top: '62px', zIndex: 99,
+        background: '#ffffff',
+        borderBottom: '1px solid #e5e7eb',
+        padding: '10px 28px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+        flexWrap: 'wrap',
+      }}>
+
+        {/* 1 — Wilaya */}
+        <select
+          value={filterWilaya}
+          onChange={e => setFilterWilaya(e.target.value)}
+          style={pillSelectStyle(!!filterWilaya)}
+        >
+          <option value="">Wilaya</option>
+          {WILAYAS.map(w => <option key={w} value={w}>{w}</option>)}
+        </select>
+
+        {/* 2 — Type */}
+        <select
+          value={filterType}
+          onChange={e => setFilterType(e.target.value)}
+          style={pillSelectStyle(!!filterType)}
+        >
+          <option value="">Type</option>
+          <option value="exchange">Échange</option>
+          <option value="sale">Vente</option>
+          <option value="both">Échange &amp; Vente</option>
+        </select>
+
+        {/* 3 — Chambres */}
+        <select
+          value={filterRooms}
+          onChange={e => setFilterRooms(e.target.value)}
+          style={pillSelectStyle(!!filterRooms)}
+        >
+          <option value="">Chambres</option>
+          <option value="1">1 chambre</option>
+          <option value="2">2 chambres</option>
+          <option value="3">3 chambres</option>
+          <option value="4">4 chambres</option>
+          <option value="5+">5+ chambres</option>
+        </select>
+
+        {/* 4 — Date */}
+        <input
+          type="date"
+          value={filterDate}
+          onChange={e => setFilterDate(e.target.value)}
+          title="Disponible dès"
+          style={{
+            ...pillSelectStyle(!!filterDate),
+            backgroundImage: 'none',
+            paddingRight: '14px',
+            colorScheme: filterDate ? 'dark' : 'light',
+          }}
+        />
+
+        {/* Clear — appears only when something is active */}
+        {hasAnyFilter && (
+          <button
+            onClick={clearAll}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '999px',
+              border: '1.5px solid #e5e7eb',
+              background: 'transparent',
+              color: '#717182',
+              fontSize: '13px', fontWeight: '500',
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
+              display: 'flex', alignItems: 'center', gap: '5px',
+              flexShrink: 0,
+            }}
+          >
+            <X style={{ width: '12px', height: '12px' }} />
+            Réinitialiser
+          </button>
+        )}
+      </div>
 
       {/* ── Main content ── */}
-      <main style={{ padding: '48px 48px 80px', maxWidth: '1400px', margin: '0 auto' }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: '36px' }}>
-          <h1 style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontSize: '34px', fontWeight: '700',
-            color: '#1a1a1a', marginBottom: '8px', lineHeight: 1.2,
-          }}>
-            Parcourir les logements
-          </h1>
-          <p style={{ fontSize: '15px', color: '#4B3FD8', fontWeight: '500' }}>
-            Découvrez des propriétés dans les 69 wilayas
-          </p>
-        </div>
-
-        {/* ── Filters bar ── */}
-        <div style={{
-          background: '#F7F7EC', borderRadius: '16px',
-          padding: '24px', marginBottom: '32px',
-        }}>
-          {/* Header row */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: '16px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <SlidersHorizontal style={{ width: '16px', height: '16px', color: '#1a1a1a' }} />
-              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a' }}>Filtres</span>
-            </div>
-            {(filterWilaya || filterType || filterRooms || filterDate) && (
-              <button
-                onClick={() => { setFilterWilaya(''); setFilterType(''); setFilterRooms(''); setFilterDate('') }}
-                style={{
-                  padding: '6px 16px', borderRadius: '999px',
-                  border: '1.5px solid #d1d5db', background: 'transparent',
-                  fontSize: '12px', fontWeight: '600', color: '#717182',
-                  cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                }}
-              >
-                Réinitialiser
-              </button>
-            )}
-          </div>
-
-          {/* 4-column equal-width filter grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '16px',
-          }}>
-            {/* Wilaya */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{
-                fontSize: '12px', fontWeight: '600', color: '#1a1a1a',
-                fontFamily: "'Inter', sans-serif",
-              }}>Wilaya</label>
-              <select
-                value={filterWilaya}
-                onChange={e => setFilterWilaya(e.target.value)}
-                style={{ ...selectStyle, width: '100%', minWidth: 0, boxSizing: 'border-box' }}
-              >
-                <option value="">Toutes les wilayas</option>
-                {WILAYAS.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-
-            {/* Type */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{
-                fontSize: '12px', fontWeight: '600', color: '#1a1a1a',
-                fontFamily: "'Inter', sans-serif",
-              }}>Type</label>
-              <select
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-                style={{ ...selectStyle, width: '100%', minWidth: 0, boxSizing: 'border-box' }}
-              >
-                <option value="">Tous</option>
-                <option value="exchange">Échange</option>
-                <option value="sale">Vente</option>
-                <option value="both">Échange &amp; Vente</option>
-              </select>
-            </div>
-
-            {/* Chambres */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{
-                fontSize: '12px', fontWeight: '600', color: '#1a1a1a',
-                fontFamily: "'Inter', sans-serif",
-              }}>Chambres</label>
-              <select
-                value={filterRooms}
-                onChange={e => setFilterRooms(e.target.value)}
-                style={{ ...selectStyle, width: '100%', minWidth: 0, boxSizing: 'border-box' }}
-              >
-                <option value="">Toutes</option>
-                {['1', '2', '3', '4', '5+'].map(r => (
-                  <option key={r} value={r}>{r} {r === '1' ? 'chambre' : 'chambres'}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Dates disponibles */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{
-                fontSize: '12px', fontWeight: '600', color: '#1a1a1a',
-                fontFamily: "'Inter', sans-serif",
-              }}>Dates disponibles</label>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={e => setFilterDate(e.target.value)}
-                style={{ ...selectStyle, width: '100%', minWidth: 0, boxSizing: 'border-box' }}
-              />
-            </div>
-          </div>
-        </div>
+      <main style={{ padding: '28px 24px 80px', maxWidth: '1440px', margin: '0 auto' }}>
 
         {/* Results count */}
         {!loading && (
-          <p style={{ fontSize: '13px', color: '#717182', marginBottom: '24px' }}>
+          <p style={{ fontSize: '12px', color: '#717182', marginBottom: '20px' }}>
             {filtered.length} logement{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
           </p>
         )}
 
-        {/* ── Grid ── */}
+        {/* Grid */}
         {loading ? (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '24px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px',
           }}>
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
-          /* Empty state */
-          <div style={{
-            textAlign: 'center', padding: '80px 24px',
-          }}>
+          <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{
-              width: '72px', height: '72px', background: '#F7F7EC',
+              width: '64px', height: '64px', background: '#ffffff',
               borderRadius: '50%', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', margin: '0 auto 20px',
+              justifyContent: 'center', margin: '0 auto 16px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
             }}>
-              <Home style={{ width: '32px', height: '32px', color: '#c4c4d4' }} />
+              <Home style={{ width: '28px', height: '28px', color: '#c4c4d4' }} />
             </div>
             <p style={{
               fontFamily: "'Bricolage Grotesque', sans-serif",
-              fontSize: '20px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px',
+              fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px',
             }}>
               Aucun logement trouvé
             </p>
-            <p style={{ fontSize: '14px', color: '#717182' }}>
+            <p style={{ fontSize: '13px', color: '#717182' }}>
               Essayez de modifier vos filtres
             </p>
           </div>
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '24px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px',
           }}>
             {filtered.map(listing => (
               <ListingCard key={listing.id} listing={listing} navigate={navigate} />
@@ -498,8 +579,9 @@ export default function Browse() {
           0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
-        @media (max-width: 900px) {
-          main { padding: 32px 24px 60px !important; }
+        header input::placeholder { color: rgba(255,255,255,0.40); }
+        @media (min-width: 1024px) {
+          main { padding: 36px 48px 80px !important; }
         }
       `}</style>
     </div>

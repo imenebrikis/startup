@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Search,
   List,
@@ -110,8 +110,11 @@ export default function Profile() {
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ listings: 0, exchanges: 0, sales: 0 });
-  const [activeTab, setActiveTab] = useState("annonces");
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || "annonces");
   const [isEditing, setIsEditing] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     full_name: "",
     wilaya: "",
@@ -202,7 +205,15 @@ export default function Profile() {
   }, [fetchData]);
 
   const handleSave = async () => {
-    await supabase.from("profiles").upsert({ id: user.id, ...editForm });
+    setSaving(true);
+    setSaveError(null);
+    const { error } = await supabase.from("profiles").upsert({ id: user.id, ...editForm });
+    setSaving(false);
+    if (error) {
+      console.error("[handleSave] upsert failed:", error);
+      setSaveError("Erreur lors de la sauvegarde. Veuillez réessayer.");
+      return;
+    }
     setIsEditing(false);
     fetchData();
   };
@@ -532,9 +543,15 @@ export default function Profile() {
                       }
                     />
                   </div>
+                  {saveError && (
+                    <div style={{ background: "#FEE2E2", border: "1px solid #EF4444", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", color: "#991B1B", marginBottom: "12px" }}>
+                      {saveError}
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: "12px" }}>
                     <button
                       onClick={handleSave}
+                      disabled={saving}
                       style={{
                         flex: 1,
                         padding: "10px",
@@ -544,7 +561,8 @@ export default function Profile() {
                         border: "none",
                         fontSize: "14px",
                         fontWeight: "500",
-                        cursor: "pointer",
+                        cursor: saving ? "not-allowed" : "pointer",
+                        opacity: saving ? 0.7 : 1,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -552,10 +570,11 @@ export default function Profile() {
                       }}
                     >
                       <Save style={{ width: "14px", height: "14px" }} />{" "}
-                      Sauvegarder
+                      {saving ? "Sauvegarde…" : "Sauvegarder"}
                     </button>
                     <button
-                      onClick={() => setIsEditing(false)}
+                      onClick={() => { setIsEditing(false); setSaveError(null); }}
+                      disabled={saving}
                       style={{
                         flex: 1,
                         padding: "10px",
@@ -565,7 +584,7 @@ export default function Profile() {
                         border: "1.5px solid #e5e7eb",
                         fontSize: "14px",
                         fontWeight: "500",
-                        cursor: "pointer",
+                        cursor: saving ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -1103,6 +1122,7 @@ export default function Profile() {
                         </div>
                         <div style={{ fontSize: "13px", color: "#717182" }}>
                           {ex.listings?.wilaya}
+                          
                         </div>
                       </div>
                       <span

@@ -57,45 +57,37 @@ export default function Messages() {
   }, [navigate]);
 
   // ── Fetch conversations ───────────────────────────────────────────────────
-  // Two-step approach: fetch conversations first, then fetch partner profiles
-  // in a single IN query. Avoids PostgREST FK-name ambiguity that occurs when
-  // two columns in the same table both reference profiles.
+  // Join both participant profiles in one query using explicit FK constraint
+  // names (conversations_participant_one_fkey / _two_fkey) to avoid PostgREST
+  // ambiguity. The partner is resolved dynamically so both User A and User B
+  // always see the *other* person, regardless of which slot they occupy.
   const fetchConversations = useCallback(async () => {
     if (!user) return;
     setLoadingConvs(true);
 
-    const { data: convs } = await supabase
+    const { data: convs, error } = await supabase
       .from("conversations")
-      .select("*")
+      .select(`
+        *,
+        profile_one:profiles!conversations_participant_one_fkey(id, full_name, avatar_url),
+        profile_two:profiles!conversations_participant_two_fkey(id, full_name, avatar_url)
+      `)
       .or(`participant_one.eq.${user.id},participant_two.eq.${user.id}`)
       .order("last_message_at", { ascending: false });
 
-    if (!convs || convs.length === 0) {
+    if (error) {
+      console.error("[fetchConversations] query failed:", error);
       setConversations([]);
       setLoadingConvs(false);
       return;
     }
 
-    const partnerIds = [
-      ...new Set(
-        convs.map((c) =>
-          c.participant_one === user.id ? c.participant_two : c.participant_one,
-        ),
-      ),
-    ];
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url")
-      .in("id", partnerIds);
-
-    const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
-
     setConversations(
-      convs.map((c) => {
-        const partnerId =
-          c.participant_one === user.id ? c.participant_two : c.participant_one;
-        return { ...c, partner: profileMap[partnerId] ?? null };
+      (convs || []).map((c) => {
+        // Pick the profile that belongs to the *other* participant (not the current user)
+        const partner =
+          c.participant_one === user.id ? c.profile_two : c.profile_one;
+        return { ...c, partner: partner ?? null };
       }),
     );
     setLoadingConvs(false);
