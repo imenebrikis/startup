@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Send, Search, MessageCircle } from "lucide-react";
+import {
+  Send, Search, MessageCircle,
+  List, Repeat, MessageSquare, User,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 const initFrom = (name) =>
-  name
-    ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : "?";
+  name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
 
 const fmtRelativeTime = (ts) => {
   if (!ts) return "";
@@ -27,7 +28,6 @@ export default function Messages() {
   const preselectedConvId = location.state?.conversationId ?? null;
 
   const [user, setUser]                   = useState(null);
-  const [navInitials, setNavInitials]     = useState("?");
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId]   = useState(null);
   const [activePartner, setActivePartner] = useState(null);
@@ -42,25 +42,23 @@ export default function Messages() {
   const channelRef     = useRef(null);
   const didAutoSelect  = useRef(false);
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  const navLinks = [
+    { to: "/browse",       icon: <Search    size={18} />, label: "Parcourir" },
+    { to: "/profile",      icon: <List      size={18} />, label: "Mes annonces" },
+    { to: "/my-exchanges", icon: <Repeat    size={18} />, label: "Mes échanges" },
+    { to: "/messages",     icon: <MessageSquare size={18} />, label: "Messages" },
+    { to: "/profile",      icon: <User      size={18} />, label: "Profil" },
+  ];
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { navigate("/"); return; }
       setUser(user);
-      const fn = user.user_metadata?.full_name;
-      setNavInitials(
-        fn
-          ? fn.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-          : user.email?.[0]?.toUpperCase() || "?",
-      );
     });
   }, [navigate]);
 
-  // ── Fetch conversations ───────────────────────────────────────────────────
-  // Join both participant profiles in one query using explicit FK constraint
-  // names (conversations_participant_one_fkey / _two_fkey) to avoid PostgREST
-  // ambiguity. The partner is resolved dynamically so both User A and User B
-  // always see the *other* person, regardless of which slot they occupy.
+  // ── Fetch conversations ──────────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     if (!user) return;
     setLoadingConvs(true);
@@ -84,9 +82,7 @@ export default function Messages() {
 
     setConversations(
       (convs || []).map((c) => {
-        // Pick the profile that belongs to the *other* participant (not the current user)
-        const partner =
-          c.participant_one === user.id ? c.profile_two : c.profile_one;
+        const partner = c.participant_one === user.id ? c.profile_two : c.profile_one;
         return { ...c, partner: partner ?? null };
       }),
     );
@@ -95,7 +91,7 @@ export default function Messages() {
 
   useEffect(() => { fetchConversations(); }, [fetchConversations]);
 
-  // ── Fetch messages ────────────────────────────────────────────────────────
+  // ── Fetch messages ───────────────────────────────────────────────────────
   const fetchMessages = useCallback(async (convId) => {
     if (!convId) return;
     setLoadingMsgs(true);
@@ -108,7 +104,7 @@ export default function Messages() {
     setLoadingMsgs(false);
   }, []);
 
-  // ── Auto-select when arriving from ListingDetail ──────────────────────────
+  // ── Auto-select when arriving from ListingDetail ─────────────────────────
   useEffect(() => {
     if (!preselectedConvId || !user || didAutoSelect.current || conversations.length === 0) return;
     const conv = conversations.find((c) => c.id === preselectedConvId);
@@ -119,23 +115,19 @@ export default function Messages() {
     fetchMessages(conv.id);
   }, [conversations, user, preselectedConvId, fetchMessages]);
 
-  // ── Auto-scroll ───────────────────────────────────────────────────────────
+  // ── Auto-scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── Realtime subscription ─────────────────────────────────────────────────
+  // ── Realtime ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
+    if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
     if (!activeConvId || !user) return;
 
     const ch = supabase
       .channel(`conv-${activeConvId}`)
-      .on(
-        "postgres_changes",
+      .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConvId}` },
         async (payload) => {
           const { data } = await supabase
@@ -143,11 +135,7 @@ export default function Messages() {
             .select("*, sender:profiles!messages_sender_id_fkey(id, full_name, avatar_url)")
             .eq("id", payload.new.id)
             .single();
-          if (data) {
-            setMessages((prev) =>
-              prev.find((m) => m.id === data.id) ? prev : [...prev, data],
-            );
-          }
+          if (data) setMessages((prev) => prev.find((m) => m.id === data.id) ? prev : [...prev, data]);
           fetchConversations();
         },
       )
@@ -176,8 +164,7 @@ export default function Messages() {
     setNewMessage("");
 
     const conv = conversations.find((c) => c.id === activeConvId);
-    const receiverId =
-      conv?.participant_one === user.id ? conv.participant_two : conv.participant_one;
+    const receiverId = conv?.participant_one === user.id ? conv.participant_two : conv.participant_one;
 
     const { data: msg } = await supabase
       .from("messages")
@@ -185,9 +172,7 @@ export default function Messages() {
       .select("*, sender:profiles!messages_sender_id_fkey(id, full_name, avatar_url)")
       .single();
 
-    if (msg) {
-      setMessages((prev) => (prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]));
-    }
+    if (msg) setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
 
     await supabase
       .from("conversations")
@@ -202,245 +187,234 @@ export default function Messages() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const filtered = conversations.filter((c) => {
-    if (!searchQuery) return true;
-    return c.partner?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const filtered = conversations.filter((c) =>
+    !searchQuery || c.partner?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
-  const avatarStyle = (size) => ({
-    width: size, height: size, borderRadius: "50%", background: "#ADEBB3",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    color: "#0A3D3D", fontWeight: "700", flexShrink: 0,
-    fontSize: size > 36 ? "16px" : "12px",
-    border: "none", cursor: "pointer",
-  });
+  const avatarBtn = (size, name, onClick) => (
+    <button
+      onClick={onClick}
+      title={name ? `Voir le profil de ${name}` : undefined}
+      style={{
+        width: size, height: size, borderRadius: "50%", background: "#ADEBB3",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: "#0A3D3D", fontWeight: "700", flexShrink: 0,
+        fontSize: size > 36 ? "15px" : "12px",
+        border: "none", cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      {initFrom(name)}
+    </button>
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ height: "100vh", background: "#ffffff", fontFamily: "'Inter', sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ height: "100vh", fontFamily: "'Inter', sans-serif", display: "flex", overflow: "hidden" }}>
 
-      {/* Navbar */}
-      <nav style={{
-        borderBottom: "1px solid #e5e7eb", background: "#ffffff",
-        position: "sticky", top: 0, zIndex: 10, padding: "0 32px", height: "64px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
-      }}>
-        <Link to="/dashboard" style={{ fontSize: "22px", fontWeight: "700", color: "#0A3D3D", textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+      {/* ══ Sidebar ══════════════════════════════════════════════════════════ */}
+      <aside style={{ width: 240, background: "#F7F7EC", flexShrink: 0, display: "flex", flexDirection: "column", padding: "28px 16px", gap: 8, overflowY: "auto" }}>
+        <Link
+          to="/dashboard"
+          style={{ fontSize: 20, fontWeight: 700, color: "#0A3D3D", textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif", padding: "4px 12px", marginBottom: 16, display: "block" }}
+        >
           DarBelDar
         </Link>
-        <div style={{ width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "600", fontSize: "14px" }}>
-          {navInitials}
-        </div>
-      </nav>
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        {navLinks.map(({ to, icon, label }) => {
+          const active = label === "Messages";
+          return (
+            <Link
+              key={label}
+              to={to}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "11px 16px", borderRadius: 12,
+                color: active ? "#fff" : "#4B5563",
+                background: active ? "#0A3D3D" : "transparent",
+                textDecoration: "none", fontSize: 14,
+                fontWeight: active ? 600 : 500,
+              }}
+            >
+              {icon} {label}
+            </Link>
+          );
+        })}
+      </aside>
 
-        {/* ══ LEFT: conversation list ═══════════════════════════════════════ */}
-        <aside style={{
-          width: "320px", borderRight: "1px solid #e5e7eb", background: "#fff",
-          flexShrink: 0, display: "flex", flexDirection: "column",
-        }}>
-          <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #f0f0f0" }}>
-            <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: "22px", fontWeight: "700", color: "#1a1a1a", margin: "0 0 14px" }}>
-              Messages
-            </h1>
-            <div style={{ position: "relative" }}>
-              <Search style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", width: "15px", height: "15px", color: "#717182", pointerEvents: "none" }} />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher une conversation…"
-                style={{
-                  width: "100%", padding: "9px 12px 9px 36px", borderRadius: "10px",
-                  border: "1.5px solid #e5e7eb", fontSize: "13px",
-                  fontFamily: "'Inter', sans-serif", background: "#F7F7EC",
-                  outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
+      {/* ══ Conversation list ════════════════════════════════════════════════ */}
+      <div style={{ width: 300, borderRight: "1px solid #E5E7EB", background: "#fff", flexShrink: 0, display: "flex", flexDirection: "column" }}>
+
+        {/* Header */}
+        <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #F0F0F0" }}>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 22, fontWeight: 700, color: "#111827", margin: "0 0 14px" }}>
+            Messages
+          </h1>
+          <div style={{ position: "relative" }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#9CA3AF", pointerEvents: "none" }} />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher…"
+              style={{ width: "100%", padding: "9px 12px 9px 34px", borderRadius: 10, border: "1.5px solid #E5E7EB", fontSize: 13, fontFamily: "'Inter', sans-serif", background: "#F7F7EC", outline: "none", boxSizing: "border-box" }}
+            />
           </div>
+        </div>
 
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            {loadingConvs ? (
-              <p style={{ padding: "32px", textAlign: "center", color: "#717182", fontSize: "14px" }}>Chargement…</p>
-            ) : filtered.length === 0 ? (
-              <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                <MessageCircle style={{ width: "36px", height: "36px", color: "#d1d5db", margin: "0 auto 12px", display: "block" }} />
-                <p style={{ fontSize: "14px", color: "#717182", margin: 0 }}>Aucune conversation</p>
+        {/* List */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {loadingConvs ? (
+            <p style={{ padding: 32, textAlign: "center", color: "#717182", fontSize: 14 }}>Chargement…</p>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: "48px 24px", textAlign: "center" }}>
+              <MessageCircle style={{ width: 36, height: 36, color: "#D1D5DB", margin: "0 auto 12px", display: "block" }} />
+              <p style={{ fontSize: 14, color: "#717182", margin: 0 }}>Aucune conversation</p>
+            </div>
+          ) : (
+            filtered.map((conv) => {
+              const { partner } = conv;
+              const isActive = conv.id === activeConvId;
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => selectConversation(conv)}
+                  style={{
+                    padding: "13px 20px",
+                    background: isActive ? "#F7F7EC" : "transparent",
+                    borderLeft: `3px solid ${isActive ? "#0A3D3D" : "transparent"}`,
+                    cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+                    transition: "background 0.15s",
+                  }}
+                >
+                  {avatarBtn(42, partner?.full_name, (e) => goToProfile(e, partner?.id))}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+                      <button
+                        onClick={(e) => goToProfile(e, partner?.id)}
+                        style={{ fontSize: 14, fontWeight: 600, color: "#111827", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
+                      >
+                        {partner?.full_name || "Utilisateur"}
+                      </button>
+                      <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0, marginLeft: 8 }}>
+                        {fmtRelativeTime(conv.last_message_at)}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {conv.last_message_preview || "Démarrer la conversation…"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ══ Chat window ══════════════════════════════════════════════════════ */}
+      {activeConvId ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+          {/* Chat header */}
+          <button
+            onClick={() => navigate(`/profile/${activePartner?.id}`)}
+            style={{
+              padding: "16px 28px", borderBottom: "1px solid #E5E7EB",
+              display: "flex", alignItems: "center", gap: 14,
+              background: "#fff", flexShrink: 0,
+              border: "none", borderBottom: "1px solid #E5E7EB",
+              cursor: "pointer", textAlign: "left", width: "100%",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F7F7EC")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+          >
+            {avatarBtn(42, activePartner?.full_name, null)}
+            <div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: "0 0 2px", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                {activePartner?.full_name || "Utilisateur"}
+              </p>
+              <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>Voir le profil →</p>
+            </div>
+          </button>
+
+          {/* Messages area */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 4, background: "#F7F7EC" }}>
+            {loadingMsgs ? (
+              <p style={{ textAlign: "center", color: "#717182", fontSize: 14 }}>Chargement…</p>
+            ) : messages.length === 0 ? (
+              <div style={{ margin: "auto", textAlign: "center" }}>
+                <MessageCircle style={{ width: 36, height: 36, color: "#D1D5DB", margin: "0 auto 10px", display: "block" }} />
+                <p style={{ fontSize: 14, color: "#717182", margin: 0 }}>Aucun message. Dites bonjour !</p>
               </div>
             ) : (
-              filtered.map((conv) => {
-                const { partner } = conv;
-                const isActive = conv.id === activeConvId;
-                return (
-                  <div
-                    key={conv.id}
-                    onClick={() => selectConversation(conv)}
-                    style={{
-                      padding: "14px 20px",
-                      background: isActive ? "#F7F7EC" : "transparent",
-                      borderLeft: `3px solid ${isActive ? "#0A3D3D" : "transparent"}`,
-                      cursor: "pointer", display: "flex", alignItems: "center", gap: "12px",
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    {/* Avatar → partner profile */}
-                    <button
-                      onClick={(e) => goToProfile(e, partner?.id)}
-                      title={`Voir le profil de ${partner?.full_name || "cet utilisateur"}`}
-                      style={avatarStyle(44)}
-                    >
-                      {initFrom(partner?.full_name)}
-                    </button>
+              messages.map((msg, i) => {
+                const isOwn   = msg.sender_id === user?.id;
+                const prevMsg = messages[i - 1];
+                const showTime = !prevMsg || new Date(msg.created_at) - new Date(prevMsg.created_at) > 300_000;
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "3px" }}>
-                        {/* Name → partner profile */}
-                        <button
-                          onClick={(e) => goToProfile(e, partner?.id)}
-                          style={{ fontSize: "14px", fontWeight: "600", color: "#1a1a1a", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
-                        >
-                          {partner?.full_name || "Utilisateur"}
-                        </button>
-                        <span style={{ fontSize: "11px", color: "#717182", flexShrink: 0, marginLeft: "8px" }}>
-                          {fmtRelativeTime(conv.last_message_at)}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: "13px", color: "#717182", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {conv.last_message_preview || "Démarrer la conversation…"}
+                return (
+                  <div key={msg.id}>
+                    {showTime && (
+                      <p style={{ textAlign: "center", margin: "14px 0 8px", fontSize: 11, color: "#9CA3AF" }}>
+                        {fmtClock(msg.created_at)}
                       </p>
+                    )}
+                    <div style={{ display: "flex", flexDirection: isOwn ? "row-reverse" : "row", alignItems: "flex-end", gap: 8, marginBottom: 2 }}>
+                      {!isOwn && avatarBtn(28, msg.sender?.full_name, () => navigate(`/profile/${msg.sender?.id}`))}
+                      <div style={{
+                        maxWidth: "62%", padding: "10px 14px",
+                        borderRadius: isOwn ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                        background: isOwn ? "#0A3D3D" : "#fff",
+                        color: isOwn ? "#fff" : "#111827",
+                        fontSize: 14, lineHeight: 1.55, wordBreak: "break-word",
+                        boxShadow: isOwn ? "none" : "0 1px 3px rgba(0,0,0,0.06)",
+                      }}>
+                        {msg.content}
+                      </div>
                     </div>
                   </div>
                 );
               })
             )}
+            <div ref={messagesEndRef} />
           </div>
-        </aside>
 
-        {/* ══ RIGHT: chat window ════════════════════════════════════════════ */}
-        {activeConvId ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-            {/* Chat header — full row navigates to partner's profile */}
+          {/* Input bar */}
+          <div style={{ padding: "14px 28px", borderTop: "1px solid #E5E7EB", display: "flex", alignItems: "center", gap: 12, background: "#fff", flexShrink: 0 }}>
+            <input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Votre message…"
+              style={{ flex: 1, padding: "12px 18px", borderRadius: 24, border: "1.5px solid #E5E7EB", fontSize: 14, fontFamily: "'Inter', sans-serif", outline: "none", background: "#F7F7EC" }}
+            />
             <button
-              onClick={() => navigate(`/profile/${activePartner?.id}`)}
+              onClick={handleSend}
+              disabled={!newMessage.trim() || sending}
               style={{
-                padding: "16px 28px", borderBottom: "1px solid #e5e7eb",
-                display: "flex", alignItems: "center", gap: "14px",
-                background: "#fff", flexShrink: 0,
-                border: "none", borderBottom: "1px solid #e5e7eb",
-                cursor: "pointer", textAlign: "left", width: "100%",
-                transition: "background 0.15s",
+                width: 44, height: 44, borderRadius: "50%",
+                background: newMessage.trim() ? "#0A3D3D" : "#E5E7EB",
+                border: "none", cursor: newMessage.trim() ? "pointer" : "not-allowed",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.18s", flexShrink: 0,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F7F7EC")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
             >
-              <div style={avatarStyle(42)}>{initFrom(activePartner?.full_name)}</div>
-              <div>
-                <p style={{ fontSize: "16px", fontWeight: "700", color: "#1a1a1a", margin: "0 0 2px", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-                  {activePartner?.full_name || "Utilisateur"}
-                </p>
-                <p style={{ fontSize: "12px", color: "#717182", margin: 0 }}>Voir le profil →</p>
-              </div>
+              <Send style={{ width: 17, height: 17, color: newMessage.trim() ? "#ADEBB3" : "#9CA3AF" }} />
             </button>
-
-            {/* Messages area */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: "4px", background: "#fafafa" }}>
-              {loadingMsgs ? (
-                <p style={{ textAlign: "center", color: "#717182", fontSize: "14px" }}>Chargement…</p>
-              ) : messages.length === 0 ? (
-                <div style={{ margin: "auto", textAlign: "center" }}>
-                  <MessageCircle style={{ width: "36px", height: "36px", color: "#d1d5db", margin: "0 auto 10px", display: "block" }} />
-                  <p style={{ fontSize: "14px", color: "#717182", margin: 0 }}>Aucun message. Dites bonjour !</p>
-                </div>
-              ) : (
-                messages.map((msg, i) => {
-                  const isOwn    = msg.sender_id === user?.id;
-                  const prevMsg  = messages[i - 1];
-                  const showTime = !prevMsg || new Date(msg.created_at) - new Date(prevMsg.created_at) > 300_000;
-
-                  return (
-                    <div key={msg.id}>
-                      {showTime && (
-                        <p style={{ textAlign: "center", margin: "14px 0 8px", fontSize: "11px", color: "#9ca3af" }}>
-                          {fmtClock(msg.created_at)}
-                        </p>
-                      )}
-                      <div style={{ display: "flex", flexDirection: isOwn ? "row-reverse" : "row", alignItems: "flex-end", gap: "8px", marginBottom: "2px" }}>
-                        {!isOwn && (
-                          <button
-                            onClick={() => navigate(`/profile/${msg.sender?.id}`)}
-                            title={`Voir le profil de ${msg.sender?.full_name || "cet utilisateur"}`}
-                            style={avatarStyle(28)}
-                          >
-                            {initFrom(msg.sender?.full_name)}
-                          </button>
-                        )}
-                        <div style={{
-                          maxWidth: "62%", padding: "10px 14px",
-                          borderRadius: isOwn ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                          background: isOwn ? "#0A3D3D" : "#ADEBB3",
-                          color: isOwn ? "#fff" : "#0A3D3D",
-                          fontSize: "14px", lineHeight: 1.55, wordBreak: "break-word",
-                        }}>
-                          {msg.content}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input bar */}
-            <div style={{
-              padding: "14px 28px", borderTop: "1px solid #e5e7eb",
-              display: "flex", alignItems: "center", gap: "12px",
-              background: "#fff", flexShrink: 0,
-            }}>
-              <input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Votre message…"
-                style={{
-                  flex: 1, padding: "12px 18px", borderRadius: "24px",
-                  border: "1.5px solid #e5e7eb", fontSize: "14px",
-                  fontFamily: "'Inter', sans-serif", outline: "none",
-                  background: "#F7F7EC",
-                }}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!newMessage.trim() || sending}
-                style={{
-                  width: "44px", height: "44px", borderRadius: "50%",
-                  background: newMessage.trim() ? "#0A3D3D" : "#e5e7eb",
-                  border: "none", cursor: newMessage.trim() ? "pointer" : "not-allowed",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "background 0.18s", flexShrink: 0,
-                }}
-              >
-                <Send style={{ width: "17px", height: "17px", color: newMessage.trim() ? "#ADEBB3" : "#9ca3af" }} />
-              </button>
-            </div>
           </div>
-        ) : (
-          /* Empty state */
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", background: "#fafafa" }}>
-            <div style={{ width: "72px", height: "72px", borderRadius: "50%", background: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <MessageCircle style={{ width: "32px", height: "32px", color: "#0A3D3D" }} />
-            </div>
-            <p style={{ fontSize: "17px", fontWeight: "700", color: "#1a1a1a", fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0 }}>
-              Vos conversations
-            </p>
-            <p style={{ fontSize: "13px", color: "#717182", margin: 0, textAlign: "center", maxWidth: "260px" }}>
-              Sélectionnez une conversation à gauche pour commencer à échanger.
-            </p>
+        </div>
+      ) : (
+        /* Empty state */
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "#F7F7EC" }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <MessageCircle style={{ width: 32, height: 32, color: "#0A3D3D" }} />
           </div>
-        )}
-      </div>
+          <p style={{ fontSize: 17, fontWeight: 700, color: "#111827", fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0 }}>
+            Vos conversations
+          </p>
+          <p style={{ fontSize: 13, color: "#717182", margin: 0, textAlign: "center", maxWidth: 260 }}>
+            Sélectionnez une conversation à gauche pour commencer à échanger.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

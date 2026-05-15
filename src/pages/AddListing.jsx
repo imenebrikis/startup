@@ -16,7 +16,15 @@ import {
   UtensilsCrossed,
   WashingMachine,
   ArrowUpDown,
+  ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 import { supabase } from "../lib/supabase";
 
 const WILAYAS = [
@@ -493,24 +501,60 @@ export default function AddListing() {
               >
                 <div>
                   <label style={labelStyle}>Wilaya</label>
-                  <select
-                    value={wilaya}
-                    onChange={(e) => setWilaya(e.target.value)}
-                    style={{
-                      ...inputStyle,
-                      cursor: "pointer",
-                      appearance: "auto",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#4B3FD8")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-                  >
-                    <option value="">Sélectionner...</option>
-                    {WILAYAS.map((w, i) => (
-                      <option key={w} value={w}>
-                        {String(i + 1).padStart(2, "0")} — {w}
-                      </option>
-                    ))}
-                  </select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button style={{
+                        ...inputStyle,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        color: wilaya ? "#1a1a1a" : "#9ca3af",
+                      }}>
+                        {wilaya
+                          ? `${String(WILAYAS.indexOf(wilaya) + 1).padStart(2, "0")} — ${wilaya}`
+                          : "Sélectionner..."}
+                        <ChevronDown style={{ width: "14px", height: "14px", flexShrink: 0 }} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '12px',
+                      padding: '6px',
+                      minWidth: '240px',
+                      maxHeight: '260px',
+                      overflowY: 'auto',
+                      scrollbarWidth: 'none',
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+                      zIndex: 9999,
+                    }}>
+                      <DropdownMenuRadioGroup value={wilaya} onValueChange={setWilaya}>
+                        <DropdownMenuRadioItem value="" style={{
+                          padding: '9px 36px 9px 12px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          color: '#9ca3af',
+                          backgroundColor: 'transparent',
+                          fontFamily: "'Inter', sans-serif",
+                        }}>Sélectionner...</DropdownMenuRadioItem>
+                        {WILAYAS.map((w, i) => (
+                          <DropdownMenuRadioItem key={w} value={w} style={{
+                            padding: '9px 36px 9px 12px',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            color: '#1f2937',
+                            backgroundColor: wilaya === w ? '#f3f4f6' : 'transparent',
+                            fontFamily: "'Inter', sans-serif",
+                          }}>
+                            {String(i + 1).padStart(2, "0")} — {w}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div>
                   <label style={labelStyle}>Ville</label>

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
+
+const NeighborhoodMap = lazy(() => import('../components/NeighborhoodMap'))
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -627,20 +629,16 @@ export default function ListingDetail() {
                   </div>
                 )}
 
-                {/* ── Neighborhood placeholder ── */}
-                <div style={{
-                  borderRadius: "16px", border: "1.5px dashed #d1d5db",
-                  height: "220px", background: "#f9fafb",
-                  display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: "8px",
-                }}>
-                  <MapPin style={{ width: "32px", height: "32px", color: "#d1d5db" }} />
-                  <p style={{ fontSize: "13px", fontWeight: "600", color: "#9ca3af", margin: 0, fontFamily: "'Inter', sans-serif" }}>
-                    Carte du quartier
-                  </p>
-                  <p style={{ fontSize: "12px", color: "#c4c4d4", margin: 0, fontFamily: "'Inter', sans-serif" }}>
-                    Disponible prochainement
-                  </p>
+                {/* ── Neighbourhood map (SeLoger-style privacy zone) ── */}
+                <div>
+                  <p style={sectionLabel}>Carte du quartier</p>
+                  <Suspense fallback={
+                    <div style={{ height: "240px", borderRadius: "14px", border: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "13px", color: "#9ca3af", fontFamily: "'Inter',sans-serif" }}>Chargement…</span>
+                    </div>
+                  }>
+                    <NeighborhoodMap listing={listing} />
+                  </Suspense>
                 </div>
               </div>
             </div>

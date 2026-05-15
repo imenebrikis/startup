@@ -1,7 +1,16 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User } from 'lucide-react'
+import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu'
 import { supabase } from '../lib/supabase'
+
+const MapView = lazy(() => import('../components/MapView'))
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -55,6 +64,25 @@ function pillSelectStyle(active) {
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 10px center',
     flexShrink: 0,
+  }
+}
+
+function pillTriggerStyle(active) {
+  return {
+    padding: '7px 14px',
+    borderRadius: '999px',
+    border: `1.5px solid ${active ? '#1a1a1a' : '#d1d5db'}`,
+    background: active ? '#1a1a1a' : 'transparent',
+    color: active ? '#ffffff' : '#1a1a1a',
+    fontSize: '13px',
+    fontWeight: active ? '600' : '500',
+    outline: 'none',
+    cursor: 'pointer',
+    fontFamily: "'Inter', sans-serif",
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
   }
 }
 
@@ -282,6 +310,7 @@ export default function Browse() {
   const [filterType, setFilterType] = useState('')
   const [filterRooms, setFilterRooms] = useState('')
   const [filterDate, setFilterDate] = useState('')
+  const [isMapView, setIsMapView] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -293,8 +322,7 @@ export default function Browse() {
 
     supabase
       .from('listings')
-      .select('*, profiles(full_name, avatar_url)')
-      .eq('is_verified', true)
+      .select('*')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setListings(data || [])
@@ -304,8 +332,8 @@ export default function Browse() {
 
   const hasAnyFilter = search || filterWilaya || filterType || filterRooms || filterDate
 
-  const filtered = useMemo(() => {
-    return listings.filter(l => {
+  function applyUserFilters(list) {
+    return list.filter(l => {
       if (search) {
         const q = search.toLowerCase()
         const blob = [l.title, l.wilaya, l.city, l.quartier].filter(Boolean).join(' ').toLowerCase()
@@ -322,7 +350,17 @@ export default function Browse() {
       if (filterDate && l.available_from && l.available_from > filterDate) return false
       return true
     })
-  }, [listings, search, filterWilaya, filterType, filterRooms, filterDate])
+  }
+
+  const filtered = useMemo(() =>
+    applyUserFilters(listings.filter(l => l.is_verified)),
+    [listings, search, filterWilaya, filterType, filterRooms, filterDate]
+  )
+
+  const filteredMap = useMemo(() =>
+    applyUserFilters(listings.filter(l => l.latitude && l.longitude)),
+    [listings, search, filterWilaya, filterType, filterRooms, filterDate]
+  )
 
   function clearAll() {
     setSearch('')
@@ -437,140 +475,279 @@ export default function Browse() {
       </header>
 
       {/* ══════════════════════════════════════════════════
-          WHITE FILTER BAR — 4 centred dropdown pills
-          Order: Wilaya · Type · Chambres · Date
+          WHITE FILTER BAR — filters centred, map toggle right
       ══════════════════════════════════════════════════ */}
       <div style={{
         position: 'sticky', top: '62px', zIndex: 99,
         background: '#ffffff',
         borderBottom: '1px solid #e5e7eb',
         padding: '10px 28px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-        flexWrap: 'wrap',
+        display: 'flex', alignItems: 'center', gap: '10px',
       }}>
 
-        {/* 1 — Wilaya */}
-        <select
-          value={filterWilaya}
-          onChange={e => setFilterWilaya(e.target.value)}
-          style={pillSelectStyle(!!filterWilaya)}
-        >
-          <option value="">Wilaya</option>
-          {WILAYAS.map(w => <option key={w} value={w}>{w}</option>)}
-        </select>
+        {/* Centred filter pills */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: '10px', flexWrap: 'wrap', flex: 1,
+        }}>
 
-        {/* 2 — Type */}
-        <select
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-          style={pillSelectStyle(!!filterType)}
-        >
-          <option value="">Type</option>
-          <option value="exchange">Échange</option>
-          <option value="sale">Vente</option>
-          <option value="both">Échange &amp; Vente</option>
-        </select>
+          {/* 1 — Wilaya */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={pillTriggerStyle(!!filterWilaya)}>
+                {filterWilaya || 'Wilaya'}
+                <ChevronDown style={{ width: '10px', height: '10px' }} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '12px',
+              padding: '6px',
+              minWidth: '200px',
+              maxHeight: '260px',
+              overflowY: 'auto',
+              scrollbarWidth: 'none',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+              zIndex: 9999,
+            }}>
+              <DropdownMenuRadioGroup value={filterWilaya} onValueChange={setFilterWilaya}>
+                <DropdownMenuRadioItem value="" style={{
+                  padding: '9px 36px 9px 12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  color: '#1f2937',
+                  backgroundColor: filterWilaya === '' ? '#f3f4f6' : 'transparent',
+                  fontFamily: "'Inter', sans-serif",
+                }}>Toutes les wilayas</DropdownMenuRadioItem>
+                {WILAYAS.map(w => (
+                  <DropdownMenuRadioItem key={w} value={w} style={{
+                    padding: '9px 36px 9px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    color: '#1f2937',
+                    backgroundColor: filterWilaya === w ? '#f3f4f6' : 'transparent',
+                    fontFamily: "'Inter', sans-serif",
+                  }}>{w}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* 3 — Chambres */}
-        <select
-          value={filterRooms}
-          onChange={e => setFilterRooms(e.target.value)}
-          style={pillSelectStyle(!!filterRooms)}
-        >
-          <option value="">Chambres</option>
-          <option value="1">1 chambre</option>
-          <option value="2">2 chambres</option>
-          <option value="3">3 chambres</option>
-          <option value="4">4 chambres</option>
-          <option value="5+">5+ chambres</option>
-        </select>
+          {/* 2 — Type */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={pillTriggerStyle(!!filterType)}>
+                {filterType === 'exchange' ? 'Échange'
+                  : filterType === 'sale' ? 'Vente'
+                  : filterType === 'both' ? 'Échange & Vente'
+                  : 'Type'}
+                <ChevronDown style={{ width: '10px', height: '10px' }} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '12px',
+              padding: '6px',
+              minWidth: '170px',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+              zIndex: 9999,
+            }}>
+              <DropdownMenuRadioGroup value={filterType} onValueChange={setFilterType}>
+                {[
+                  { value: '', label: 'Tous les types' },
+                  { value: 'exchange', label: 'Échange' },
+                  { value: 'sale', label: 'Vente' },
+                  { value: 'both', label: 'Échange & Vente' },
+                ].map(({ value, label }) => (
+                  <DropdownMenuRadioItem key={value} value={value} style={{
+                    padding: '9px 36px 9px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    color: '#1f2937',
+                    backgroundColor: filterType === value ? '#f3f4f6' : 'transparent',
+                    fontFamily: "'Inter', sans-serif",
+                  }}>{label}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* 4 — Date */}
-        <input
-          type="date"
-          value={filterDate}
-          onChange={e => setFilterDate(e.target.value)}
-          title="Disponible dès"
-          style={{
-            ...pillSelectStyle(!!filterDate),
-            backgroundImage: 'none',
-            paddingRight: '14px',
-            colorScheme: filterDate ? 'dark' : 'light',
-          }}
-        />
+          {/* 3 — Chambres */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={pillTriggerStyle(!!filterRooms)}>
+                {filterRooms === '1' ? '1 chambre'
+                  : filterRooms ? `${filterRooms} chambres`
+                  : 'Chambres'}
+                <ChevronDown style={{ width: '10px', height: '10px' }} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '12px',
+              padding: '6px',
+              minWidth: '160px',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+              zIndex: 9999,
+            }}>
+              <DropdownMenuRadioGroup value={filterRooms} onValueChange={setFilterRooms}>
+                {[
+                  { value: '', label: 'Toutes' },
+                  { value: '1', label: '1 chambre' },
+                  { value: '2', label: '2 chambres' },
+                  { value: '3', label: '3 chambres' },
+                  { value: '4', label: '4 chambres' },
+                  { value: '5+', label: '5+ chambres' },
+                ].map(({ value, label }) => (
+                  <DropdownMenuRadioItem key={value} value={value} style={{
+                    padding: '9px 36px 9px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    color: '#1f2937',
+                    backgroundColor: filterRooms === value ? '#f3f4f6' : 'transparent',
+                    fontFamily: "'Inter', sans-serif",
+                  }}>{label}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {/* Clear — appears only when something is active */}
-        {hasAnyFilter && (
-          <button
-            onClick={clearAll}
+          {/* 4 — Date */}
+          <input
+            type="date"
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+            title="Disponible dès"
             style={{
-              padding: '7px 14px',
-              borderRadius: '999px',
-              border: '1.5px solid #e5e7eb',
-              background: 'transparent',
-              color: '#717182',
-              fontSize: '13px', fontWeight: '500',
-              cursor: 'pointer',
-              fontFamily: "'Inter', sans-serif",
-              display: 'flex', alignItems: 'center', gap: '5px',
-              flexShrink: 0,
+              ...pillSelectStyle(!!filterDate),
+              backgroundImage: 'none',
+              paddingRight: '14px',
+              colorScheme: filterDate ? 'dark' : 'light',
             }}
-          >
-            <X style={{ width: '12px', height: '12px' }} />
-            Réinitialiser
-          </button>
-        )}
+          />
+
+          {/* Clear — appears only when something is active */}
+          {hasAnyFilter && (
+            <button
+              onClick={clearAll}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '999px',
+                border: '1.5px solid #e5e7eb',
+                background: 'transparent',
+                color: '#717182',
+                fontSize: '13px', fontWeight: '500',
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif",
+                display: 'flex', alignItems: 'center', gap: '5px',
+                flexShrink: 0,
+              }}
+            >
+              <X style={{ width: '12px', height: '12px' }} />
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {/* Map / List toggle */}
+        <button
+          onClick={() => setIsMapView(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '7px 16px',
+            borderRadius: '999px',
+            border: `1.5px solid ${isMapView ? '#1a1a1a' : '#d1d5db'}`,
+            background: isMapView ? '#1a1a1a' : 'transparent',
+            color: isMapView ? '#ffffff' : '#1a1a1a',
+            fontSize: '13px', fontWeight: '600',
+            cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif",
+            flexShrink: 0,
+            transition: 'all 0.18s',
+          }}
+        >
+          {isMapView
+            ? <List style={{ width: '13px', height: '13px' }} />
+            : <MapIcon style={{ width: '13px', height: '13px' }} />
+          }
+          {isMapView ? 'Liste' : 'Carte'}
+        </button>
       </div>
 
       {/* ── Main content ── */}
-      <main style={{ padding: '28px 24px 80px', maxWidth: '1440px', margin: '0 auto' }}>
+      <main className={isMapView ? '' : 'browse-main'} style={isMapView ? {} : { maxWidth: '1440px', margin: '0 auto' }}>
 
-        {/* Results count */}
-        {!loading && (
-          <p style={{ fontSize: '12px', color: '#717182', marginBottom: '20px' }}>
-            {filtered.length} logement{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
-          </p>
-        )}
-
-        {/* Grid */}
-        {loading ? (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '20px',
-          }}>
-            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+        {isMapView ? (
+          <Suspense fallback={
             <div style={{
-              width: '64px', height: '64px', background: '#ffffff',
-              borderRadius: '50%', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', margin: '0 auto 16px',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              height: 'calc(100vh - 122px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#F7F7EC',
             }}>
-              <Home style={{ width: '28px', height: '28px', color: '#c4c4d4' }} />
+              <span style={{ color: '#717182', fontFamily: "'Inter',sans-serif", fontSize: '14px' }}>
+                Chargement de la carte…
+              </span>
             </div>
-            <p style={{
-              fontFamily: "'Bricolage Grotesque', sans-serif",
-              fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px',
-            }}>
-              Aucun logement trouvé
-            </p>
-            <p style={{ fontSize: '13px', color: '#717182' }}>
-              Essayez de modifier vos filtres
-            </p>
-          </div>
+          }>
+            <MapView key={filteredMap.length} listings={filteredMap} />
+          </Suspense>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '20px',
-          }}>
-            {filtered.map(listing => (
-              <ListingCard key={listing.id} listing={listing} navigate={navigate} />
-            ))}
-          </div>
+          <>
+            {/* Results count */}
+            {!loading && (
+              <p style={{ fontSize: '12px', color: '#717182', marginBottom: '20px' }}>
+                {filtered.length} logement{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
+              </p>
+            )}
+
+            {/* Grid */}
+            {loading ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gap: '20px',
+              }}>
+                {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+                <div style={{
+                  width: '64px', height: '64px', background: '#ffffff',
+                  borderRadius: '50%', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', margin: '0 auto 16px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}>
+                  <Home style={{ width: '28px', height: '28px', color: '#c4c4d4' }} />
+                </div>
+                <p style={{
+                  fontFamily: "'Bricolage Grotesque', sans-serif",
+                  fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px',
+                }}>
+                  Aucun logement trouvé
+                </p>
+                <p style={{ fontSize: '13px', color: '#717182' }}>
+                  Essayez de modifier vos filtres
+                </p>
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gap: '20px',
+              }}>
+                {filtered.map(listing => (
+                  <ListingCard key={listing.id} listing={listing} navigate={navigate} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -580,8 +757,9 @@ export default function Browse() {
           100% { background-position: -200% 0; }
         }
         header input::placeholder { color: rgba(255,255,255,0.40); }
+        .browse-main { padding: 28px 24px 80px; }
         @media (min-width: 1024px) {
-          main { padding: 36px 48px 80px !important; }
+          .browse-main { padding: 36px 48px 80px; }
         }
       `}</style>
     </div>
