@@ -1,43 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  Search,
-  List,
-  Repeat,
-  MessageSquare,
-  User,
-  Settings,
-  MapPin,
-  Phone,
-  Mail,
-  Edit2,
-  Save,
-  X,
-  Bed,
-  Eye,
-  Heart,
-  ChevronDown,
-  LogOut,
+  MapPin, Phone, Mail, Edit2, Save, X, Bed, Eye, Heart, ChevronDown, LogOut, CheckCircle2,
 } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup,
+  DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { supabase } from "../lib/supabase";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import Sidebar from "../components/Sidebar";
+
 
 const WILAYAS = [
   "Adrar","Chlef","Laghouat","Oum El Bouaghi","Batna","Béjaïa","Biskra","Béchar",
@@ -63,6 +41,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showSaveAlert, setShowSaveAlert] = useState(false);
   const [editForm, setEditForm] = useState({ full_name: "", wilaya: "", quartier: "", phone: "" });
   const [listings, setListings] = useState([]);
   const [exchanges, setExchanges] = useState([]);
@@ -104,15 +83,13 @@ export default function Profile() {
         const { data: exchangesData } = await supabase
           .from("exchanges")
           .select("*, listings(title, wilaya, city, images), profiles!requester_id(full_name)")
-          .eq("requester_id", targetId)
-          .order("created_at", { ascending: false });
+          .eq("requester_id", targetId).order("created_at", { ascending: false });
         setExchanges(exchangesData || []);
 
         const { data: savedData } = await supabase
           .from("user_favorites")
           .select("*, listings(id, title, wilaya, rooms, images, is_for_exchange, is_for_sale)")
-          .eq("user_id", targetId)
-          .order("created_at", { ascending: false });
+          .eq("user_id", targetId).order("created_at", { ascending: false });
         setSavedListings(savedData || []);
       }
 
@@ -121,8 +98,7 @@ export default function Profile() {
         const { data: reviewsData } = await supabase
           .from("reviews")
           .select("*, profiles!reviewer_id(full_name), listings(title)")
-          .in("listing_id", userListingIds)
-          .order("created_at", { ascending: false });
+          .in("listing_id", userListingIds).order("created_at", { ascending: false });
         setReviews(reviewsData || []);
       }
     } finally {
@@ -135,17 +111,25 @@ export default function Profile() {
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, ...editForm });
-    setSaving(false);
-    if (error) { setSaveError("Erreur lors de la sauvegarde. Veuillez réessayer."); return; }
-    setIsEditing(false);
-    fetchData();
+    try {
+      const { error } = await supabase.from("profiles").upsert({ id: user.id, ...editForm });
+      if (error) {
+        setSaveError("Erreur lors de la sauvegarde. Veuillez réessayer.");
+        return;
+      }
+      // Shadow update: reflect new values instantly without a full refetch
+      setProfile((prev) => ({ ...prev, ...editForm }));
+      setIsEditing(false);
+      setShowSaveAlert(true);
+      setTimeout(() => setShowSaveAlert(false), 3000);
+    } catch {
+      setSaveError("Erreur lors de la sauvegarde. Veuillez réessayer.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
   const handleDeleteListing = async (listingId) => {
     try {
@@ -171,93 +155,110 @@ export default function Profile() {
     ? (editForm.full_name || user?.email?.[0] || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : (profile?.full_name || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
-  const navLinks = [
-    { to: "/browse",       icon: <Search className="w-5 h-5" />,        label: "Parcourir" },
-    { to: "/profile",      icon: <List className="w-5 h-5" />,          label: "Mes annonces" },
-    { to: "/my-exchanges", icon: <Repeat className="w-5 h-5" />,        label: "Mes échanges" },
-    { to: "/messages",     icon: <MessageSquare className="w-5 h-5" />, label: "Messages" },
-    { to: "/profile",      icon: <User className="w-5 h-5" />,          label: "Profil" },
-  ];
-
-  if (loading) return <div style={{ padding: "48px", textAlign: "center" }}>Chargement...</div>;
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#F7F7EC", fontFamily: "'Inter', sans-serif", display: "flex" }}>
-
-      {/* ── Sidebar ── */}
-      <aside style={{ width: 240, minHeight: "100vh", background: "#F7F7EC", flexShrink: 0, padding: "28px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <Link
-          to="/dashboard"
-          style={{ fontSize: 20, fontWeight: 700, color: "#0A3D3D", textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif", padding: "4px 12px", marginBottom: 16, display: "block" }}
-        >
-          DarBelDar
-        </Link>
-
-        {navLinks.map(({ to, icon, label }) => {
-          const active = label === "Profil";
-          return (
-            <Link
-              key={label}
-              to={to}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: "11px 16px",
-                borderRadius: 12,
-                color: active ? "#fff" : "#4B5563",
-                background: active ? "#0A3D3D" : "transparent",
-                textDecoration: "none",
-                fontSize: 14,
-                fontWeight: active ? 600 : 500,
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 12 }}>{icon} {label}</span>
-              {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", flexShrink: 0 }} />}
-            </Link>
-          );
-        })}
-
-        <div style={{ borderTop: "1px solid #D1D5DB", margin: "8px 0" }} />
-        <Link
-          to="/admin"
-          style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderRadius: 12, color: "#4B5563", textDecoration: "none", fontSize: 14, fontWeight: 500 }}
-        >
-          <Settings className="w-5 h-5" /> Admin
-        </Link>
-      </aside>
-
-      {/* ── Main ── */}
-      <main style={{ flex: 1, padding: "40px 48px 48px 32px" }}>
-
-        {/* Top-right: logout + avatar */}
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginBottom: 28 }}>
-          <button
-            onClick={handleLogout}
-            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#4B5563", background: "none", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
-          >
-            <LogOut style={{ width: 15, height: 15 }} /> Déconnexion
-          </button>
-          <div style={{ width: 34, height: 34, background: "#0A3D3D", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>
-            {navInitials}
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+      <Sidebar active="Profil" />
+      <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
+        {/* Profile card skeleton */}
+        <div style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, padding: "30px 32px 28px", marginBottom: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, marginBottom: 26 }}>
+            <div className="skeleton-pulse" style={{ width: 104, height: 104, borderRadius: "50%" }} />
+            <div className="skeleton-pulse" style={{ width: 180, height: 22, borderRadius: 8 }} />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <div className="skeleton-pulse" style={{ width: 140, height: 15, borderRadius: 6 }} />
+              <div className="skeleton-pulse" style={{ width: 120, height: 15, borderRadius: 6 }} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", borderRadius: 16, padding: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                <div className="skeleton-pulse" style={{ width: 56, height: 48, borderRadius: 8 }} />
+                <div className="skeleton-pulse" style={{ width: "65%", height: 13, borderRadius: 6 }} />
+              </div>
+            ))}
           </div>
         </div>
+        {/* Tabs skeleton */}
+        <div style={{ display: "flex", gap: 18, borderBottom: "1px solid #E5DFCE", marginBottom: 22, paddingBottom: 14 }}>
+          {[100, 120, 90].map((w, i) => (
+            <div key={i} className="skeleton-pulse" style={{ width: w, height: 14, borderRadius: 6 }} />
+          ))}
+        </div>
+        {/* Listing cards skeleton */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
+          {[0, 1, 2].map((i) => (
+            <article key={i} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div className="skeleton-pulse" style={{ width: "100%", aspectRatio: "4/3" }} />
+              <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="skeleton-pulse" style={{ height: 18, width: "72%", borderRadius: 6 }} />
+                <div className="skeleton-pulse" style={{ height: 14, width: "48%", borderRadius: 6 }} />
+                <div className="skeleton-pulse" style={{ height: 14, width: "38%", borderRadius: 6 }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 6 }}>
+                  <div className="skeleton-pulse" style={{ height: 38, borderRadius: 12 }} />
+                  <div className="skeleton-pulse" style={{ height: 38, borderRadius: 12 }} />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
 
-        {/* ── Profile card ── */}
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E5E7EB", padding: 32, marginBottom: 28, position: "relative" }}>
+  const TABS = [
+    { id: "annonces",  label: isOwnProfile ? "Mes annonces"  : "Annonces" },
+    ...(isOwnProfile ? [{ id: "exchanges", label: "Mes échanges" }] : []),
+    { id: "reviews",   label: "Avis reçus" },
+    ...(isOwnProfile ? [{ id: "likes",     label: "Maisons aimées" }] : []),
+  ];
 
+  return (
+    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+      <Sidebar active="Profil" />
+
+      <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
+        {showSaveAlert && (
+          <Alert style={{ backgroundColor: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 14, padding: "18px 22px", marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <CheckCircle2 style={{ color: "#16A34A", width: 22, height: 22, flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <AlertTitle style={{ fontSize: 16, fontWeight: 700, color: "#14532D", marginBottom: 4 }}>
+                Profil mis à jour !
+              </AlertTitle>
+              <AlertDescription style={{ fontSize: 14, color: "#166534", lineHeight: 1.5 }}>
+                Vos modifications ont été enregistrées et s'afficheront publiquement après validation de l'administrateur.
+              </AlertDescription>
+            </div>
+          </Alert>
+        )}
+
+        {/* Topbar */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
+          <button
+            onClick={handleLogout}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#005B5B", padding: "8px 12px", borderRadius: 999, background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
+          >
+            <LogOut style={{ width: 14, height: 14 }} />
+            Déconnexion
+          </button>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
+            {navInitials}
+          </div>
+        </header>
+
+        {/* Profile card */}
+        <section style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, padding: "30px 32px 28px", position: "relative", marginBottom: 22 }}>
           {isOwnProfile && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              style={{ position: "absolute", top: 24, right: 24, padding: "8px 16px", borderRadius: 100, border: "1.5px solid #D1D5DB", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+              style={{ position: "absolute", top: 22, right: 22, display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #005B5B", color: "#005B5B", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
             >
-              <Edit2 style={{ width: 13, height: 13 }} /> Modifier
+              <Edit2 style={{ width: 14, height: 14 }} />
+              Modifier
             </button>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28 }}>
-            <div style={{ width: 80, height: 80, background: "#0A3D3D", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 28, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center", marginBottom: 26 }}>
+            <div style={{ width: 104, height: 104, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 34, letterSpacing: "-0.02em", border: "3px solid #ADEBB3", flexShrink: 0 }}>
               {profileInitials}
             </div>
 
@@ -265,7 +266,7 @@ export default function Profile() {
               <div style={{ width: "100%", maxWidth: 400 }}>
                 <div style={{ marginBottom: 12 }}>
                   <input
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, fontFamily: "'Inter', sans-serif", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none", color: "#0F2A2A" }}
                     placeholder="Nom complet"
                     value={editForm.full_name}
                     onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
@@ -274,18 +275,18 @@ export default function Profile() {
                 <div style={{ marginBottom: 12 }}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, background: "#fff", color: editForm.wilaya ? "#1a1a1a" : "#9ca3af", cursor: "pointer", outline: "none", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", boxSizing: "border-box" }}>
+                      <button style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 14, background: "#fff", color: editForm.wilaya ? "#0F2A2A" : "#B0B5B3", cursor: "pointer", outline: "none", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "space-between", boxSizing: "border-box" }}>
                         {editForm.wilaya || "Sélectionner wilaya"}
                         <ChevronDown style={{ width: 14, height: 14, flexShrink: 0 }} />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent style={{ backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 12, padding: 6, minWidth: 240, maxHeight: 260, overflowY: "auto", scrollbarWidth: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 9999 }}>
+                    <DropdownMenuContent style={{ backgroundColor: "#fff", border: "1px solid #E5DFCE", borderRadius: 12, padding: 6, minWidth: 240, maxHeight: 260, overflowY: "auto", scrollbarWidth: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 9999 }}>
                       <DropdownMenuRadioGroup value={editForm.wilaya} onValueChange={(w) => setEditForm({ ...editForm, wilaya: w })}>
-                        <DropdownMenuRadioItem value="" style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#9ca3af", fontFamily: "'Inter', sans-serif" }}>
+                        <DropdownMenuRadioItem value="" style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#B0B5B3", fontFamily: "inherit" }}>
                           Sélectionner wilaya
                         </DropdownMenuRadioItem>
                         {WILAYAS.map((w) => (
-                          <DropdownMenuRadioItem key={w} value={w} style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#1f2937", backgroundColor: editForm.wilaya === w ? "#f3f4f6" : "transparent", fontFamily: "'Inter', sans-serif" }}>
+                          <DropdownMenuRadioItem key={w} value={w} style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#0F2A2A", backgroundColor: editForm.wilaya === w ? "#F3EEE0" : "transparent", fontFamily: "inherit" }}>
                             {w}
                           </DropdownMenuRadioItem>
                         ))}
@@ -295,7 +296,7 @@ export default function Profile() {
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <input
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, fontFamily: "'Inter', sans-serif", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none", color: "#0F2A2A" }}
                     placeholder="Quartier"
                     value={editForm.quartier}
                     onChange={(e) => setEditForm({ ...editForm, quartier: e.target.value })}
@@ -303,14 +304,14 @@ export default function Profile() {
                 </div>
                 <div style={{ marginBottom: 16 }}>
                   <input
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, fontFamily: "'Inter', sans-serif", boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none", color: "#0F2A2A" }}
                     placeholder="Téléphone"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                   />
                 </div>
                 {saveError && (
-                  <div style={{ background: "#FEE2E2", border: "1px solid #EF4444", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#991B1B", marginBottom: 12 }}>
+                  <div style={{ background: "#F7DCD8", border: "1px solid #C0392B", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#C0392B", marginBottom: 12 }}>
                     {saveError}
                   </div>
                 )}
@@ -318,179 +319,169 @@ export default function Profile() {
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    style={{ flex: 1, padding: 10, borderRadius: 100, background: "#0A3D3D", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    style={{ flex: 1, padding: "10px 16px", borderRadius: 999, background: "#005B5B", color: "#ADEBB3", border: "none", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                   >
-                    <Save style={{ width: 14, height: 14 }} /> {saving ? "Sauvegarde…" : "Sauvegarder"}
+                    <Save style={{ width: 14, height: 14 }} />
+                    {saving ? "Sauvegarde…" : "Sauvegarder"}
                   </button>
                   <button
                     onClick={() => { setIsEditing(false); setSaveError(null); }}
                     disabled={saving}
-                    style={{ flex: 1, padding: 10, borderRadius: 100, background: "#fff", color: "#717182", border: "1.5px solid #E5E7EB", fontSize: 14, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    style={{ flex: 1, padding: "10px 16px", borderRadius: 999, background: "#FFFFFF", color: "#6E7B79", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                   >
-                    <X style={{ width: 14, height: 14 }} /> Annuler
+                    <X style={{ width: 14, height: 14 }} />
+                    Annuler
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                <p style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 10 }}>
+                <h1 style={{ margin: "6px 0 0", fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>
                   {(isOwnProfile ? editForm.full_name : profile?.full_name) || "Utilisateur"}
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4B3FD8", fontSize: 14, marginBottom: 5 }}>
-                  <MapPin style={{ width: 15, height: 15 }} />
-                  {profile?.quartier ? `${profile.quartier} , ` : ""}{profile?.wilaya || "Algérie"}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#374151", fontSize: 14, marginBottom: 5 }}>
-                  <Phone style={{ width: 15, height: 15 }} />
-                  {profile?.phone || "Non renseigné"}
-                </div>
-                {isOwnProfile && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#717182", fontSize: 13 }}>
-                    <Mail style={{ width: 14, height: 14 }} />
-                    {user?.email}
+                </h1>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
+                    <MapPin style={{ width: 14, height: 14, opacity: 0.9 }} />
+                    {profile?.quartier ? `${profile.quartier}, ` : ""}{profile?.wilaya || "Algérie"}
                   </div>
-                )}
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
+                    <Phone style={{ width: 14, height: 14, opacity: 0.9 }} />
+                    {profile?.phone || "Non renseigné"}
+                  </div>
+                  {isOwnProfile && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
+                      <Mail style={{ width: 14, height: 14, opacity: 0.9 }} />
+                      {user?.email}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
 
-          {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          {/* Profile stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
             {[
               { label: "Annonces actives",  value: stats.listings },
               { label: "Échanges réalisés", value: stats.exchanges },
               { label: "Ventes réalisées",  value: stats.sales },
             ].map(({ label, value }) => (
-              <div key={label} style={{ background: "#ECFDF5", borderRadius: 16, padding: 20, textAlign: "center" }}>
-                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "#0A3D3D", marginBottom: 4 }}>
-                  {value}
-                </div>
-                <div style={{ fontSize: 13, color: "#6B7280" }}>{label}</div>
+              <div key={label} style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", borderRadius: 16, padding: 22, textAlign: "center" }}>
+                <div style={{ fontSize: 42, fontWeight: 600, lineHeight: 1, color: "#005B5B", letterSpacing: "-0.03em" }}>{value}</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: "#6E7B79", fontWeight: 500 }}>{label}</div>
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #E5DFCE", marginBottom: 22, padding: "0 4px" }}>
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                padding: "14px 18px", fontSize: 14.5, fontWeight: activeTab === id ? 600 : 500,
+                color: activeTab === id ? "#005B5B" : "#6E7B79",
+                borderBottom: activeTab === id ? "2px solid #005B5B" : "2px solid transparent",
+                marginBottom: -1, background: "none", border: "none",
+                borderBottomStyle: "solid", borderBottomWidth: 2,
+                borderBottomColor: activeTab === id ? "#005B5B" : "transparent",
+                cursor: "pointer", transition: "color 0.15s",
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* ── Tabs ── */}
-        <div style={{ marginBottom: 24, borderBottom: "1px solid #E5E7EB" }}>
-          <div style={{ display: "flex", gap: 32 }}>
-            {[
-              { id: "annonces",  label: isOwnProfile ? "Mes annonces"  : "Annonces" },
-              ...(isOwnProfile ? [{ id: "exchanges", label: "Mes échanges" }] : []),
-              { id: "reviews",   label: "Avis reçus" },
-              ...(isOwnProfile ? [{ id: "likes",     label: "Maisons aimées" }] : []),
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                style={{
-                  padding: "12px 0",
-                  background: "none",
-                  border: "none",
-                  fontSize: 15,
-                  fontWeight: activeTab === id ? 600 : 400,
-                  color: activeTab === id ? "#111827" : "#9CA3AF",
-                  borderBottom: activeTab === id ? "2px solid #111827" : "2px solid transparent",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Tab: Mes annonces ── */}
+        {/* Tab: Mes annonces */}
         {activeTab === "annonces" && (
           <div>
             {listings.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px", color: "#717182" }}>
+              <div style={{ textAlign: "center", padding: 48, color: "#6E7B79" }}>
                 <p style={{ marginBottom: 16 }}>Aucune annonce publiée</p>
-                <Link to="/add-listing" style={{ display: "inline-block", padding: "12px 24px", background: "#0A3D3D", color: "#fff", borderRadius: 100, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+                <Link to="/add-listing" style={{ display: "inline-block", padding: "12px 24px", background: "#005B5B", color: "#ADEBB3", borderRadius: 999, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
                   Publier une annonce
                 </Link>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
                 {listings.map((listing) => (
-                  <div key={listing.id} style={{ background: "#fff", borderRadius: 20, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <article key={listing.id} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                     {/* Image */}
-                    <div style={{ height: 190, background: "#F0EFE4", position: "relative" }}>
+                    <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", background: "#E5DFCE", overflow: "hidden" }}>
                       {listing.images?.[0] ? (
-                        <img src={listing.images[0]} alt={listing.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <img src={listing.images[0]} alt={listing.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       ) : (
                         <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontSize: 11, color: "#c4c4d4" }}>property photo</span>
+                          <span style={{ fontSize: 11, color: "#6E7B79" }}>property photo</span>
                         </div>
                       )}
-                      <div style={{ position: "absolute", top: 12, right: 12, background: listing.is_verified ? "#10B981" : "#F59E0B", color: "#fff", padding: "4px 12px", borderRadius: 100, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{
+                        position: "absolute", top: 12, right: 12,
+                        background: listing.is_verified ? "#ADEBB3" : "#FBEACB",
+                        color: listing.is_verified ? "#005B5B" : "#C77A1E",
+                        padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        border: listing.is_verified ? "1px solid #8FD89A" : "1px solid #C77A1E",
+                      }}>
                         {listing.is_verified ? "✓ Vérifié" : "En attente"}
-                      </div>
+                      </span>
                     </div>
 
-                    {/* Info */}
-                    <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column" }}>
-                      <h3 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6, color: "#111827" }}>
-                        {listing.title}
-                      </h3>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#4B3FD8", marginBottom: 4 }}>
+                    {/* Body */}
+                    <div style={{ padding: "16px 18px 18px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700, letterSpacing: "-0.01em", color: "#0F2A2A" }}>{listing.title}</h3>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "#005B5B", fontWeight: 500 }}>
                         <MapPin style={{ width: 13, height: 13 }} /> {listing.wilaya}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#717182", marginBottom: 14 }}>
+                      </span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6E7B79" }}>
                         <Bed style={{ width: 13, height: 13 }} /> {listing.rooms} chambres
-                      </div>
+                      </span>
 
-                      <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ padding: "5px 12px", borderRadius: 100, background: listing.is_for_exchange ? "#ECFDF5" : "#EEF2FF", color: listing.is_for_exchange ? "#0A3D3D" : "#4B3FD8", fontSize: 12, fontWeight: 600 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                        <span style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", color: "#005B5B", padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
                           {listing.is_for_exchange && listing.is_for_sale ? "Échange & Vente" : listing.is_for_sale ? "Vente" : "Échange"}
                         </span>
                         <Link
                           to={`/listing/${listing.id}`}
-                          style={{ display: "flex", alignItems: "center", gap: 5, color: "#4B3FD8", textDecoration: "none", fontSize: 13, fontWeight: 600, padding: "5px 10px", borderRadius: 8 }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF2FF")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#005B5B", textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}
                         >
                           <Eye style={{ width: 14, height: 14 }} /> Voir
                         </Link>
                       </div>
 
                       {isOwnProfile && (
-                        <div style={{ display: "flex", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
                           <button
                             onClick={() => navigate(`/modifier-annonce/${listing.id}`)}
-                            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 8, background: "#F9FAFB", color: "#374151", border: "1px solid #E5E7EB", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "#F3F4F6")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 12px", borderRadius: 12, fontSize: 13.5, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
                           >
                             <Edit2 style={{ width: 13, height: 13 }} /> Modifier
                           </button>
 
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <button style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 8, background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                              <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 12px", borderRadius: 12, fontSize: 13.5, fontWeight: 600, background: "#F7DCD8", color: "#C0392B", border: "none", cursor: "pointer" }}>
                                 Supprimer
                               </button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 400, margin: "auto" }}>
+                            <AlertDialogContent style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5DFCE", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 400, margin: "auto" }}>
                               <AlertDialogHeader style={{ marginBottom: 24 }}>
-                                <AlertDialogTitle style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
+                                <AlertDialogTitle style={{ fontSize: 18, fontWeight: 600, color: "#0F2A2A", marginBottom: 8 }}>
                                   Êtes-vous absolument sûr ?
                                 </AlertDialogTitle>
-                                <AlertDialogDescription style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.5 }}>
-                                  Cette action ne peut pas être annulée. Cela supprimera définitivement votre annonce et retirera les données de nos serveurs.
+                                <AlertDialogDescription style={{ fontSize: 14, color: "#6E7B79", lineHeight: 1.5 }}>
+                                  Cette action ne peut pas être annulée. Cela supprimera définitivement votre annonce.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
                                 <AlertDialogCancel asChild>
-                                  <button style={{ padding: "10px 16px", borderRadius: 8, background: "#fff", color: "#374151", border: "1px solid #D1D5DB", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>
-                                    Annuler
-                                  </button>
+                                  <button style={{ padding: "10px 16px", borderRadius: 12, background: "#fff", color: "#0F2A2A", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>Annuler</button>
                                 </AlertDialogCancel>
                                 <AlertDialogAction asChild>
-                                  <button onClick={() => handleDeleteListing(listing.id)} style={{ padding: "10px 16px", borderRadius: 8, background: "#111827", color: "#fff", border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>
-                                    Continuer
-                                  </button>
+                                  <button onClick={() => handleDeleteListing(listing.id)} style={{ padding: "10px 16px", borderRadius: 12, background: "#005B5B", color: "#ADEBB3", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", margin: 0 }}>Supprimer</button>
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -498,27 +489,31 @@ export default function Profile() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Tab: Mes échanges ── */}
+        {/* Tab: Mes échanges */}
         {activeTab === "exchanges" && (
           <div>
             {exchanges.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px", color: "#717182" }}>Aucun échange pour le moment.</div>
+              <div style={{ textAlign: "center", padding: 48, color: "#6E7B79" }}>Aucun échange pour le moment.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {exchanges.map((ex) => (
-                  <div key={ex.id} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  <div key={ex.id} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 16, padding: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{ex.listings?.title || "Annonce supprimée"}</div>
-                      <div style={{ fontSize: 13, color: "#717182" }}>{ex.listings?.wilaya}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: "#0F2A2A" }}>{ex.listings?.title || "Annonce supprimée"}</div>
+                      <div style={{ fontSize: 13, color: "#6E7B79" }}>{ex.listings?.wilaya}</div>
                     </div>
-                    <span style={{ padding: "6px 14px", borderRadius: 100, fontSize: 12, fontWeight: 600, background: ex.status === "accepted" ? "#D1FAE5" : ex.status === "rejected" ? "#FEE2E2" : "#FEF3C7", color: ex.status === "accepted" ? "#065F46" : ex.status === "rejected" ? "#991B1B" : "#92400E" }}>
+                    <span style={{
+                      padding: "6px 14px", borderRadius: 100, fontSize: 12, fontWeight: 600,
+                      background: ex.status === "accepted" ? "#D6EEDD" : ex.status === "rejected" ? "#F7DCD8" : "#FBEACB",
+                      color: ex.status === "accepted" ? "#1F7A4F" : ex.status === "rejected" ? "#C0392B" : "#C77A1E",
+                    }}>
                       {ex.status === "accepted" ? "Accepté" : ex.status === "rejected" ? "Refusé" : "En attente"}
                     </span>
                   </div>
@@ -528,21 +523,21 @@ export default function Profile() {
           </div>
         )}
 
-        {/* ── Tab: Avis reçus ── */}
+        {/* Tab: Avis reçus */}
         {activeTab === "reviews" && (
           <div>
             {reviews.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px", color: "#717182" }}>Aucun avis reçu pour le moment.</div>
+              <div style={{ textAlign: "center", padding: 48, color: "#6E7B79" }}>Aucun avis reçu pour le moment.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {reviews.map((rv) => (
-                  <div key={rv.id} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: 20 }}>
+                  <div key={rv.id} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 16, padding: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{rv.profiles?.full_name || "Utilisateur"}</span>
-                      <span style={{ fontSize: 13, color: "#717182" }}>{rv.listings?.title}</span>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: "#0F2A2A" }}>{rv.profiles?.full_name || "Utilisateur"}</span>
+                      <span style={{ fontSize: 13, color: "#6E7B79" }}>{rv.listings?.title}</span>
                     </div>
-                    {rv.rating && <div style={{ fontSize: 14, color: "#F59E0B", marginBottom: 6 }}>{"★".repeat(rv.rating)}{"☆".repeat(5 - rv.rating)}</div>}
-                    {rv.comment && <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{rv.comment}</p>}
+                    {rv.rating && <div style={{ fontSize: 14, color: "#C77A1E", marginBottom: 6 }}>{"★".repeat(rv.rating)}{"☆".repeat(5 - rv.rating)}</div>}
+                    {rv.comment && <p style={{ fontSize: 14, color: "#0F2A2A", margin: 0 }}>{rv.comment}</p>}
                   </div>
                 ))}
               </div>
@@ -550,60 +545,55 @@ export default function Profile() {
           </div>
         )}
 
-        {/* ── Tab: Maisons aimées ── */}
+        {/* Tab: Maisons aimées */}
         {activeTab === "likes" && (
           <div>
             {savedListings.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "64px 48px", color: "#717182" }}>
-                <Heart style={{ width: 40, height: 40, color: "#D1D5DB", margin: "0 auto 16px", display: "block" }} />
-                <p style={{ fontSize: 15, marginBottom: 8, fontWeight: 500, color: "#374151" }}>Aucune maison sauvegardée</p>
+              <div style={{ textAlign: "center", padding: "64px 48px", color: "#6E7B79" }}>
+                <Heart style={{ width: 40, height: 40, color: "#E5DFCE", margin: "0 auto 16px", display: "block" }} />
+                <p style={{ fontSize: 15, marginBottom: 8, fontWeight: 500, color: "#0F2A2A" }}>Aucune maison sauvegardée</p>
                 <p style={{ fontSize: 13, marginBottom: 20 }}>Parcourez les annonces et cliquez sur le cœur pour sauvegarder vos coups de cœur.</p>
-                <Link to="/browse" style={{ display: "inline-block", padding: "12px 24px", background: "#ADEBB3", color: "#0A3D3D", borderRadius: 100, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+                <Link to="/browse" style={{ display: "inline-block", padding: "12px 24px", background: "#ADEBB3", color: "#005B5B", borderRadius: 999, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
                   Parcourir les annonces
                 </Link>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
                 {savedListings.map((saved) => {
                   const l = saved.listings;
                   if (!l) return null;
                   return (
-                    <div key={saved.id} style={{ background: "#fff", borderRadius: 20, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                      <div style={{ height: 180, background: "#F0EFE4", position: "relative" }}>
+                    <article key={saved.id} style={{ background: "#FFFFFF", borderRadius: 18, border: "1px solid #E5DFCE", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                      <div style={{ position: "relative", width: "100%", aspectRatio: "4/3", background: "#E5DFCE", overflow: "hidden" }}>
                         {l.images?.[0] ? (
-                          <img src={l.images[0]} alt={l.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <img src={l.images[0]} alt={l.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                         ) : (
                           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <Heart style={{ width: 32, height: 32, color: "#D1D5DB" }} />
+                            <Heart style={{ width: 32, height: 32, color: "#6E7B79" }} />
                           </div>
                         )}
                         <div style={{ position: "absolute", top: 12, right: 12, background: "#ADEBB3", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Heart style={{ width: 16, height: 16, color: "#0A3D3D", fill: "#0A3D3D" }} />
+                          <Heart style={{ width: 16, height: 16, color: "#005B5B", fill: "#005B5B" }} />
                         </div>
                       </div>
-                      <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                        <h3 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 17, fontWeight: 600, margin: 0 }}>{l.title}</h3>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#4B3FD8" }}>
+                      <div style={{ padding: "16px 18px 18px", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700, color: "#0F2A2A" }}>{l.title}</h3>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#005B5B" }}>
                           <MapPin style={{ width: 13, height: 13 }} /> {l.wilaya}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#717182" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#6E7B79" }}>
                           <Bed style={{ width: 13, height: 13 }} /> {l.rooms} chambre{l.rooms > 1 ? "s" : ""}
                         </div>
                         <div style={{ marginTop: "auto", paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ padding: "5px 12px", borderRadius: 100, fontSize: 12, fontWeight: 600, background: l.is_for_exchange ? "#ECFDF5" : "#EEF2FF", color: l.is_for_exchange ? "#0A3D3D" : "#4B3FD8" }}>
+                          <span style={{ padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600, background: "#E4F6E6", color: "#005B5B", border: "1px solid #D5E9D8" }}>
                             {l.is_for_exchange && l.is_for_sale ? "Échange & Vente" : l.is_for_sale ? "Vente" : "Échange"}
                           </span>
-                          <Link
-                            to={`/listing/${l.id}`}
-                            style={{ display: "flex", alignItems: "center", gap: 5, color: "#4B3FD8", textDecoration: "none", fontSize: 13, fontWeight: 600, padding: "5px 10px", borderRadius: 8 }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "#EEF2FF")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                          >
+                          <Link to={`/listing/${l.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#005B5B", textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}>
                             <Eye style={{ width: 14, height: 14 }} /> Voir
                           </Link>
                         </div>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>

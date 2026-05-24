@@ -21,15 +21,10 @@ styleTag.textContent = `
   }
   .dbd-input-l:focus { border-color: #4B3FD8; box-shadow: 0 0 0 3px rgba(75,63,216,0.12); }
   .dbd-label-l {
-    position: absolute; left: 16px; top: 50%;
-    transform: translateY(-50%); font-size: 15px;
+    position: absolute; left: 16px;
+    font-size: 15px;
     color: #8AAA95; font-family: 'Inter', sans-serif;
     pointer-events: none; transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
-  }
-  .dbd-input-l:focus ~ .dbd-label-l,
-  .dbd-input-l:not(:placeholder-shown) ~ .dbd-label-l {
-    top: 14px; transform: translateY(-50%) scale(0.78);
-    transform-origin: left center; color: #4B3FD8; font-weight: 500;
   }
   .dbd-google-btn-l {
     width: 100%; display: flex; align-items: center; justify-content: center;
@@ -58,6 +53,13 @@ if (!document.head.querySelector('#dbd-login-styles')) {
   styleTag.id = 'dbd-login-styles'
   document.head.appendChild(styleTag)
 }
+
+const floatLabel = [
+  'dbd-label-l',
+  'top-1/2 -translate-y-1/2',
+  'peer-focus:top-4 peer-focus:-translate-y-1/2 peer-focus:scale-[0.87] peer-focus:origin-[left_center] peer-focus:text-[#4B3FD8] peer-focus:font-medium',
+  'peer-[:not(:placeholder-shown)]:top-4 peer-[:not(:placeholder-shown)]:-translate-y-1/2 peer-[:not(:placeholder-shown)]:scale-[0.87] peer-[:not(:placeholder-shown)]:origin-[left_center] peer-[:not(:placeholder-shown)]:text-[#4B3FD8] peer-[:not(:placeholder-shown)]:font-medium',
+].join(' ')
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -115,12 +117,12 @@ export default function Login() {
 
         <form onSubmit={handleLogin} noValidate>
           <div className="dbd-field-l">
-            <input className="dbd-input-l" type="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} required />
-            <label className="dbd-label-l">Email address</label>
+            <input className="dbd-input-l peer" type="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} required />
+            <label className={floatLabel}>Email address</label>
           </div>
           <div className="dbd-field-l">
-            <input className="dbd-input-l" type="password" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required />
-            <label className="dbd-label-l">Password</label>
+            <input className="dbd-input-l peer" type="password" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required />
+            <label className={floatLabel}>Password</label>
           </div>
           <div style={{ textAlign: 'right', marginBottom: '10px', marginTop: '-6px' }}>
             <Link to="/forgot-password" style={{ color: '#4B3FD8', fontSize: '13px', textDecoration: 'none', fontWeight: '500' }}>

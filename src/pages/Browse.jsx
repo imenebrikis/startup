@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown } from 'lucide-react'
+import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,8 +32,9 @@ const MONTHS_FR = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 
 
 function formatDate(dateStr) {
   if (!dateStr) return null
-  const d = new Date(dateStr)
-  return `${MONTHS_FR[d.getMonth()]} ${d.getDate()}`
+  const d = new Date(dateStr + 'T00:00:00')
+  const month = MONTHS_FR[d.getMonth()]
+  return `${d.getDate()} ${month.charAt(0).toUpperCase() + month.slice(1)}`
 }
 
 function getInitials(name) {
@@ -90,28 +91,18 @@ function pillTriggerStyle(active) {
 
 function SkeletonCard() {
   return (
-    <div style={{
-      background: '#ffffff', borderRadius: '16px',
-      border: '1px solid #e5e7eb', overflow: 'hidden',
-    }}>
-      <div style={{
-        height: '200px',
-        background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-        backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-      }} />
-      <div style={{ padding: '30px 14px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {[50, 70].map((w, i) => (
-          <div key={i} style={{
-            height: '11px', width: `${w}%`, borderRadius: '6px', margin: '0 auto',
-            background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-            backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-          }} />
-        ))}
-        <div style={{
-          height: '34px', borderRadius: '999px', marginTop: '6px',
-          background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)',
-          backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-        }} />
+    <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'visible', display: 'flex', flexDirection: 'column' }}>
+      {/* Image area */}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div className="skeleton-pulse" style={{ width: '100%', height: '200px', borderRadius: '16px 16px 0 0' }} />
+        {/* Hanging owner avatar */}
+        <div className="skeleton-pulse" style={{ position: 'absolute', bottom: '-20px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #ffffff', zIndex: 2 }} />
+      </div>
+      {/* Card body */}
+      <div style={{ paddingTop: '30px', paddingLeft: '14px', paddingRight: '14px', paddingBottom: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', borderRadius: '0 0 16px 16px', overflow: 'hidden' }}>
+        <div className="skeleton-pulse" style={{ height: '11px', width: '55%', borderRadius: '6px' }} />
+        <div className="skeleton-pulse" style={{ height: '11px', width: '40%', borderRadius: '6px' }} />
+        <div className="skeleton-pulse" style={{ height: '34px', width: '100%', borderRadius: '999px', marginTop: '4px' }} />
       </div>
     </div>
   )
@@ -146,8 +137,36 @@ function TypeBadge({ listing }) {
   )
 }
 
-function ListingCard({ listing, navigate }) {
+function ListingCard({ listing, navigate, userId }) {
   const [hovered, setHovered] = useState(false)
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [likeLoading, setLikeLoading] = useState(false)
+
+  useEffect(() => {
+    if (!userId) return
+    supabase
+      .from('user_favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('listing_id', listing.id)
+      .maybeSingle()
+      .then(({ data }) => setIsFavorited(Boolean(data)))
+  }, [userId, listing.id])
+
+  const handleToggleFavorite = async (e) => {
+    e.stopPropagation()
+    if (!userId || likeLoading) return
+    setLikeLoading(true)
+    if (isFavorited) {
+      await supabase.from('user_favorites').delete().eq('user_id', userId).eq('listing_id', listing.id)
+      setIsFavorited(false)
+    } else {
+      await supabase.from('user_favorites').insert({ user_id: userId, listing_id: listing.id })
+      setIsFavorited(true)
+    }
+    setLikeLoading(false)
+  }
+
   const photo = listing.images?.[0]
   const from = formatDate(listing.available_from)
   const to = formatDate(listing.available_to)
@@ -197,6 +216,29 @@ function ListingCard({ listing, navigate }) {
         {/* Type badge — top left text pill */}
         <TypeBadge listing={listing} />
 
+        {/* Favorite heart — top right */}
+        <button
+          onClick={handleToggleFavorite}
+          disabled={likeLoading}
+          style={{
+            position: 'absolute', top: '10px', right: '10px',
+            background: 'none', border: 'none', padding: '4px',
+            cursor: likeLoading ? 'wait' : 'pointer', lineHeight: 0,
+          }}
+        >
+          <Heart
+            strokeWidth={2}
+            style={{
+              width: '22px',
+              height: '22px',
+              fill: isFavorited ? '#f43f5e' : 'none',
+              color: isFavorited ? '#f43f5e' : '#ffffff',
+              filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))',
+              transition: 'fill 0.18s, color 0.18s',
+            }}
+          />
+        </button>
+
         {/* Owner avatar — centered at bottom edge */}
         <div style={{
           position: 'absolute',
@@ -238,16 +280,6 @@ function ListingCard({ listing, navigate }) {
         overflow: 'hidden',
       }}>
 
-        {/* Date row */}
-        {(from || to) && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-            <Calendar style={{ width: '12px', height: '12px', color: '#717182', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#1a1a1a', fontWeight: '500' }}>
-              {from && to ? `${from} – ${to}` : from || to}
-            </span>
-          </div>
-        )}
-
         {/* Location row */}
         {location && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
@@ -261,6 +293,51 @@ function ListingCard({ listing, navigate }) {
             </span>
           </div>
         )}
+
+        {/* Date row */}
+        {(from || to) && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <Calendar style={{ width: '12px', height: '12px', color: '#717182', flexShrink: 0 }} />
+            <span style={{ fontSize: '12px', color: '#717182', fontWeight: '500' }}>
+              {from && to ? `${from} – ${to}` : from || to}
+            </span>
+          </div>
+        )}
+
+        {/* Swap destinations row */}
+        {listing.is_for_exchange && (() => {
+          const anyWilaya = listing.any_wilaya
+          const raw = listing.destination_wilayas
+          const wilayas = typeof raw === 'string'
+            ? raw.split(',').map(w => w.trim()).filter(w => w && isNaN(w))
+            : Array.isArray(raw) ? raw.map(String).map(w => w.trim()).filter(w => w && isNaN(w)) : []
+          if (!anyWilaya && wilayas.length === 0) return null
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', minWidth: 0 }}>
+              <ArrowRightLeft style={{ width: '11px', height: '11px', color: '#717182', flexShrink: 0 }} />
+              {anyWilaya ? (
+                <span style={{ fontSize: '11px', color: '#717182', fontWeight: '500' }}>
+                  Toutes les wilayas
+                </span>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{
+                    fontSize: '11px', color: '#717182', fontWeight: '500',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    minWidth: 0,
+                  }}>
+                    {wilayas.slice(0, 2).join(' · ')}
+                  </span>
+                  {wilayas.length > 2 && (
+                    <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '600', flexShrink: 0 }}>
+                      +{wilayas.length - 2}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {listing.is_for_sale && listing.price && (
           <p style={{
@@ -302,6 +379,7 @@ function ListingCard({ listing, navigate }) {
 export default function Browse() {
   const navigate = useNavigate()
   const [initials, setInitials] = useState('?')
+  const [userId, setUserId] = useState(null)
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -315,6 +393,7 @@ export default function Browse() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { navigate('/'); return }
+      setUserId(user.id)
       const fullName = user.user_metadata?.full_name
       if (fullName) setInitials(fullName.split(' ').map(n => n[0]).join('').toUpperCase())
       else if (user.email) setInitials(user.email[0].toUpperCase())
@@ -353,7 +432,7 @@ export default function Browse() {
   }
 
   const filtered = useMemo(() =>
-    applyUserFilters(listings.filter(l => l.is_verified)),
+    applyUserFilters(listings),
     [listings, search, filterWilaya, filterType, filterRooms, filterDate]
   )
 
@@ -743,7 +822,7 @@ export default function Browse() {
                 gap: '20px',
               }}>
                 {filtered.map(listing => (
-                  <ListingCard key={listing.id} listing={listing} navigate={navigate} />
+                  <ListingCard key={listing.id} listing={listing} navigate={navigate} userId={userId} />
                 ))}
               </div>
             )}
@@ -752,10 +831,6 @@ export default function Browse() {
       </main>
 
       <style>{`
-        @keyframes shimmer {
-          0%   { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
         header input::placeholder { color: rgba(255,255,255,0.40); }
         .browse-main { padding: 28px 24px 80px; }
         @media (min-width: 1024px) {

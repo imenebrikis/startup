@@ -59,6 +59,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @theme inline {
+  /* ── DarBelDar brand tokens (Sheet, profile, cards) ── */
+  --color-teal:      #005B5B;
+  --color-teal-2:    #0A3D3D;
+  --color-mint:      #ADEBB3;
+  --color-mint-soft: #E4F6E6;
+  --color-paper:     #FFFFFF;
+  --color-bg:        #F3EEE0;
+  --color-line:      #E5DFCE;
+  --color-ink:       #0F2A2A;
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -148,4 +157,42 @@ h1, h2, h3, h4, h5, h6 {
   html {
     @apply font-sans;
   }
+}
+
+/* Float the login label instantly when the browser injects autofill credentials.
+   :-webkit-autofill cannot be grouped with other selectors or browsers invalidate
+   the whole rule, so it must live in its own block. */
+/* ── SwapSheet animations ───────────────────────────────────────────────── */
+@keyframes overlay-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes overlay-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes sheet-in    { from { transform: translateX(100%) } to { transform: translateX(0) } }
+@keyframes sheet-out   { from { transform: translateX(0) } to { transform: translateX(100%) } }
+@keyframes pop         { 0% { transform: scale(.7) } 80% { transform: scale(1.12) } 100% { transform: scale(1) } }
+@keyframes skeleton-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.5 } }
+.skeleton-pulse { background: #E5E7EB; animation: skeleton-pulse 1.5s ease-in-out infinite; }
+
+.anim-overlay-in  { animation: overlay-in  0.20s ease forwards; }
+.anim-overlay-out { animation: overlay-out 0.25s ease forwards; }
+.anim-sheet-in    { animation: sheet-in  0.28s cubic-bezier(.32,1,.58,1) forwards; }
+.anim-sheet-out   { animation: sheet-out 0.25s cubic-bezier(.4,0,1,1)   forwards; }
+.pop              { animation: pop 0.30s cubic-bezier(.32,1,.58,1) forwards; }
+.nice-scroll      { scrollbar-width: thin; scrollbar-color: #ADEBB3 transparent; }
+
+/* ── Login autofill ─────────────────────────────────────────────────────── */
+.dbd-input-l:-webkit-autofill ~ .dbd-label-l {
+  top: 16px;
+  transform: translateY(-50%) scale(0.87);
+  transform-origin: left center;
+  color: #4B3FD8;
+  font-weight: 500;
+}
+
+/* Override Chrome's autofill background with our periwinkle tint.
+   The inset box-shadow trick is the only reliable cross-browser way to do this. */
+.dbd-input-l:-webkit-autofill,
+.dbd-input-l:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ECEFFE inset;
+  box-shadow: 0 0 0 1000px #ECEFFE inset;
+  -webkit-text-fill-color: #111;
+  caret-color: #111;
 }

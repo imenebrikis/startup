@@ -24,11 +24,14 @@ import {
   Star,
   X,
   Maximize2,
+  Layers,
+  Globe2,
   BookOpen,
   Heart,
   MessageCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import SwapSheet from "../components/SwapSheet";
 
 const AMENITY_ICONS = {
   Climatisation: Wind,
@@ -49,10 +52,23 @@ const MONTHS_FR = ["jan","fév","mar","avr","mai","juin","juil","août","sep","o
 const fmtDate = (s) => {
   if (!s) return null;
   const d = new Date(s);
-  return `${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.getDate()} ${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`;
 };
 const fmtPrice = (p) =>
   p ? new Intl.NumberFormat("fr-DZ").format(p) + " DZD" : null;
+const fmtRange = (from, to) => {
+  const fmt = (s, withYear) => {
+    if (!s) return null;
+    const d = new Date(s + "T00:00:00");
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric", month: "long", ...(withYear ? { year: "numeric" } : {}),
+    });
+  };
+  if (from && to) return `Du ${fmt(from)} au ${fmt(to, true)}`;
+  if (from) return `À partir du ${fmt(from, true)}`;
+  if (to) return `Jusqu'au ${fmt(to, true)}`;
+  return null;
+};
 const initFrom = (name) =>
   name
     ? name.split(" ").map((n) => n[0]).join("").toUpperCase()
@@ -70,7 +86,7 @@ const sectionLabel = {
   marginBottom: "14px",
 };
 
-function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar }) {
+function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar, emptyColor = "#d1d5db" }) {
   return (
     <div style={{ display: "flex", gap: "2px" }}>
       {Array.from({ length: max }).map((_, i) => {
@@ -84,7 +100,7 @@ function Stars({ rating, max = 5, onClick, hoveredStar, setHoveredStar }) {
             style={{
               width: "16px", height: "16px",
               cursor: onClick ? "pointer" : "default",
-              color: filled ? "#F59E0B" : "#d1d5db",
+              color: filled ? "#F59E0B" : emptyColor,
               fill: filled ? "#F59E0B" : "none",
               transition: "color 0.12s",
             }}
@@ -124,7 +140,6 @@ export default function ListingDetail() {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   const [exchangeSent, setExchangeSent] = useState(false);
-  const [exchangeLoading, setExchangeLoading] = useState(false);
 
   const [isLiked, setIsLiked] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
@@ -225,28 +240,6 @@ export default function ListingDetail() {
   const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length);
   const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photos.length);
 
-  const handleExchange = async () => {
-    if (!user || !listing) return;
-    setExchangeLoading(true);
-    const { data: myListings, error: fetchError } = await supabase
-      .from("listings").select("id").eq("user_id", user.id).eq("is_for_exchange", true);
-    if (fetchError || !myListings || myListings.length === 0) {
-      alert("Vous devez avoir publié au moins une annonce d'échange pour envoyer une demande.");
-      setExchangeLoading(false);
-      return;
-    }
-    const { error } = await supabase.from("exchanges").insert({
-      requester_id: user.id,
-      listing_id: id,
-      receiver_id: listing.user_id,
-      offered_house_id: myListings[0].id,
-      status: "pending",
-      message: "Bonjour, je suis très intéressé par un échange avec votre logement !",
-    });
-    if (error) { console.error(error); alert("Une erreur s'est produite."); }
-    else setExchangeSent(true);
-    setExchangeLoading(false);
-  };
 
   const handleReview = async () => {
     if (!rating || !user) return;
@@ -425,19 +418,11 @@ export default function ListingDetail() {
                           ✓ Demande envoyée
                         </span>
                       ) : (
-                        <button
-                          onClick={handleExchange}
-                          disabled={exchangeLoading}
-                          style={{
-                            padding: "10px 22px", borderRadius: "999px",
-                            background: "#0A3D3D", color: "#fff", border: "none",
-                            fontSize: "13px", fontWeight: "700", cursor: exchangeLoading ? "wait" : "pointer",
-                            fontFamily: "'Inter', sans-serif",
-                            transition: "background 0.18s",
-                          }}
-                        >
-                          {exchangeLoading ? "Envoi…" : "Demande d'échange"}
-                        </button>
+                        <SwapSheet
+                          listing={listing}
+                          user={user}
+                          onSuccess={() => setExchangeSent(true)}
+                        />
                       )
                     )}
                     {isOwner && (
@@ -537,24 +522,62 @@ export default function ListingDetail() {
                     Disponibilités{listing.profiles?.full_name ? ` de ${listing.profiles.full_name}` : ""}
                   </p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-                    {(listing.available_from || listing.available_to) && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#F7F7EC", borderRadius: "8px", padding: "7px 14px" }}>
-                        <Calendar style={{ width: "14px", height: "14px", color: "#4B3FD8" }} />
-                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#1a1a1a" }}>
-                          {[fmtDate(listing.available_from), fmtDate(listing.available_to)].filter(Boolean).join(" – ")}
+                    {fmtRange(listing.available_from, listing.available_to) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ADEBB3", borderRadius: "999px", padding: "7px 14px" }}>
+                        <Calendar style={{ width: "14px", height: "14px", color: "#0A3D3D" }} />
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D" }}>
+                          {fmtRange(listing.available_from, listing.available_to)}
                         </span>
                       </div>
                     )}
                     {listing.wilaya && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                        <MapPin style={{ width: "14px", height: "14px", color: "#717182" }} />
-                        <span style={{ fontSize: "13px", color: "#717182" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "#ADEBB3", borderRadius: "999px", padding: "7px 14px" }}>
+                        <MapPin style={{ width: "14px", height: "14px", color: "#0A3D3D" }} />
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D" }}>
                           {[listing.wilaya, listing.city || listing.quartier].filter(Boolean).join(", ")}
                         </span>
                       </div>
                     )}
                   </div>
-                  {listing.price && (
+                  {(() => {
+                    const anyWilaya = listing.any_wilaya;
+                    const raw = listing.destination_wilayas;
+                    const wilayas = typeof raw === "string"
+                      ? raw.split(",").map((w) => w.trim()).filter((w) => w && isNaN(w))
+                      : Array.isArray(raw) ? raw.map(String).map((w) => w.trim()).filter((w) => w && isNaN(w)) : [];
+                    if (!anyWilaya && wilayas.length === 0) return null;
+                    return (
+                      <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #f3f4f6" }}>
+                        <p style={{ ...sectionLabel, marginBottom: "10px" }}>Destinations souhaitées</p>
+                        {anyWilaya ? (
+                          <div style={{
+                            display: "inline-flex", alignItems: "center", gap: "7px",
+                            background: "#ADEBB3", borderRadius: "999px", padding: "7px 16px",
+                          }}>
+                            <Globe2 style={{ width: "13px", height: "13px", color: "#0A3D3D" }} />
+                            <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D" }}>
+                              Ouvert à toutes les wilayas
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
+                            {wilayas.map((w) => (
+                              <span key={w} style={{
+                                display: "inline-flex", alignItems: "center", gap: "5px",
+                                background: "#ADEBB3", borderRadius: "999px",
+                                padding: "5px 13px", fontSize: "13px",
+                                fontWeight: "500", color: "#0A3D3D",
+                              }}>
+                                <MapPin style={{ width: "11px", height: "11px", color: "#0A3D3D", flexShrink: 0 }} />
+                                {w}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {!!listing.price && (
                     <p style={{
                       fontSize: "24px", fontWeight: "800", color: "#4B3FD8",
                       margin: "14px 0 0", fontFamily: "'Bricolage Grotesque', sans-serif",
@@ -583,6 +606,17 @@ export default function ListingDetail() {
                       <Maximize2 style={{ width: "18px", height: "18px", color: "#0A3D3D" }} />
                       <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
                         {listing.size} m² superficie
+                      </span>
+                    </div>
+                  )}
+                  {listing.property_type === "appart" && listing.floor != null && (
+                    <div style={{
+                      flex: 1, display: "flex", alignItems: "center", gap: "10px",
+                      borderLeft: "1px solid rgba(10,61,61,0.2)", paddingLeft: "20px",
+                    }}>
+                      <Layers style={{ width: "18px", height: "18px", color: "#0A3D3D" }} />
+                      <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
+                        {listing.floor === 0 ? "RDC" : `Étage ${listing.floor}`}
                       </span>
                     </div>
                   )}
@@ -685,9 +719,9 @@ export default function ListingDetail() {
                 ))}
 
                 {!isOwner && user && (
-                  <div style={{ border: "1px solid #e5e7eb", borderRadius: "14px", padding: "20px", marginTop: "8px" }}>
-                    <p style={{ ...label, marginBottom: "12px", fontSize: "14px" }}>Laisser un avis</p>
-                    <Stars rating={rating} onClick={setRating} hoveredStar={hoveredStar} setHoveredStar={setHoveredStar} />
+                  <div style={{ background: "#ADEBB3", borderRadius: "14px", padding: "20px", marginTop: "8px" }}>
+                    <p style={{ ...label, marginBottom: "12px", fontSize: "14px", color: "#0A3D3D" }}>Laisser un avis</p>
+                    <Stars rating={rating} onClick={setRating} hoveredStar={hoveredStar} setHoveredStar={setHoveredStar} emptyColor="rgba(0,73,73,0.35)" />
                     <textarea
                       rows={3}
                       value={comment}
@@ -695,9 +729,10 @@ export default function ListingDetail() {
                       placeholder="Partagez votre expérience..."
                       style={{
                         width: "100%", marginTop: "12px", padding: "10px 14px",
-                        borderRadius: "10px", border: "1.5px solid #e5e7eb",
+                        borderRadius: "10px", border: "1.5px solid rgba(0,73,73,0.2)",
                         fontSize: "14px", fontFamily: "'Inter', sans-serif",
                         resize: "vertical", outline: "none", boxSizing: "border-box",
+                        background: "#ffffff", color: "#1a1a1a",
                       }}
                     />
                     <button
@@ -706,10 +741,12 @@ export default function ListingDetail() {
                       style={{
                         marginTop: "10px", padding: "10px 24px",
                         borderRadius: "999px", border: "none",
-                        background: !rating ? "#9ca3af" : "#4B3FD8",
-                        color: "#fff", fontSize: "13px", fontWeight: "600",
+                        background: !rating ? "rgba(0,73,73,0.25)" : "#004949",
+                        color: !rating ? "rgba(0,73,73,0.5)" : "#ADEBB3",
+                        fontSize: "13px", fontWeight: "600",
                         cursor: !rating ? "not-allowed" : "pointer",
                         fontFamily: "'Inter', sans-serif",
+                        transition: "background 0.15s",
                       }}
                     >
                       {submittingReview ? "Publication…" : "Publier l'avis"}

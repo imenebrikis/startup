@@ -1,25 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Search,
-  List,
-  Repeat,
-  MessageSquare,
-  User,
-  MapPin,
-  Calendar,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  X,
-  Loader2,
-  Home,
-  Send,
-  Inbox,
-  AlertCircle,
-  BedDouble,
+  MapPin, Calendar, ArrowLeft, ArrowRight, Check, X,
+  Loader2, Home, MessageSquare, Send, Inbox, AlertCircle, BedDouble,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import Sidebar from "../components/Sidebar";
 
 const MONTHS = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"];
 const fmtDate = (s) => {
@@ -27,93 +13,34 @@ const fmtDate = (s) => {
   const d = new Date(s);
   return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
-const initials = (name) =>
-  name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
-
-const STATUS_TINT = {
-  pending:  { bg: "#ECFDF5", border: "1px solid #A7F3D0" },
-  accepted: { bg: "#ECFDF5", border: "1px solid #A7F3D0" },
-  refused:  { bg: "#FEF2F2", border: "1px solid #FECACA" },
-};
+const initials = (name) => name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
 
 function StatusBadge({ status }) {
   const map = {
-    pending:  { label: "En attente", bg: "#FEF3C7", color: "#92400E", dot: "#F59E0B" },
-    accepted: { label: "Accepté",    bg: "#D1FAE5", color: "#065F46", dot: "#10B981" },
-    refused:  { label: "Refusé",     bg: "#FEE2E2", color: "#991B1B", dot: "#EF4444" },
+    pending:  { label: "En attente", bg: "#FBEACB", color: "#C77A1E", dot: "#C77A1E" },
+    accepted: { label: "Accepté",    bg: "#D6EEDD", color: "#1F7A4F", dot: "#1F7A4F" },
+    refused:  { label: "Refusé",     bg: "#F7DCD8", color: "#C0392B", dot: "#C0392B" },
   };
   const s = map[status] || map.pending;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: s.bg, color: s.color, padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: s.bg, color: s.color, padding: "6px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 500 }}>
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
       {s.label}
     </span>
   );
 }
 
-function HouseBox({ house, label, status }) {
-  const tint = STATUS_TINT[status] || STATUS_TINT.pending;
+function InfoBlock({ label, children, refused }) {
   return (
-    <div style={{ background: tint.bg, border: tint.border, borderRadius: 12, padding: "14px 16px" }}>
-      <p style={{ fontSize: 11, color: "#6B7280", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+    <div style={{
+      background: refused ? "#FBEFEC" : "#E4F6E6",
+      border: `1px solid ${refused ? "#F2D6CF" : "#D5E9D8"}`,
+      borderRadius: 16, padding: "16px 18px",
+    }}>
+      <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: refused ? "#C0392B" : "#005B5B", fontWeight: 600, marginBottom: 8 }}>
         {label}
-      </p>
-      {house ? (
-        <>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 4, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-            {house.title}
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
-            {house.wilaya && (
-              <span style={{ fontSize: 12, color: "#4B3FD8", display: "flex", alignItems: "center", gap: 3 }}>
-                <MapPin style={{ width: 11, height: 11 }} />
-                {house.wilaya}{house.city ? `, ${house.city}` : ""}
-              </span>
-            )}
-            {house.rooms && (
-              <span style={{ fontSize: 12, color: "#6B7280", display: "flex", alignItems: "center", gap: 3 }}>
-                <BedDouble style={{ width: 11, height: 11 }} />
-                {house.rooms} chambre{house.rooms > 1 ? "s" : ""}
-              </span>
-            )}
-            {(house.available_from || house.available_to) && (
-              <span style={{ fontSize: 12, color: "#6B7280", display: "flex", alignItems: "center", gap: 3 }}>
-                <Calendar style={{ width: 11, height: 11 }} />
-                {[fmtDate(house.available_from), fmtDate(house.available_to)].filter(Boolean).join(" – ")}
-              </span>
-            )}
-          </div>
-        </>
-      ) : (
-        <p style={{ fontSize: 13, color: "#9CA3AF" }}>Non disponible</p>
-      )}
-    </div>
-  );
-}
-
-function MessageBox({ message, label, status }) {
-  if (!message) return null;
-  const tint = STATUS_TINT[status] || STATUS_TINT.pending;
-  return (
-    <div style={{ background: tint.bg, border: tint.border, borderRadius: 12, padding: "14px 16px" }}>
-      <p style={{ fontSize: 11, color: "#6B7280", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>{message}</p>
-    </div>
-  );
-}
-
-function Avatar({ name, sub }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0A3D3D", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
-        {initials(name)}
       </div>
-      <div>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{name || "Utilisateur"}</p>
-        {sub && <p style={{ fontSize: 12, color: "#717182" }}>{sub}</p>}
-      </div>
+      {children}
     </div>
   );
 }
@@ -127,73 +54,104 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
     ? `Demandé le ${new Date(ex.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`
     : "";
   const busy = actionLoading === ex.id;
+  const refused = ex.status === "refused";
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+    <article style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, padding: 22, marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
         <StatusBadge status={ex.status} />
-        <span style={{ fontSize: 12, color: "#9CA3AF" }}>{dateStr}</span>
+        <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{dateStr}</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        {/* Left: image + listing info + avatar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ borderRadius: 14, overflow: "hidden", height: 220, background: "#F0EFE4", flexShrink: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 22 }}>
+        {/* Left: photo + title + user */}
+        <div>
+          <div style={{ width: "100%", aspectRatio: "16/10", borderRadius: 16, overflow: "hidden", background: "#E5DFCE" }}>
             {requested?.images?.[0] ? (
-              <img src={requested.images[0]} alt={requested.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={requested.images[0]} alt={requested.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             ) : (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 6 }}>
-                <Home style={{ width: 28, height: 28, color: "#c4c4d4" }} />
-                <span style={{ fontSize: 11, color: "#c4c4d4" }}>property photo</span>
+                <Home style={{ width: 28, height: 28, color: "#6E7B79" }} />
+                <span style={{ fontSize: 11, color: "#6E7B79" }}>property photo</span>
               </div>
             )}
           </div>
+
           {requested && (
-            <div>
-              <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4, fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+            <>
+              <h3 style={{ margin: "16px 0 4px", fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", color: "#0F2A2A" }}>
                 {requested.title}
-              </p>
-              {requested.wilaya && (
-                <p style={{ fontSize: 13, color: "#4B3FD8", display: "flex", alignItems: "center", gap: 4 }}>
-                  <MapPin style={{ width: 12, height: 12 }} />
-                  {requested.wilaya}{requested.city ? `, ${requested.city}` : ""}
-                </p>
-              )}
-            </div>
+              </h3>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "#005B5B", fontWeight: 500 }}>
+                <MapPin style={{ width: 13, height: 13 }} />
+                {requested.wilaya}{requested.city ? `, ${requested.city}` : ""}
+              </div>
+            </>
           )}
-          <Avatar
-            name={mode === "sent" ? receiverProfile?.full_name : senderProfile?.full_name}
-            sub={mode === "sent" ? receiverProfile?.wilaya : senderProfile?.wilaya}
-          />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 18 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 15, flexShrink: 0 }}>
+              {initials(mode === "sent" ? receiverProfile?.full_name : senderProfile?.full_name)}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#0F2A2A" }}>
+              {(mode === "sent" ? receiverProfile?.full_name : senderProfile?.full_name) || "Utilisateur"}
+            </div>
+          </div>
         </div>
 
-        {/* Right: house info + message + actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <HouseBox
-            house={offered}
-            label={mode === "sent" ? "Votre logement proposé" : "Votre logement demandé"}
-            status={ex.status}
-          />
-          <MessageBox
-            message={ex.message}
-            label={mode === "sent" ? "Votre message" : "Message du demandeur"}
-            status={ex.status}
-          />
+        {/* Right: info blocks + actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <InfoBlock label={mode === "sent" ? "Votre logement proposé" : "Votre logement demandé"} refused={refused}>
+            {offered ? (
+              <>
+                <p style={{ fontSize: 15.5, fontWeight: 700, color: "#0F2A2A", margin: "0 0 8px", letterSpacing: "-0.005em" }}>{offered.title}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 13.5, color: refused ? "#C0392B" : "#005B5B" }}>
+                  {offered.wilaya && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <MapPin style={{ width: 13, height: 13, opacity: 0.85 }} />
+                      {offered.wilaya}{offered.city ? `, ${offered.city}` : ""}
+                    </span>
+                  )}
+                  {offered.rooms && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <BedDouble style={{ width: 13, height: 13, opacity: 0.85 }} />
+                      {offered.rooms} chambres
+                    </span>
+                  )}
+                  {(offered.available_from || offered.available_to) && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Calendar style={{ width: 13, height: 13, opacity: 0.85 }} />
+                      {[fmtDate(offered.available_from), fmtDate(offered.available_to)].filter(Boolean).join(" – ")}
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p style={{ fontSize: 13, color: "#6E7B79", margin: 0 }}>Non disponible</p>
+            )}
+          </InfoBlock>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+          {ex.message && (
+            <InfoBlock label={mode === "sent" ? "Votre message" : "Message du demandeur"} refused={refused}>
+              <p style={{ fontSize: 14, color: "#0F2A2A", lineHeight: 1.5, margin: 0 }}>{ex.message}</p>
+            </InfoBlock>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
             {mode === "sent" && (
               <>
                 <Link
                   to="/messages"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 999, border: "1.5px solid #D1D5DB", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", textDecoration: "none" }}
                 >
-                  <MessageSquare style={{ width: 14, height: 14 }} /> Envoyer un message
+                  <MessageSquare style={{ width: 15, height: 15 }} />
+                  Envoyer un message
                 </Link>
                 {ex.status === "pending" && (
                   <button
                     onClick={() => onCancel(ex.id)}
                     disabled={busy}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 999, border: "none", background: "#EF4444", color: "#fff", fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                    style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                   >
                     {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <X style={{ width: 14, height: 14 }} />}
                     Annuler la demande
@@ -203,11 +161,11 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
             )}
 
             {mode === "received" && ex.status === "pending" && (
-              <div style={{ display: "flex", gap: 8 }}>
+              <>
                 <button
                   onClick={() => onAccept(ex.id)}
                   disabled={busy}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 999, border: "none", background: "#10B981", color: "#fff", fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#F3EEE0", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                 >
                   {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <Check style={{ width: 14, height: 14 }} />}
                   Accepter
@@ -215,36 +173,37 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
                 <button
                   onClick={() => onRefuse(ex.id)}
                   disabled={busy}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 999, border: "none", background: "#EF4444", color: "#fff", fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                 >
                   {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <X style={{ width: 14, height: 14 }} />}
                   Refuser
                 </button>
-              </div>
+              </>
             )}
 
             {mode === "received" && ex.status !== "pending" && (
               <Link
                 to="/messages"
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", borderRadius: 999, border: "1.5px solid #D1D5DB", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", textDecoration: "none" }}
               >
-                <MessageSquare style={{ width: 14, height: 14 }} /> Envoyer un message
+                <MessageSquare style={{ width: 15, height: 15 }} />
+                Envoyer un message
               </Link>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 function EmptyState({ mode }) {
   return (
-    <div style={{ textAlign: "center", padding: "64px 32px", color: "#717182" }}>
-      <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-        {mode === "sent" ? <Send style={{ width: 28, height: 28, color: "#9CA3AF" }} /> : <Inbox style={{ width: 28, height: 28, color: "#9CA3AF" }} />}
+    <div style={{ textAlign: "center", padding: "64px 32px", color: "#6E7B79" }}>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", border: "1px solid #E5DFCE" }}>
+        {mode === "sent" ? <Send style={{ width: 28, height: 28, color: "#6E7B79" }} /> : <Inbox style={{ width: 28, height: 28, color: "#6E7B79" }} />}
       </div>
-      <p style={{ fontSize: 16, fontWeight: 600, color: "#374151", marginBottom: 8 }}>
+      <p style={{ fontSize: 16, fontWeight: 600, color: "#0F2A2A", marginBottom: 8 }}>
         {mode === "sent" ? "Aucune demande envoyée" : "Aucune demande reçue"}
       </p>
       <p style={{ fontSize: 13 }}>
@@ -264,14 +223,6 @@ export default function Exchanges() {
   const [actionLoading, setActionLoading] = useState(null);
   const [dbError, setDbError] = useState(null);
 
-  const navLinks = [
-    { to: "/browse",       icon: <Search className="w-5 h-5" />,       label: "Parcourir" },
-    { to: "/profile",      icon: <List className="w-5 h-5" />,         label: "Mes annonces" },
-    { to: "/my-exchanges", icon: <Repeat className="w-5 h-5" />,       label: "Mes échanges" },
-    { to: "/messages",     icon: <MessageSquare className="w-5 h-5" />, label: "Messages" },
-    { to: "/profile",      icon: <User className="w-5 h-5" />,         label: "Profil" },
-  ];
-
   const fetchExchanges = useCallback(async (uid) => {
     setLoading(true);
     setDbError(null);
@@ -285,10 +236,7 @@ export default function Exchanges() {
       .eq("requester_id", uid)
       .order("created_at", { ascending: false });
 
-    if (sentError) {
-      console.error("Error fetching sent:", sentError);
-      setDbError(`Sent Query Error: ${sentError.message}`);
-    }
+    if (sentError) { console.error("Error fetching sent:", sentError); setDbError(`Sent: ${sentError.message}`); }
 
     const { data: receivedData, error: receivedError } = await supabase
       .from("exchanges")
@@ -299,10 +247,7 @@ export default function Exchanges() {
       .eq("receiver_id", uid)
       .order("created_at", { ascending: false });
 
-    if (receivedError) {
-      console.error("Error fetching received:", receivedError);
-      if (!sentError) setDbError(`Received Query Error: ${receivedError.message}`);
-    }
+    if (receivedError) { console.error("Error fetching received:", receivedError); if (!sentError) setDbError(`Received: ${receivedError.message}`); }
 
     setSent(sentData || []);
     setReceived(receivedData || []);
@@ -336,103 +281,72 @@ export default function Exchanges() {
   const current = tab === "sent" ? sent : received;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F7F7EC", fontFamily: "'Inter', sans-serif", display: "flex" }}>
-      {/* Sidebar */}
-      <aside style={{ width: 240, minHeight: "100vh", background: "#F7F7EC", flexShrink: 0, padding: "28px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <Link
-          to="/dashboard"
-          style={{ fontSize: 20, fontWeight: 700, color: "#0A3D3D", textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif", padding: "4px 12px", marginBottom: 16, display: "block" }}
-        >
-          DarBelDar
-        </Link>
+    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+      <Sidebar active="Mes échanges" />
 
-        {navLinks.map(({ to, icon, label }) => {
-          const active = label === "Mes échanges";
-          return (
-            <Link
-              key={label}
-              to={to}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "11px 16px",
-                borderRadius: 12,
-                color: active ? "#fff" : "#4B5563",
-                background: active ? "#0A3D3D" : "transparent",
-                textDecoration: "none",
-                fontSize: 14,
-                fontWeight: active ? 600 : 500,
-              }}
-            >
-              {icon} {label}
-            </Link>
-          );
-        })}
-      </aside>
+      <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
+        {/* Topbar avatar */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", paddingBottom: 22 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
+            {initials(user?.user_metadata?.full_name || user?.email || "")}
+          </div>
+        </header>
 
-      {/* Main content */}
-      <main style={{ flex: 1, padding: "48px 48px 48px 32px" }}>
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "#111827", marginBottom: 6 }}>
-            Mes échanges
-          </h1>
-          <p style={{ fontSize: 14, color: "#717182" }}>
-            Gérez vos demandes d'échange envoyées et reçues
-          </p>
-        </div>
+        {/* Page header */}
+        <section style={{ margin: "6px 0 22px" }}>
+          <h1 style={{ fontSize: 42, lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>Mes échanges</h1>
+          <p style={{ margin: "10px 0 0", color: "#6E7B79", fontSize: 15 }}>Gérez vos demandes d'échange envoyées et reçues</p>
+        </section>
 
         {dbError && (
-          <div style={{ background: "#FEE2E2", border: "1px solid #EF4444", color: "#991B1B", padding: 16, borderRadius: 12, marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ background: "#F7DCD8", border: "1px solid #C0392B", color: "#C0392B", padding: 16, borderRadius: 12, marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 12 }}>
             <AlertCircle style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2 }} />
             <div>
-              <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Database Error:</p>
+              <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Erreur:</p>
               <p style={{ fontSize: 13, fontFamily: "monospace" }}>{dbError}</p>
             </div>
           </div>
         )}
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
           {[
-            { id: "sent",     label: "Demandes envoyées", icon: <ArrowRight style={{ width: 13, height: 13 }} />, count: sent.length },
-            { id: "received", label: "Demandes reçues",   icon: <ArrowLeft  style={{ width: 13, height: 13 }} />, count: received.length },
-          ].map(({ id, label, icon, count }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 20px",
-                borderRadius: 999,
-                border: tab === id ? "none" : "1.5px solid #D1D5DB",
-                background: tab === id ? "#0A3D3D" : "#fff",
-                color: tab === id ? "#fff" : "#6B7280",
-                fontSize: 14,
-                fontWeight: tab === id ? 600 : 500,
-                cursor: "pointer",
-              }}
-            >
-              {icon} {label}
-              <span style={{ background: tab === id ? "rgba(255,255,255,0.2)" : "#E5E7EB", color: tab === id ? "#fff" : "#6B7280", borderRadius: 999, fontSize: 11, fontWeight: 700, padding: "1px 7px" }}>
-                {count}
-              </span>
-            </button>
-          ))}
+            { id: "sent",     label: "Demandes envoyées", Icon: ArrowRight, count: sent.length },
+            { id: "received", label: "Demandes reçues",   Icon: ArrowLeft,  count: received.length },
+          ].map(({ id, label, Icon, count }) => {
+            const on = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 10, padding: "11px 18px", borderRadius: 999,
+                  background: on ? "#E4F6E6" : "#FFFFFF", border: on ? "1px solid #8FD89A" : "1px solid #E5DFCE",
+                  fontSize: 14, fontWeight: 500, color: "#005B5B", cursor: "pointer",
+                }}
+              >
+                <Icon style={{ width: 14, height: 14 }} />
+                {label}
+                <span style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 22, height: 22, padding: "0 7px",
+                  borderRadius: 999, fontSize: 12, fontWeight: 600,
+                  background: on ? "#005B5B" : "rgba(0,91,91,0.08)", color: on ? "#ADEBB3" : "#005B5B",
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {[0, 1].map((i) => (
-              <div key={i} style={{ height: 300, borderRadius: 20, background: "#E9E9DF" }} />
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {[0, 1].map((i) => <div key={i} style={{ height: 280, borderRadius: 22, background: "#E5DFCE", opacity: 0.5 }} />)}
           </div>
         ) : current.length === 0 ? (
           <EmptyState mode={tab} />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
             {current.map((ex) => (
               <ExchangeCard
                 key={ex.id}
