@@ -10,6 +10,8 @@ import Exchanges from "./pages/Exchanges";
 import Messages from "./pages/Messages";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminUsers from "./pages/AdminUsers";
 function App() {
   return (
     <BrowserRouter>
@@ -27,6 +29,8 @@ function App() {
         <Route path="/messages" element={<Messages />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Routes>
     </BrowserRouter>
   );
