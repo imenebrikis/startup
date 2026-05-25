@@ -131,6 +131,7 @@ export default function AddListing() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [stepError, setStepError] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -240,7 +241,7 @@ export default function AddListing() {
       };
 
       if (isEdit) {
-        const { error: e } = await supabase.from("listings").update(payload).eq("id", id);
+        const { error: e } = await supabase.from("listings").update({ ...payload, status: "pending" }).eq("id", id);
         if (e) throw e;
       } else {
         const { error: e } = await supabase.from("listings").insert({ ...payload, user_id: currentUser.id });
@@ -266,6 +267,59 @@ export default function AddListing() {
   };
 
   const showPrice = type === "sale" || type === "both";
+  const today = new Date().toISOString().split("T")[0];
+
+  function getStepError() {
+    switch (step) {
+      case 2:
+        if (!title.trim()) return "Veuillez saisir un titre pour votre annonce.";
+        break;
+      case 3:
+        if (!wilaya) return "Veuillez sélectionner une wilaya.";
+        if (!city.trim()) return "Veuillez saisir le nom de la ville.";
+        if (!quartier.trim()) return "Veuillez saisir le quartier / commune.";
+        break;
+      case 4:
+        if (!propertyType) return "Veuillez choisir le type de logement.";
+        if (!rooms) return "Veuillez indiquer le nombre de chambres.";
+        if (propertyType === "appart" && floor === "") return "Veuillez indiquer l'étage (0 pour rez-de-chaussée).";
+        if (type === "sale" && !size) return "Veuillez indiquer la superficie.";
+        if (type === "sale" && !price) return "Veuillez indiquer le prix de vente.";
+        break;
+      case 5:
+        if (amenities.length === 0) return "Veuillez sélectionner au moins un équipement.";
+        break;
+      case 7:
+        if (!availableFrom && !availableTo)
+          return "Veuillez indiquer au moins une date de disponibilité.";
+        break;
+      case 8:
+        if (!anyWilaya && destinationWilayas.length === 0)
+          return "Veuillez sélectionner au moins une wilaya, ou activer « Toutes les wilayas ».";
+        break;
+      case 9:
+        if (existingImages.length + photos.length < 3)
+          return "Veuillez ajouter au moins 3 photos avant de soumettre.";
+        break;
+      default:
+        break;
+    }
+    return "";
+  }
+
+  function handleNext() {
+    const err = getStepError();
+    if (err) { setStepError(err); return; }
+    setStepError("");
+    setStep((s) => Math.min(TOTAL, s + 1));
+  }
+
+  function handleSubmitValidated() {
+    const err = getStepError();
+    if (err) { setStepError(err); return; }
+    setStepError("");
+    handleSubmit();
+  }
 
   // ── Styles ──
   const tile = (on) => ({
@@ -568,19 +622,19 @@ export default function AddListing() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Disponible à partir du <span style={{ color: "#004848" }}>*</span></label>
-                    <input type="date" value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} style={inp}
+                    <input type="date" value={availableFrom} min={today} onChange={(e) => setAvailableFrom(e.target.value)} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Jusqu'au</label>
-                    <input type="date" value={availableTo} onChange={(e) => setAvailableTo(e.target.value)} style={inp}
+                    <input type="date" value={availableTo} min={availableFrom || today} onChange={(e) => setAvailableTo(e.target.value)} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                 </div>
                 <div style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", borderRadius: 12, padding: "12px 14px", color: "#005B5B", fontSize: 13 }}>
-                  Astuce : laissez "Jusqu'au" vide si votre logement est disponible sans limite de date.
+                  Les dates passées sont désactivées. Laissez "Jusqu'au" vide si votre logement est disponible sans limite de date.
                 </div>
               </div>
             )}
@@ -763,46 +817,64 @@ export default function AddListing() {
             )}
 
             {/* Footer nav */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 24, marginTop: "auto", borderTop: "1px dashed #E5DFCE" }}>
-              <button
-                type="button"
-                onClick={() => setStep((s) => Math.max(1, s - 1))}
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "transparent", color: "#005B5B", border: "none", cursor: step === 1 ? "default" : "pointer", visibility: step === 1 ? "hidden" : "visible" }}
-              >
-                <ChevronLeft style={{ width: 14, height: 14 }} />
-                Retour
-              </button>
+            <div style={{ paddingTop: 24, marginTop: "auto", borderTop: "1px dashed #E5DFCE", display: "flex", flexDirection: "column", gap: 12 }}>
 
-              <div style={{ display: "flex", gap: 10 }}>
-                {step < TOTAL ? (
-                  <button
-                    type="button"
-                    onClick={() => setStep((s) => Math.min(TOTAL, s + 1))}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer" }}
-                  >
-                    Étape suivante
-                    <ChevronRight style={{ width: 14, height: 14 }} />
-                  </button>
-                ) : (
-                  <>
+              {/* Inline validation error */}
+              {stepError && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 14px", borderRadius: 10,
+                  background: "#FDF1F0", border: "1px solid #EFC9C5",
+                  color: "#C0392B", fontSize: 13, fontWeight: 500,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                  </svg>
+                  {stepError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <button
+                  type="button"
+                  onClick={() => { setStepError(""); setStep((s) => Math.max(1, s - 1)); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "transparent", color: "#005B5B", border: "none", cursor: step === 1 ? "default" : "pointer", visibility: step === 1 ? "hidden" : "visible" }}
+                >
+                  <ChevronLeft style={{ width: 14, height: 14 }} />
+                  Retour
+                </button>
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  {step < TOTAL ? (
                     <button
                       type="button"
-                      onClick={() => navigate(isEdit ? "/profile" : "/dashboard")}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                      onClick={handleNext}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer" }}
                     >
-                      Annuler
+                      Étape suivante
+                      <ChevronRight style={{ width: 14, height: 14 }} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      disabled={loading || success}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: loading || success ? "#6E7B79" : "#005B5B", color: "#ADEBB3", border: "none", cursor: loading || success ? "not-allowed" : "pointer" }}
-                    >
-                      <Check style={{ width: 14, height: 14 }} />
-                      {loading ? "Envoi en cours…" : isEdit ? "Mettre à jour" : "Soumettre pour vérification"}
-                    </button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(isEdit ? "/profile" : "/dashboard")}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitValidated}
+                        disabled={loading || success}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: loading || success ? "#6E7B79" : "#005B5B", color: "#ADEBB3", border: "none", cursor: loading || success ? "not-allowed" : "pointer" }}
+                      >
+                        <Check style={{ width: 14, height: 14 }} />
+                        {loading ? "Envoi en cours…" : isEdit ? "Mettre à jour" : "Soumettre pour vérification"}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </section>
