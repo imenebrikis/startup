@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import NotificationBell from "../components/NotificationBell";
 
 const MONTHS = ["jan","fév","mar","avr","mai","juin","juil","août","sep","oct","nov","déc"];
 const fmtDate = (s) => {
@@ -286,7 +287,8 @@ export default function Exchanges() {
 
       <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
         {/* Topbar avatar */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", paddingBottom: 22 }}>
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
+          <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
             {initials(user?.user_metadata?.full_name || user?.email || "")}
           </div>

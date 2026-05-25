@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search, Repeat, Clock, LogOut } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import NotificationBell from "../components/NotificationBell";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -100,6 +101,7 @@ export default function Dashboard() {
             <LogOut style={{ width: 14, height: 14 }} />
             Déconnexion
           </button>
+          <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
             {initials}
           </div>
@@ -137,7 +139,7 @@ export default function Dashboard() {
         </section>
 
         {/* Quick actions */}
-        
+      
         <section style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 24 }}>
           {actionCards.map(({ to, Icon, title, sub, btn }) => (
             <div key={to} style={{ borderRadius: 22, padding: "24px 26px", background: "#E4F6E6", border: "1px solid #D5E9D8", display: "flex", flexDirection: "column", gap: 14, minHeight: 200 }}>
