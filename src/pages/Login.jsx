@@ -72,9 +72,14 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError(error.message); setLoading(false) }
-    else navigate('/dashboard')
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) { setError(error.message); setLoading(false); return }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+    navigate(profile?.role === 'admin' ? '/admin' : '/dashboard')
   }
 
   const handleGoogle = async () => {
