@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Sidebar from "../components/Sidebar";
-import NotificationBell from "../components/NotificationBell";
+import NotificationBell from "@/components/NotificationBell";
 
 
 const WILAYAS = [

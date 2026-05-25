@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
 import {
@@ -8,6 +9,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../components/ui/table";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 
 const PAGE_SIZE = 10;
 
@@ -67,7 +72,10 @@ export default function AdminUsers() {
 
   const [users, setUsers] = useState([]);        // merged profile + email rows
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("tous");
   const [page, setPage] = useState(1);
+
+  const [togglingId, setTogglingId] = useState(null);
 
   // Sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -141,22 +149,62 @@ export default function AdminUsers() {
     setSheetLoading(false);
   }
 
+  async function toggleBan(user) {
+    const newBanned = !user.is_banned;
+    setTogglingId(user.id);
+
+    // Optimistic update
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: newBanned } : u));
+    setSelectedUser(s => s?.id === user.id ? { ...s, is_banned: newBanned } : s);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_banned: newBanned })
+      .eq("id", user.id);
+
+    setTogglingId(null);
+
+    if (error) {
+      // Rollback
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: user.is_banned } : u));
+      setSelectedUser(s => s?.id === user.id ? { ...s, is_banned: user.is_banned } : s);
+      toast.error("Échec de la mise à jour du statut.");
+    } else {
+      toast.success(newBanned ? "Compte suspendu avec succès." : "Compte réactivé avec succès.");
+    }
+  }
+
+  // Tab counts always derived from the full unfiltered list
+  const counts = useMemo(() => ({
+    tous: users.length,
+    actifs: users.filter(u => !u.is_banned).length,
+    suspendus: users.filter(u => u.is_banned).length,
+  }), [users]);
+
   // Filtered + paginated
   const filtered = useMemo(() => {
+    let result = users;
+    if (activeTab === "actifs") result = result.filter(u => !u.is_banned);
+    else if (activeTab === "suspendus") result = result.filter(u => u.is_banned);
     const q = searchQuery.toLowerCase();
-    if (!q) return users;
-    return users.filter(u =>
+    if (q) result = result.filter(u =>
       (u.full_name || "").toLowerCase().includes(q) ||
       (u.email || "").toLowerCase().includes(q) ||
       (u.wilaya || "").toLowerCase().includes(q)
     );
-  }, [users, searchQuery]);
+    return result;
+  }, [users, searchQuery, activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageUsers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleSearch(val) {
     setSearchQuery(val);
+    setPage(1);
+  }
+
+  function handleTab(tab) {
+    setActiveTab(tab);
     setPage(1);
   }
 
@@ -244,39 +292,97 @@ export default function AdminUsers() {
           }}>
 
             {/* Toolbar */}
-            <div style={{
-              padding: "16px 20px", display: "flex", alignItems: "center",
-              justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap",
-            }}>
-              <label style={{
-                display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px",
-                background: "#FAF7EC", border: "1px solid #E5DFCE", borderRadius: 12,
-                color: "#6E7B79", fontSize: 13.5, minWidth: 280,
+            <div style={{ borderBottom: "1px solid #E5DFCE" }}>
+
+              {/* Tab strip row */}
+              <div style={{ padding: "14px 20px 0", display: "flex", alignItems: "center", gap: 2 }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 2,
+                  padding: 3, borderRadius: 11, background: "#F3EEE0", border: "1px solid #E5DFCE",
+                }}>
+                  {[
+                    { key: "tous",      label: "Tous",      count: counts.tous },
+                    { key: "actifs",    label: "Actifs",    count: counts.actifs },
+                    { key: "suspendus", label: "Suspendus", count: counts.suspendus },
+                  ].map(({ key, label, count }) => {
+                    const isActive = activeTab === key;
+                    const isSuspendus = key === "suspendus";
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleTab(key)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 7,
+                          padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                          background: isActive ? "#FFFFFF" : "transparent",
+                          boxShadow: isActive
+                            ? "0 1px 4px rgba(15,42,42,.09), 0 1px 0 rgba(255,255,255,.9) inset"
+                            : "none",
+                          color: isActive ? "#0F2A2A" : "#6E7B79",
+                          fontSize: 13, fontWeight: isActive ? 600 : 500,
+                          transition: "all .15s",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
+                          background: isActive
+                            ? isSuspendus ? "#FDECEA" : "#E4F6E6"
+                            : "#E5DFCE",
+                          border: isActive
+                            ? isSuspendus ? "1px solid #F5C6C2" : "1px solid #C9E8CD"
+                            : "1px solid transparent",
+                          color: isActive
+                            ? isSuspendus ? "#C0392B" : "#006E6E"
+                            : "#98A3A0",
+                          fontSize: 10.5, fontWeight: 700, lineHeight: 1,
+                          transition: "all .15s",
+                        }}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Search + count row */}
+              <div style={{
+                padding: "12px 20px", display: "flex", alignItems: "center",
+                justifyContent: "space-between", gap: 12, flexWrap: "wrap",
               }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                <input
-                  value={searchQuery}
-                  onChange={e => handleSearch(e.target.value)}
-                  placeholder="Rechercher par nom, email ou wilaya…"
-                  style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13.5 }}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => handleSearch("")}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#98A3A0", lineHeight: 1, padding: 0 }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                  </button>
-                )}
-              </label>
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
-                borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
-                color: "#006E6E", fontSize: 12.5, fontWeight: 600,
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#006E6E" }} />
-                {filtered.length} utilisateur{filtered.length !== 1 ? "s" : ""}
-              </span>
+                <label style={{
+                  display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px",
+                  background: "#FAF7EC", border: "1px solid #E5DFCE", borderRadius: 12,
+                  color: "#6E7B79", fontSize: 13.5, minWidth: 280,
+                }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input
+                    value={searchQuery}
+                    onChange={e => handleSearch(e.target.value)}
+                    placeholder="Rechercher par nom, email ou wilaya…"
+                    style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13.5 }}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => handleSearch("")}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#98A3A0", lineHeight: 1, padding: 0 }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                  )}
+                </label>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                  borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
+                  color: "#006E6E", fontSize: 12.5, fontWeight: 600,
+                }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#006E6E" }} />
+                  {filtered.length} utilisateur{filtered.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
 
             {/* Table */}
@@ -327,13 +433,28 @@ export default function AdminUsers() {
                             <div style={{ fontWeight: 600, color: "#0F2A2A", fontSize: 13.5, letterSpacing: "-.003em" }}>
                               {user.full_name || "—"}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                              {isAdmin && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
+                              {isAdmin ? (
                                 <span style={{
                                   display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px",
                                   borderRadius: 999, background: "#006E6E", color: "#ADEBB3",
                                   fontSize: 10, fontWeight: 700, letterSpacing: ".05em",
                                 }}>Admin</span>
+                              ) : (
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px",
+                                  borderRadius: 999,
+                                  background: user.is_banned ? "#FDECEA" : "#E4F6E6",
+                                  border: `1px solid ${user.is_banned ? "#F5C6C2" : "#C9E8CD"}`,
+                                  color: user.is_banned ? "#C0392B" : "#006E6E",
+                                  fontSize: 10, fontWeight: 700, letterSpacing: ".05em",
+                                }}>
+                                  <span style={{
+                                    width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+                                    background: user.is_banned ? "#C0392B" : "#006E6E",
+                                  }} />
+                                  {user.is_banned ? "Suspendu" : "Actif"}
+                                </span>
                               )}
                               <span style={{ fontSize: 11, color: "#98A3A0", fontFamily: "monospace" }}>#{user.id.slice(0, 8)}</span>
                             </div>
@@ -367,20 +488,57 @@ export default function AdminUsers() {
 
                       {/* Actions */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 24, textAlign: "right" }}>
-                        <button
-                          onClick={() => openUserSheet(user)}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 14px",
-                            borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
-                            color: "#006E6E", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                            transition: "background .15s",
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#ADEBB3"}
-                          onMouseLeave={e => e.currentTarget.style.background = "#E4F6E6"}
-                        >
-                          Voir profil
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px",
+                                borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
+                                color: "#006E6E", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                              }}
+                            >
+                              Actions
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" style={{ minWidth: 180 }}>
+                            <DropdownMenuItem onSelect={() => openUserSheet(user)} style={{ cursor: "pointer" }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                              Voir profil
+                            </DropdownMenuItem>
+                            {!isAdmin && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() => toggleBan(user)}
+                                  disabled={togglingId === user.id}
+                                  style={{
+                                    cursor: togglingId === user.id ? "not-allowed" : "pointer",
+                                    color: user.is_banned ? "#006E6E" : "#C0392B",
+                                    opacity: togglingId === user.id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {togglingId === user.id ? (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8, animation: "spin .7s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                                      Mise à jour…
+                                    </>
+                                  ) : user.is_banned ? (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z"/><path d="M8 12l3 3 5-5"/></svg>
+                                      Réactiver le compte
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+                                      Suspendre le compte
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -604,7 +762,7 @@ export default function AdminUsers() {
         </SheetContent>
       </Sheet>
 
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
