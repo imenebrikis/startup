@@ -25,7 +25,7 @@ export default function AdminSidebar({ active = "dashboard", pendingCount = 0, a
     },
     {
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>,
-      label: "Annonces", key: "listings", to: "/admin", badge: pendingCount || null,
+      label: "Annonces", key: "listings", to: "/admin/listings", badge: pendingCount || null,
     },
     {
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c1.2-3 3.8-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/><circle cx="17" cy="7" r="2.6"/><path d="M14.5 14.5c1.5-.7 3-.9 4.5-.5 1.4.4 2.5 1.3 3 2.5"/></svg>,
@@ -33,7 +33,11 @@ export default function AdminSidebar({ active = "dashboard", pendingCount = 0, a
     },
     {
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>,
-      label: "Échanges", key: "exchanges", to: "/admin",
+      label: "Échanges & Ventes", key: "exchanges", to: "/admin/transactions",
+    },
+    {
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+      label: "Messages 💬", key: "messages", to: "/admin/messages",
     },
   ];
 
@@ -43,8 +47,8 @@ export default function AdminSidebar({ active = "dashboard", pendingCount = 0, a
       label: "Vérifications", key: "verif", to: "/admin", badge: pendingCount || null, warnBadge: true,
     },
     {
-      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 3v18M5 7h14M5 17h14"/></svg>,
-      label: "Rapports", key: "reports", to: "/admin",
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg>,
+      label: "Modération", key: "reports", to: "/admin/reports",
     },
   ];
 

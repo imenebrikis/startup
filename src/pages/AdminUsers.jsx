@@ -290,9 +290,6 @@ export default function AdminUsers() {
                     Email
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Téléphone
-                  </TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
                     Wilaya
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
@@ -347,11 +344,6 @@ export default function AdminUsers() {
                       {/* Email */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79" }}>
                         {user.email}
-                      </TableCell>
-
-                      {/* Téléphone */}
-                      <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79" }}>
-                        {user.phone || <span style={{ color: "#D8D0B8" }}>—</span>}
                       </TableCell>
 
                       {/* Wilaya */}
@@ -512,7 +504,6 @@ export default function AdminUsers() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {[
                       { label: "Wilaya", value: selectedUser.wilaya || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg> },
-                      { label: "Téléphone", value: selectedUser.phone || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 5.5 5.5l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
                       { label: "Inscrit le", value: selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
                       { label: "Quartier", value: selectedUser.quartier || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg> },
                     ].map(({ label, value, icon }) => (

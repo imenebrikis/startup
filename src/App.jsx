@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "./components/ui/sonner";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -12,9 +13,14 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
+import AdminListings from "./pages/AdminListings";
+import AdminTransactions from "./pages/AdminTransactions";
+import AdminMessages from "./pages/AdminMessages";
+import AdminReports from "./pages/AdminReports";
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -31,6 +37,10 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/listings" element={<AdminListings />} />
+        <Route path="/admin/transactions" element={<AdminTransactions />} />
+        <Route path="/admin/messages" element={<AdminMessages />} />
+        <Route path="/admin/reports" element={<AdminReports />} />
       </Routes>
     </BrowserRouter>
   );

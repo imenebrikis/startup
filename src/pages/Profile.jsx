@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  MapPin, Phone, Mail, Edit2, Save, X, Bed, Eye, Heart, ChevronDown, LogOut, CheckCircle2,
+  MapPin, Mail, Edit2, Save, X, Bed, Eye, Heart, ChevronDown, LogOut, CheckCircle2, Flag,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup,
@@ -13,8 +13,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Sidebar from "../components/Sidebar";
+import NotificationBell from "../components/NotificationBell";
 
 
 const WILAYAS = [
@@ -42,12 +46,17 @@ export default function Profile() {
   const [saveError, setSaveError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showSaveAlert, setShowSaveAlert] = useState(false);
-  const [editForm, setEditForm] = useState({ full_name: "", wilaya: "", quartier: "", phone: "" });
+  const [editForm, setEditForm] = useState({ full_name: "", wilaya: "", quartier: "" });
   const [listings, setListings] = useState([]);
   const [exchanges, setExchanges] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [savedListings, setSavedListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reportedReviewIds, setReportedReviewIds] = useState(() => new Set());
+  const [reportingReview, setReportingReview] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportError, setReportError] = useState(null);
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
@@ -66,7 +75,6 @@ export default function Profile() {
         full_name: profileData?.full_name || (own ? user.user_metadata?.full_name || "" : ""),
         wilaya: profileData?.wilaya || "",
         quartier: profileData?.quartier || "",
-        phone: profileData?.phone || "",
       });
 
       const [{ count: listingsCount }, { count: exchangesCount }, { count: salesCount }] = await Promise.all([
@@ -100,6 +108,15 @@ export default function Profile() {
           .select("*, profiles!reviewer_id(full_name), listings(title)")
           .in("listing_id", userListingIds).order("created_at", { ascending: false });
         setReviews(reviewsData || []);
+
+        if (own && reviewsData?.length) {
+          const { data: reportsData } = await supabase
+            .from("comment_reports")
+            .select("comment_id")
+            .eq("reporter_id", user.id)
+            .in("comment_id", reviewsData.map((r) => r.id));
+          setReportedReviewIds(new Set((reportsData || []).map((r) => r.comment_id)));
+        }
       }
     } finally {
       setLoading(false);
@@ -130,6 +147,48 @@ export default function Profile() {
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
+
+  const openReportDialog = (review) => {
+    setReportingReview(review);
+    setReportReason("");
+    setReportError(null);
+  };
+
+  const closeReportDialog = () => {
+    if (submittingReport) return;
+    setReportingReview(null);
+    setReportReason("");
+    setReportError(null);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!reportingReview || !user) return;
+    setSubmittingReport(true);
+    setReportError(null);
+    try {
+      const { error } = await supabase.from("comment_reports").insert({
+        comment_id: reportingReview.id,
+        reporter_id: user.id,
+        reason: reportReason.trim() || null,
+        status: "pending",
+      });
+      if (error) {
+        setReportError("Une erreur est survenue. Veuillez réessayer.");
+        return;
+      }
+      setReportedReviewIds((prev) => {
+        const next = new Set(prev);
+        next.add(reportingReview.id);
+        return next;
+      });
+      setReportingReview(null);
+      setReportReason("");
+    } catch {
+      setReportError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
 
   const handleDeleteListing = async (listingId) => {
     try {
@@ -240,6 +299,7 @@ export default function Profile() {
             <LogOut style={{ width: 14, height: 14 }} />
             Déconnexion
           </button>
+          <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
             {navInitials}
           </div>
@@ -302,14 +362,6 @@ export default function Profile() {
                     onChange={(e) => setEditForm({ ...editForm, quartier: e.target.value })}
                   />
                 </div>
-                <div style={{ marginBottom: 16 }}>
-                  <input
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none", color: "#0F2A2A" }}
-                    placeholder="Téléphone"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  />
-                </div>
                 {saveError && (
                   <div style={{ background: "#F7DCD8", border: "1px solid #C0392B", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#C0392B", marginBottom: 12 }}>
                     {saveError}
@@ -343,10 +395,6 @@ export default function Profile() {
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
                     <MapPin style={{ width: 14, height: 14, opacity: 0.9 }} />
                     {profile?.quartier ? `${profile.quartier}, ` : ""}{profile?.wilaya || "Algérie"}
-                  </div>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
-                    <Phone style={{ width: 14, height: 14, opacity: 0.9 }} />
-                    {profile?.phone || "Non renseigné"}
                   </div>
                   {isOwnProfile && (
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 14, fontWeight: 500 }}>
@@ -420,13 +468,13 @@ export default function Profile() {
                       )}
                       <span style={{
                         position: "absolute", top: 12, right: 12,
-                        background: listing.is_verified ? "#ADEBB3" : "#FBEACB",
-                        color: listing.is_verified ? "#005B5B" : "#C77A1E",
+                        background: listing.status === "rejected" ? "#FEE2E2" : listing.is_verified ? "#ADEBB3" : "#FBEACB",
+                        color: listing.status === "rejected" ? "#991B1B" : listing.is_verified ? "#005B5B" : "#C77A1E",
                         padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600,
                         display: "inline-flex", alignItems: "center", gap: 5,
-                        border: listing.is_verified ? "1px solid #8FD89A" : "1px solid #C77A1E",
+                        border: listing.status === "rejected" ? "1px solid #FCA5A5" : listing.is_verified ? "1px solid #8FD89A" : "1px solid #C77A1E",
                       }}>
-                        {listing.is_verified ? "✓ Vérifié" : "En attente"}
+                        {listing.status === "rejected" ? "✕ Refusé" : listing.is_verified ? "✓ Vérifié" : "En attente"}
                       </span>
                     </div>
 
@@ -439,6 +487,26 @@ export default function Profile() {
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6E7B79" }}>
                         <Bed style={{ width: 13, height: 13 }} /> {listing.rooms} chambres
                       </span>
+
+                      {listing.status === "rejected" && (
+                        <div style={{
+                          marginTop: 4, padding: "10px 12px", borderRadius: 10,
+                          background: "#FEF2F2", border: "1px solid #FECACA",
+                          display: "flex", alignItems: "flex-start", gap: 8,
+                        }}>
+                          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+                          <div>
+                            <p style={{ margin: "0 0 3px", fontSize: 12, fontWeight: 700, color: "#991B1B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              Motif du refus
+                            </p>
+                            <span style={{ fontSize: 12.5, color: "#B91C1C", lineHeight: 1.55 }}>
+                              {listing.rejection_reason?.trim()
+                                ? listing.rejection_reason
+                                : "Aucun motif spécifique fourni. Veuillez contacter le support."}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
                         <span style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", color: "#005B5B", padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
@@ -530,20 +598,95 @@ export default function Profile() {
               <div style={{ textAlign: "center", padding: 48, color: "#6E7B79" }}>Aucun avis reçu pour le moment.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {reviews.map((rv) => (
-                  <div key={rv.id} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 16, padding: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: "#0F2A2A" }}>{rv.profiles?.full_name || "Utilisateur"}</span>
-                      <span style={{ fontSize: 13, color: "#6E7B79" }}>{rv.listings?.title}</span>
+                {reviews.map((rv) => {
+                  const alreadyReported = reportedReviewIds.has(rv.id);
+                  return (
+                    <div key={rv.id} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 16, padding: 20, position: "relative" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: "#0F2A2A" }}>{rv.profiles?.full_name || "Utilisateur"}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontSize: 13, color: "#6E7B79" }}>{rv.listings?.title}</span>
+                          {isOwnProfile && (
+                            alreadyReported ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#9CA3AF", padding: "5px 10px", borderRadius: 999, background: "#F3F4F6", border: "1px solid #E5E7EB" }}>
+                                <Flag style={{ width: 12, height: 12 }} /> Signalé
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => openReportDialog(rv)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "#B91C1C", padding: "5px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #FECACA", cursor: "pointer" }}
+                              >
+                                <Flag style={{ width: 12, height: 12 }} /> Signaler
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                      {rv.rating && <div style={{ fontSize: 14, color: "#C77A1E", marginBottom: 6 }}>{"★".repeat(rv.rating)}{"☆".repeat(5 - rv.rating)}</div>}
+                      {rv.comment && <p style={{ fontSize: 14, color: "#0F2A2A", margin: 0 }}>{rv.comment}</p>}
                     </div>
-                    {rv.rating && <div style={{ fontSize: 14, color: "#C77A1E", marginBottom: 6 }}>{"★".repeat(rv.rating)}{"☆".repeat(5 - rv.rating)}</div>}
-                    {rv.comment && <p style={{ fontSize: 14, color: "#0F2A2A", margin: 0 }}>{rv.comment}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         )}
+
+        {/* Report review dialog */}
+        <Dialog open={!!reportingReview} onOpenChange={(open) => { if (!open) closeReportDialog(); }}>
+          <DialogContent
+            style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5DFCE", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 460 }}
+          >
+            <DialogHeader>
+              <DialogTitle style={{ fontSize: 18, fontWeight: 700, color: "#0F2A2A", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <Flag style={{ width: 18, height: 18, color: "#B91C1C" }} />
+                Signaler cet avis
+              </DialogTitle>
+              <DialogDescription style={{ fontSize: 14, color: "#6E7B79", lineHeight: 1.55 }}>
+                Si vous pensez que cet avis est offensant, mensonger ou sans preuve, vous pouvez le signaler à l'administrateur pour examen.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor="report-reason" style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#0F2A2A", marginBottom: 6 }}>
+                Raison du signalement (optionnel)
+              </label>
+              <textarea
+                id="report-reason"
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="Expliquez brièvement pourquoi vous signalez cet avis…"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #E5DFCE", fontSize: 13.5, fontFamily: "inherit", color: "#0F2A2A", outline: "none", resize: "vertical", boxSizing: "border-box", background: "#FFFFFF" }}
+              />
+            </div>
+
+            {reportError && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#B91C1C", marginTop: 12 }}>
+                {reportError}
+              </div>
+            )}
+
+            <DialogFooter style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 18 }}>
+              <button
+                onClick={closeReportDialog}
+                disabled={submittingReport}
+                style={{ padding: "10px 16px", borderRadius: 12, background: "#fff", color: "#0F2A2A", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: submittingReport ? "not-allowed" : "pointer" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleSubmitReport}
+                disabled={submittingReport}
+                style={{ padding: "10px 16px", borderRadius: 12, background: "#B91C1C", color: "#FFFFFF", border: "none", fontSize: 14, fontWeight: 600, cursor: submittingReport ? "not-allowed" : "pointer", opacity: submittingReport ? 0.7 : 1, display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Flag style={{ width: 14, height: 14 }} />
+                {submittingReport ? "Envoi…" : "Confirmer le signalement"}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Tab: Maisons aimées */}
         {activeTab === "likes" && (

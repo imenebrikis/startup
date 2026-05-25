@@ -522,9 +522,9 @@ export default function AdminDashboard() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13.5 }}>
                 <thead>
                   <tr>
-                    {["Utilisateur", "Wilaya", "Téléphone", "Inscrit le", "Rôle", "Actions"].map((h, i) => (
+                    {["Utilisateur", "Wilaya", "Inscrit le", "Rôle", "Actions"].map((h, i) => (
                       <th key={h} style={{
-                        textAlign: i === 5 ? "right" : "left", fontWeight: 500, fontSize: 11.5,
+                        textAlign: i === 4 ? "right" : "left", fontWeight: 500, fontSize: 11.5,
                         textTransform: "uppercase", letterSpacing: ".06em", color: "#98A3A0",
                         padding: "14px 22px", borderBottom: "1px solid #E5DFCE",
                       }}>{h}</th>
@@ -560,9 +560,6 @@ export default function AdminDashboard() {
                               {user.wilaya}
                             </span>
                           ) : <span style={{ color: "#98A3A0" }}>—</span>}
-                        </td>
-                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", color: "#6E7B79" }}>
-                          {user.phone || "—"}
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", color: "#6E7B79", fontFamily: "monospace" }}>
                           {user.created_at ? new Date(user.created_at).toLocaleDateString("fr-FR") : "—"}
