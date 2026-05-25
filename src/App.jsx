@@ -12,6 +12,9 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
+import AdminListings from "./pages/AdminListings";
+import AdminTransactions from "./pages/AdminTransactions";
+import AdminReports from "./pages/AdminReports";
 function App() {
   return (
     <BrowserRouter>
@@ -31,6 +34,9 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/listings" element={<AdminListings />} />
+        <Route path="/admin/transactions" element={<AdminTransactions />} />
+        <Route path="/admin/reports" element={<AdminReports />} />
       </Routes>
     </BrowserRouter>
   );

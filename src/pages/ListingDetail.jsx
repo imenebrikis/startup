@@ -145,6 +145,8 @@ export default function ListingDetail() {
   const [likeLoading, setLikeLoading] = useState(false);
 
   const [contactLoading, setContactLoading] = useState(false);
+  const [contactSaleLoading, setContactSaleLoading] = useState(false);
+  const [saleSent, setSaleSent] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -203,6 +205,57 @@ export default function ListingDetail() {
 
     navigate("/messages", { state: { conversationId: convId } });
     setContactLoading(false);
+  };
+
+  const handleContactSeller = async () => {
+    if (!user || !listing || contactSaleLoading) return;
+    setContactSaleLoading(true);
+
+    const [p1, p2] = [user.id, listing.user_id].sort();
+
+    // Get or create conversation
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("participant_one", p1)
+      .eq("participant_two", p2)
+      .maybeSingle();
+
+    let convId;
+    if (existing) {
+      convId = existing.id;
+    } else {
+      const { data: created, error } = await supabase
+        .from("conversations")
+        .insert({ participant_one: p1, participant_two: p2, listing_id: id })
+        .select("id")
+        .single();
+      if (error) { setContactSaleLoading(false); return; }
+      convId = created.id;
+    }
+
+    // Log sale transaction if not already recorded
+    const { data: existingTx } = await supabase
+      .from("exchanges")
+      .select("id")
+      .eq("requester_id", user.id)
+      .eq("listing_id", id)
+      .is("offered_house_id", null)
+      .maybeSingle();
+
+    if (!existingTx) {
+      await supabase.from("exchanges").insert({
+        requester_id: user.id,
+        receiver_id: listing.user_id,
+        listing_id: id,
+        offered_house_id: null,
+        status: "pending",
+      });
+    }
+
+    setSaleSent(true);
+    setContactSaleLoading(false);
+    navigate("/messages", { state: { conversationId: convId } });
   };
 
   useEffect(() => {
@@ -298,6 +351,30 @@ export default function ListingDetail() {
           <p style={muted}>Annonce introuvable.</p>
         ) : (
           <>
+            {/* ── Rejection banner (owner only) ── */}
+            {isOwner && listing.status === "rejected" && (
+              <div style={{
+                marginBottom: "20px", padding: "16px 20px", borderRadius: "14px",
+                background: "#FEF2F2", border: "1px solid #FECACA",
+                display: "flex", alignItems: "flex-start", gap: "12px",
+              }}>
+                <span style={{ fontSize: "20px", flexShrink: 0, lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <p style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "700", color: "#991B1B", fontFamily: "'Inter', sans-serif" }}>
+                    Votre annonce a été refusée
+                  </p>
+                  <p style={{ margin: 0, fontSize: "13.5px", color: "#B91C1C", lineHeight: 1.6, fontFamily: "'Inter', sans-serif" }}>
+                    {listing.rejection_reason?.trim()
+                      ? listing.rejection_reason
+                      : "Aucun motif spécifique fourni. Veuillez contacter le support."}
+                  </p>
+                  <p style={{ margin: "8px 0 0", fontSize: "12.5px", color: "#991B1B", opacity: 0.75, fontFamily: "'Inter', sans-serif" }}>
+                    Corrigez les points mentionnés puis modifiez votre annonce pour la soumettre à nouveau.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── Page title ── */}
             <div style={{ marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: "240px" }}>
@@ -462,15 +539,35 @@ export default function ListingDetail() {
 
                   {/* Sale contact */}
                   {listing.is_for_sale && !isOwner && (
-                    <button style={{
-                      marginTop: "20px", width: "100%", padding: "12px",
-                      borderRadius: "999px", border: "1.5px solid #0A3D3D",
-                      background: "transparent", color: "#0A3D3D",
-                      fontSize: "14px", fontWeight: "700", cursor: "pointer",
-                      fontFamily: "'Inter', sans-serif",
-                    }}>
-                      Contacter le vendeur
-                    </button>
+                    saleSent ? (
+                      <div style={{
+                        marginTop: "20px", width: "100%", padding: "12px",
+                        borderRadius: "999px", border: "1.5px solid #0A3D3D",
+                        background: "rgba(10,61,61,0.1)", color: "#0A3D3D",
+                        fontSize: "14px", fontWeight: "700",
+                        fontFamily: "'Inter', sans-serif", textAlign: "center",
+                        boxSizing: "border-box",
+                      }}>
+                        ✓ Demande envoyée
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleContactSeller}
+                        disabled={contactSaleLoading}
+                        style={{
+                          marginTop: "20px", width: "100%", padding: "12px",
+                          borderRadius: "999px", border: "1.5px solid #0A3D3D",
+                          background: "transparent", color: "#0A3D3D",
+                          fontSize: "14px", fontWeight: "700",
+                          cursor: contactSaleLoading ? "wait" : "pointer",
+                          fontFamily: "'Inter', sans-serif",
+                          opacity: contactSaleLoading ? 0.65 : 1,
+                          transition: "opacity 0.15s",
+                        }}
+                      >
+                        {contactSaleLoading ? "Chargement…" : "Contacter le vendeur"}
+                      </button>
+                    )
                   )}
                 </div>
               </div>

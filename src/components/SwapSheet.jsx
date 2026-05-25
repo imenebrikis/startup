@@ -99,6 +99,8 @@ export default function SwapSheet({ listing, user, onSuccess }) {
   const [myListings, setMyListings] = useState([]);
   const [loadingListings, setLoadingListings] = useState(false);
   const [selectedId, setSelectedId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -106,6 +108,8 @@ export default function SwapSheet({ listing, user, onSuccess }) {
 
   const resetForm = () => {
     setSelectedId("");
+    setStartDate("");
+    setEndDate("");
     setMessage("");
     setSubmitting(false);
     setSubmitted(false);
@@ -141,7 +145,8 @@ export default function SwapSheet({ listing, user, onSuccess }) {
     return `Jusqu'au ${fmt(to)}`;
   })();
 
-  const canSubmit = !!selectedId && !submitting;
+  const datesValid = !(startDate && endDate && new Date(endDate) < new Date(startDate));
+  const canSubmit = !!selectedId && !submitting && datesValid;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -154,6 +159,8 @@ export default function SwapSheet({ listing, user, onSuccess }) {
       offered_house_id: selectedId,
       status: "pending",
       message: message.trim() || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
     });
     setSubmitting(false);
     if (err) {
@@ -363,12 +370,63 @@ export default function SwapSheet({ listing, user, onSuccess }) {
                   )}
                 </section>
 
-                {/* Step 2 — message */}
+                {/* Step 2 — date range */}
                 <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#005B5B", color: "#ADEBB3", fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                         2
+                      </span>
+                      <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: 0 }}>Période souhaitée</h3>
+                    </div>
+                    <span style={{ fontSize: "12px", color: "#6b7280" }}>Optionnel</span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    {[
+                      { label: "Du", value: startDate, set: setStartDate, min: new Date().toISOString().slice(0, 10), max: endDate || undefined },
+                      { label: "Au", value: endDate, set: setEndDate, min: startDate || new Date().toISOString().slice(0, 10) },
+                    ].map(({ label, value, set, min, max }) => (
+                      <div key={label} style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</span>
+                        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                          <CalendarDays style={{ position: "absolute", left: "11px", width: "13px", height: "13px", color: "#9ca3af", pointerEvents: "none", flexShrink: 0 }} />
+                          <input
+                            type="date"
+                            value={value}
+                            min={min}
+                            max={max}
+                            onChange={e => set(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "9px 12px 9px 32px",
+                              borderRadius: "10px",
+                              border: "1px solid #e5e7eb",
+                              fontSize: "13px",
+                              color: value ? "#111827" : "#9ca3af",
+                              backgroundColor: "#ffffff",
+                              fontFamily: "'Inter', sans-serif",
+                              outline: "none",
+                              boxSizing: "border-box",
+                              cursor: "pointer",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {startDate && endDate && new Date(endDate) < new Date(startDate) && (
+                    <p style={{ margin: 0, fontSize: "12px", color: "#dc2626" }}>La date de fin doit être après la date de début.</p>
+                  )}
+                </section>
+
+                {/* Step 3 — message */}
+                <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#005B5B", color: "#ADEBB3", fontSize: "11px", fontWeight: "700", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        3
                       </span>
                       <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#111827", margin: 0 }}>Message à l'hôte</h3>
                     </div>

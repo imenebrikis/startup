@@ -63,7 +63,7 @@ export default function Profile() {
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", targetId).single();
       setProfile(profileData || {});
       setEditForm({
-        full_name: profileData?.full_name || (own ? user.user_metadata?.full_name || "" : ""),
+        full_name: profileData?.full_name || "",
         wilaya: profileData?.wilaya || "",
         quartier: profileData?.quartier || "",
         phone: profileData?.phone || "",
@@ -148,7 +148,7 @@ export default function Profile() {
     }
   };
 
-  const navInitials = (user?.user_metadata?.full_name || user?.email?.[0] || "?")
+  const navInitials = (profile?.full_name || user?.email?.[0] || "?")
     .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const profileInitials = isOwnProfile

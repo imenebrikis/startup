@@ -7,6 +7,7 @@ import NotificationBell from "../components/NotificationBell";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
+  const [profileName, setProfileName] = useState(null);
   const [stats, setStats] = useState({ listings: 0, exchanges: 0, messages: 0 });
   const [activity, setActivity] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -14,6 +15,10 @@ export default function Dashboard() {
 
   const fetchDashboardData = async (userId) => {
     try {
+      const { data: profileData } = await supabase
+        .from("profiles").select("full_name").eq("id", userId).single();
+      setProfileName(profileData?.full_name || null);
+
       const { count: listingsCount } = await supabase
         .from("listings").select("*", { count: "exact", head: true }).eq("user_id", userId);
       const { count: exchangesCount } = await supabase
@@ -74,12 +79,12 @@ export default function Dashboard() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
-  const initials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
+  const initials = profileName
+    ? profileName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : user?.email?.[0].toUpperCase() || "?";
-  const displayName = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(" ")[0]
-    : user?.email?.split("@")[0];
+  const displayName = profileName
+    ? profileName.split(" ")[0]
+    : user?.email?.split("@")[0] || "Utilisateur";
 
   const actionCards = [
     { to: "/add-listing",   Icon: Plus,   title: "Publier une annonce", sub: "Listez votre propriété pour échange ou vente",    btn: "Commencer" },
