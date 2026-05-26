@@ -43,10 +43,6 @@ export default function AdminSidebar({ active = "dashboard", pendingCount = 0, a
 
   const MOD = [
     {
-      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="m9 12 2 2 4-4"/></svg>,
-      label: "Vérifications", key: "verif", to: "/admin", badge: pendingCount || null, warnBadge: true,
-    },
-    {
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg>,
       label: "Modération", key: "reports", to: "/admin/reports",
     },

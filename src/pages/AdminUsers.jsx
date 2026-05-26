@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
@@ -65,8 +66,7 @@ function ReviewCard({ review, labelLine }) {
 export default function AdminUsers() {
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -91,30 +91,32 @@ export default function AdminUsers() {
     if (!user) { navigate("/"); return; }
 
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    if (!profile || profile.role !== "admin") { setLoading(false); return; }
-
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
     setAdminProfile({ ...profile, email: user.email });
-    setAuthorized(true);
     await fetchData();
-    setLoading(false);
   }
 
   async function fetchData() {
-    const [
-      { data: profiles },
-      { data: emailRows },
-      { count: pending },
-    ] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.rpc("get_admin_users_email"),
-      supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    ]);
+    setDataLoading(true);
+    try {
+      const [
+        { data: profiles },
+        { data: emailRows },
+        { count: pending },
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.rpc("get_admin_users_email"),
+        supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      ]);
 
-    const emailMap = {};
-    emailRows?.forEach(r => { emailMap[r.id] = r.email; });
+      const emailMap = {};
+      emailRows?.forEach(r => { emailMap[r.id] = r.email; });
 
-    setUsers((profiles || []).map(p => ({ ...p, email: emailMap[p.id] || "—" })));
-    setPendingCount(pending || 0);
+      setUsers((profiles || []).map(p => ({ ...p, email: emailMap[p.id] || "—" })));
+      setPendingCount(pending || 0);
+    } finally {
+      setDataLoading(false);
+    }
   }
 
   async function openUserSheet(user) {
@@ -206,29 +208,6 @@ export default function AdminUsers() {
   function handleTab(tab) {
     setActiveTab(tab);
     setPage(1);
-  }
-
-  // ---- Loading
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        Chargement...
-      </div>
-    );
-  }
-
-  // ---- Unauthorized
-  if (!authorized) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>Accès réservé aux administrateurs</h2>
-        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>Votre compte n'a pas les droits d'accès à cette page.</p>
-        <button onClick={() => navigate("/dashboard")} style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#006E6E", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-          Retour au tableau de bord
-        </button>
-      </div>
-    );
   }
 
   return (
@@ -407,7 +386,33 @@ export default function AdminUsers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageUsers.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell style={{ paddingLeft: 24, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                          <div className="flex flex-col gap-1.5">
+                            <Skeleton className="h-4 w-[120px]" />
+                            <Skeleton className="h-3.5 w-[80px]" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-4 w-[180px]" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-4 w-[80px]" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 24, textAlign: "right" }}>
+                        <Skeleton className="h-8 w-20 rounded-full ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : pageUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "40px 24px", color: "#6E7B79", fontSize: 14 }}>
                       {searchQuery ? "Aucun utilisateur correspond à cette recherche." : "Aucun utilisateur trouvé."}

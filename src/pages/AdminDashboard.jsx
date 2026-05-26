@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
@@ -38,8 +39,7 @@ function initials(name) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoading, setActionLoading] = useState({});
@@ -56,15 +56,15 @@ export default function AdminDashboard() {
     if (!user) { navigate("/"); return; }
 
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    if (!profile || profile.role !== "admin") { setLoading(false); return; }
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
 
     setAdminProfile({ ...profile, email: user.email });
-    setAuthorized(true);
     await fetchAll();
-    setLoading(false);
   }
 
   async function fetchAll() {
+    setDataLoading(true);
+    try {
     const [
       { count: totalUsers },
       { count: totalListings },
@@ -134,6 +134,9 @@ export default function AdminDashboard() {
     }));
     items.sort((a, b) => b.time - a.time);
     setActivity(items.slice(0, 6));
+    } finally {
+      setDataLoading(false);
+    }
   }
 
   async function handleApprove(id) {
@@ -161,30 +164,6 @@ export default function AdminDashboard() {
     (u.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.wilaya || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        Chargement...
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>Accès réservé aux administrateurs</h2>
-        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>Votre compte n'a pas les droits d'accès à cette page.</p>
-        <button
-          onClick={() => navigate("/dashboard")}
-          style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
-        >
-          Retour au tableau de bord
-        </button>
-      </div>
-    );
-  }
 
   const KPI_CARDS = [
     {
@@ -288,7 +267,18 @@ export default function AdminDashboard() {
 
           {/* KPI Cards */}
           <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            {KPI_CARDS.map(({ label, value, iconBg, iconColor, iconBorder, ghost, icon, delta, warn }) => (
+            {dataLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <article key={i} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, padding: "18px 18px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-[11px]" />
+                  </div>
+                  <Skeleton className="h-9 w-20" />
+                  <Skeleton className="h-4 w-28" />
+                </article>
+              ))
+            ) : KPI_CARDS.map(({ label, value, iconBg, iconColor, iconBorder, ghost, icon, delta, warn }) => (
               <article key={label} style={{
                 background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18,
                 boxShadow: "0 1px 0 rgba(255,255,255,.6) inset, 0 6px 18px -14px rgba(15,42,42,.18)",
@@ -345,7 +335,22 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ padding: "6px 8px" }}>
-                {pendingListings.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 14, alignItems: "center", padding: 12, borderTop: i > 0 ? "1px solid #E5DFCE" : "none" }}>
+                      <Skeleton className="h-16 w-16 rounded-xl shrink-0" />
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-[160px]" />
+                        <Skeleton className="h-3.5 w-[100px]" />
+                        <Skeleton className="h-3 w-[120px]" />
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <Skeleton className="h-[34px] w-[34px] rounded-[10px]" />
+                        <Skeleton className="h-[34px] w-[34px] rounded-[10px]" />
+                      </div>
+                    </div>
+                  ))
+                ) : pendingListings.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
                     ✓ Aucune annonce en attente
                   </div>
@@ -454,7 +459,18 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ padding: "14px 8px 6px" }}>
-                {activity.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 10, padding: "10px 12px", alignItems: "flex-start" }}>
+                      <Skeleton className="h-2.5 w-2.5 rounded-full mt-1.5" />
+                      <div className="flex flex-col gap-1.5">
+                        <Skeleton className="h-4 w-[140px]" />
+                        <Skeleton className="h-3.5 w-[100px]" />
+                      </div>
+                      <Skeleton className="h-3.5 w-14" />
+                    </div>
+                  ))
+                ) : activity.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
                     Aucune activité récente
                   </div>
@@ -532,7 +548,33 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user, i) => {
+                  {dataLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                            <Skeleton className="h-[34px] w-[34px] shrink-0 rounded-full" />
+                            <div className="flex flex-col gap-1.5">
+                              <Skeleton className="h-4 w-[120px]" />
+                              <Skeleton className="h-3 w-[80px]" />
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-6 w-20 rounded-full" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-4 w-[80px]" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-6 w-20 rounded-full" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", textAlign: "right" }}>
+                          <Skeleton className="h-8 w-24 rounded-full ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : filteredUsers.map((user, i) => {
                     const tone = AVATAR_TONES[i % AVATAR_TONES.length];
                     const isAdmin = user.role === "admin";
                     return (
@@ -593,7 +635,7 @@ export default function AdminDashboard() {
                       </tr>
                     );
                   })}
-                  {filteredUsers.length === 0 && (
+                  {!dataLoading && filteredUsers.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
                         Aucun utilisateur trouvé

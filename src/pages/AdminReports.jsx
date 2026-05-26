@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { Flag, Trash2, Check, Star, MessageSquareText, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -72,39 +73,43 @@ function Stars({ value }) {
 
 export default function AdminReports() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
   const [adminProfile, setAdminProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   const [reports, setReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchReports = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("comment_reports")
-      .select(`
-        id, reason, status, created_at,
-        review:reviews!comment_id(
-          id, rating, comment, created_at,
-          reviewer:profiles!reviewer_id(id, full_name),
-          listing:listings!listing_id(
-            id, title, wilaya, user_id,
-            owner:profiles!listings_user_id_fkey(id, full_name)
-          )
-        ),
-        reporter:profiles!reporter_id(id, full_name)
-      `)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    setReportsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("comment_reports")
+        .select(`
+          id, reason, status, created_at,
+          review:reviews!comment_id(
+            id, rating, comment, created_at,
+            reviewer:profiles!reviewer_id(id, full_name),
+            listing:listings!listing_id(
+              id, title, wilaya, user_id,
+              owner:profiles!listings_user_id_fkey(id, full_name)
+            )
+          ),
+          reporter:profiles!reporter_id(id, full_name)
+        `)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      toast.error("Erreur lors du chargement", { description: error.message });
-      setReports([]);
-      return;
+      if (error) {
+        toast.error("Erreur lors du chargement", { description: error.message });
+        setReports([]);
+        return;
+      }
+      setReports(data || []);
+    } finally {
+      setReportsLoading(false);
     }
-    setReports(data || []);
   }, []);
 
   const fetchPending = useCallback(async () => {
@@ -118,11 +123,9 @@ export default function AdminReports() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/"); return; }
       const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (!profile || profile.role !== "admin") { setLoading(false); return; }
+      if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
       setAdminProfile({ ...profile, email: user.email });
-      setAuthorized(true);
       await Promise.all([fetchReports(), fetchPending()]);
-      setLoading(false);
     })();
   }, [navigate, fetchReports, fetchPending]);
 
@@ -178,19 +181,6 @@ export default function AdminReports() {
     toast.success("Avis supprimé", { description: "Tous les signalements liés ont été résolus." });
   };
 
-  if (loading) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F8FAFC" }}>
-      <div style={{ width: 26, height: 26, border: "3px solid #ADEBB3", borderTopColor: "#006E6E", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-
-  if (!authorized) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
-      <p style={{ color: "#64748B", fontSize: 15, fontFamily: "'Inter', sans-serif" }}>Accès non autorisé.</p>
-    </div>
-  );
-
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Inter', sans-serif" }}>
       <AdminSidebar active="reports" pendingCount={pendingCount} adminProfile={adminProfile} />
@@ -219,8 +209,33 @@ export default function AdminReports() {
           </span>
         </div>
 
-        {/* Empty state */}
-        {reports.length === 0 ? (
+        {/* Empty state / skeleton / feed */}
+        {reportsLoading ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="border border-gray-100 rounded-lg p-5 space-y-4 shadow-sm bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="space-y-2 pt-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-[85%]" />
+                </div>
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-50">
+                  <Skeleton className="h-9 w-28 rounded-md" />
+                  <Skeleton className="h-9 w-28 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : reports.length === 0 ? (
           <div style={{
             background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 18,
             padding: "60px 40px", textAlign: "center",

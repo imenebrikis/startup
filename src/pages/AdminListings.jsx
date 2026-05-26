@@ -18,6 +18,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
+import { Check, XCircle } from "lucide-react";
+import { Skeleton } from "../components/ui/skeleton";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 15;
@@ -116,8 +118,7 @@ function PlaceholderThumb({ index }) {
 export default function AdminListings() {
   const navigate = useNavigate();
 
-  const [loading, setLoading]           = useState(true);
-  const [authorized, setAuthorized]     = useState(false);
+  const [dataLoading, setDataLoading]   = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
 
   const [listings, setListings]                   = useState([]);
@@ -150,25 +151,27 @@ export default function AdminListings() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/"); return; }
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    if (!profile || profile.role !== "admin") { setLoading(false); return; }
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
     setAdminProfile({ ...profile, email: user.email });
-    setAuthorized(true);
     await fetchData();
-    setLoading(false);
   }
 
   async function fetchData() {
-    const [{ data: pending }, { data: allListings }] = await Promise.all([
-      supabase.from("listings")
-        .select("*, profiles!listings_user_id_fkey(full_name, wilaya, created_at)")
-        .or("status.eq.pending,and(has_been_approved.eq.true,is_verified.eq.false,status.neq.rejected)")
-        .order("created_at", { ascending: true }),
-      supabase.from("listings").select("user_id"),
-    ]);
-    const counts = {};
-    allListings?.forEach(l => { counts[l.user_id] = (counts[l.user_id] || 0) + 1; });
-    setUserListingCounts(counts);
-    setListings(pending || []);
+    setDataLoading(true);
+    try {
+      const [{ data: allData }, { data: countData }] = await Promise.all([
+        supabase.from("listings")
+          .select("*, profiles!listings_user_id_fkey(full_name, wilaya, created_at)")
+          .order("created_at", { ascending: true }),
+        supabase.from("listings").select("user_id"),
+      ]);
+      const counts = {};
+      countData?.forEach(l => { counts[l.user_id] = (counts[l.user_id] || 0) + 1; });
+      setUserListingCounts(counts);
+      setListings(allData || []);
+    } finally {
+      setDataLoading(false);
+    }
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
@@ -176,8 +179,11 @@ export default function AdminListings() {
     setActionLoading(p => ({ ...p, [id]: "approve" }));
     const { error } = await supabase.from("listings").update({ status: "approved", is_verified: true, has_been_approved: true }).eq("id", id);
     if (!error) {
-      setListings(p => p.filter(l => l.id !== id));
+      setListings(p => p.map(l => l.id === id ? { ...l, status: "approved", is_verified: true, has_been_approved: true } : l));
       if (sheetListing?.id === id) setSheetOpen(false);
+      toast.success("Annonce approuvée avec succès");
+    } else {
+      toast.error("Erreur lors de l'approbation", { description: error.message });
     }
     setActionLoading(p => { const n = { ...p }; delete n[id]; return n; });
   }
@@ -206,7 +212,7 @@ export default function AdminListings() {
       .eq("id", rejectId);
 
     if (!error) {
-      setListings(p => p.filter(l => l.id !== rejectId));
+      setListings(p => p.map(l => l.id === rejectId ? { ...l, status: "rejected", is_verified: false, rejection_reason: fullReason } : l));
       if (sheetListing?.id === rejectId) setSheetOpen(false);
       setRejectOpen(false);
       setRejectId(null);
@@ -228,7 +234,7 @@ export default function AdminListings() {
     const { error } = await supabase.from("listings").update({ status: "approved", is_verified: true, has_been_approved: true }).in("id", ids);
     if (!error) {
       await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
-      setListings(prev => prev.filter(l => !ids.includes(l.id)));
+      setListings(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "approved", is_verified: true, has_been_approved: true } : l));
       setSelected(new Set());
       setExitingIds(new Set());
     } else {
@@ -260,8 +266,11 @@ export default function AdminListings() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let base = enriched;
-    if (filter === "warn") base = base.filter(l => l.badges.some(b => b.type === "warn"));
-    if (filter === "ok")   base = base.filter(l => l.badges.every(b => b.type !== "warn"));
+    if (filter === "warn")     base = base.filter(l => l.badges.some(b => b.type === "warn"));
+    if (filter === "ok")       base = base.filter(l => l.badges.every(b => b.type !== "warn"));
+    if (filter === "pending")  base = base.filter(l => l.status === "pending" || (l.has_been_approved && !l.is_verified && l.status !== "rejected"));
+    if (filter === "approved") base = base.filter(l => l.status === "approved" && !(l.has_been_approved === true && l.is_verified === false));
+    if (filter === "rejected") base = base.filter(l => l.status === "rejected");
     if (!q) return base;
     return base.filter(l =>
       l.title?.toLowerCase().includes(q) ||
@@ -270,10 +279,13 @@ export default function AdminListings() {
     );
   }, [enriched, filter, search]);
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows    = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const warnCount   = enriched.filter(l => l.badges.some(b => b.type === "warn")).length;
-  const okCount     = enriched.filter(l => l.badges.every(b => b.type !== "warn")).length;
+  const totalPages      = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageRows        = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const warnCount       = enriched.filter(l => l.badges.some(b => b.type === "warn")).length;
+  const okCount         = enriched.filter(l => l.badges.every(b => b.type !== "warn")).length;
+  const pendingTabCount  = enriched.filter(l => l.status === "pending" || (l.has_been_approved && !l.is_verified && l.status !== "rejected")).length;
+  const approvedTabCount = enriched.filter(l => l.status === "approved").length;
+  const rejectedTabCount = enriched.filter(l => l.status === "rejected").length;
 
   const currentPageIds  = pageRows.map(l => l.id);
   const allPageSelected = currentPageIds.length > 0 && currentPageIds.every(id => selected.has(id));
@@ -292,27 +304,6 @@ export default function AdminListings() {
     });
   }
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        Chargement…
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>Accès réservé aux administrateurs</h2>
-        <button onClick={() => navigate("/dashboard")} style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#006E6E", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-          Retour au tableau de bord
-        </button>
-      </div>
-    );
-  }
-
   const sheetPhotos = sheetListing?.images || [];
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -323,7 +314,7 @@ export default function AdminListings() {
     >
     <div style={{ display: "flex", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Geist, Inter, sans-serif", color: "#0F2A2A" }}>
 
-      <AdminSidebar active="listings" pendingCount={listings.length} adminProfile={adminProfile} />
+      <AdminSidebar active="listings" pendingCount={pendingTabCount} adminProfile={adminProfile} />
 
       <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
@@ -361,7 +352,7 @@ export default function AdminListings() {
                 Annonces en attente
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-                {listings.length} annonce{listings.length !== 1 ? "s" : ""} à modérer · classées de la plus ancienne
+                {pendingTabCount} annonce{pendingTabCount !== 1 ? "s" : ""} en attente de modération
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -436,11 +427,14 @@ export default function AdminListings() {
                 )}
               </div>
 
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[
-                  { key: "all",  label: `Toutes (${enriched.length})` },
-                  { key: "warn", label: `Avec alertes (${warnCount})` },
-                  { key: "ok",   label: `Qualité OK (${okCount})` },
+                  { key: "all",      label: `Tous (${enriched.length})` },
+                  { key: "ok",       label: `Qualité OK (${okCount})` },
+                  { key: "warn",     label: `Avec alertes (${warnCount})` },
+                  { key: "pending",  label: `En attente (${pendingTabCount})` },
+                  { key: "approved", label: `Approuvées (${approvedTabCount})` },
+                  { key: "rejected", label: `Rejetées (${rejectedTabCount})` },
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -473,7 +467,48 @@ export default function AdminListings() {
               </TableHeader>
 
               <TableBody>
-                {pageRows.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell style={{ paddingLeft: 20, paddingTop: 14, paddingBottom: 14, width: 44 }}>
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <Skeleton className="h-14 w-14 shrink-0 rounded-[10px]" />
+                          <div className="flex flex-col gap-1.5">
+                            <Skeleton className="h-4 w-[160px]" />
+                            <Skeleton className="h-3 w-[100px]" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <div className="flex flex-col gap-1.5">
+                          <Skeleton className="h-4 w-[90px]" />
+                          <Skeleton className="h-3 w-[110px]" />
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <Skeleton className="h-[34px] w-[34px] shrink-0 rounded-full" />
+                          <div className="flex flex-col gap-1.5">
+                            <Skeleton className="h-3.5 w-[100px]" />
+                            <Skeleton className="h-3 w-[70px]" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 20, textAlign: "right" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                          <Skeleton className="h-8 w-20 rounded-lg" />
+                          <Skeleton className="h-8 w-24 rounded-lg" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : pageRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "48px 24px", color: "#6E7B79", fontSize: 14 }}>
                       Aucune annonce dans cette catégorie.
@@ -579,6 +614,7 @@ export default function AdminListings() {
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                             Examiner
                           </button>
+                          {(listing.status === "pending" || (listing.has_been_approved && !listing.is_verified && listing.status !== "rejected")) && (<>
                           <button
                             onClick={e => { e.stopPropagation(); handleApprove(listing.id); }}
                             disabled={busy}
@@ -586,7 +622,7 @@ export default function AdminListings() {
                             onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#ADEBB3"; }}
                             onMouseLeave={e => { e.currentTarget.style.background = "#E4F6E6"; }}
                           >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
+                            <Check className="mr-1.5 h-4 w-4" />
                             Approuver
                           </button>
                           <DialogTrigger asChild>
@@ -597,10 +633,11 @@ export default function AdminListings() {
                               onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#FEE2E2"; }}
                               onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; }}
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                              <XCircle className="mr-1.5 h-4 w-4" />
                               Rejeter
                             </button>
                           </DialogTrigger>
+                          </>)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -811,13 +848,14 @@ export default function AdminListings() {
 
                 {/* ── Sheet footer ── */}
                 <div style={{ padding: "16px 20px", borderTop: "1px solid #E5DFCE", display: "flex", gap: 10, background: "#FFFFFF" }}>
+                  {(s.status === "pending" || (s.has_been_approved && !s.is_verified && s.status !== "rejected")) ? (<>
                   <DialogTrigger asChild>
                     <button
                       onClick={() => prepareReject(s.id)}
                       disabled={busy}
                       style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px", borderRadius: 10, background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 13.5, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer" }}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                      <XCircle className="mr-1.5 h-4 w-4" />
                       Rejeter
                     </button>
                   </DialogTrigger>
@@ -828,9 +866,17 @@ export default function AdminListings() {
                     onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#005050"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "#006E6E"; }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
+                    <Check className="mr-1.5 h-4 w-4" />
                     {busy ? "En cours…" : "Approuver"}
                   </button>
+                  </>) : (
+                  <button
+                    onClick={() => setSheetOpen(false)}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "11px", borderRadius: 10, background: "#F5F5F5", border: "1px solid #E5DFCE", color: "#6E7B79", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Fermer
+                  </button>
+                  )}
                 </div>
               </>
             );
