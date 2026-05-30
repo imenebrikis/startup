@@ -17,31 +17,37 @@ import AdminListings from "./pages/AdminListings";
 import AdminTransactions from "./pages/AdminTransactions";
 import AdminMessages from "./pages/AdminMessages";
 import AdminReports from "./pages/AdminReports";
+import RequireAuth from "./components/RequireAuth";
 
 function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" richColors />
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/profile/:id" element={<Profile />} />
-        <Route path="/add-listing" element={<AddListing />} />
-        <Route path="/browse" element={<Browse />} />
-        <Route path="/listing/:id" element={<ListingDetail />} />
-        <Route path="/my-exchanges" element={<Exchanges />} />
-        <Route path="/modifier-annonce/:id" element={<AddListing />} />
-        <Route path="/messages" element={<Messages />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/listings" element={<AdminListings />} />
-        <Route path="/admin/transactions" element={<AdminTransactions />} />
-        <Route path="/admin/messages" element={<AdminMessages />} />
-        <Route path="/admin/reports" element={<AdminReports />} />
+
+        {/* Protected routes — suspended accounts are bounced to login */}
+        <Route element={<RequireAuth />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/add-listing" element={<AddListing />} />
+          <Route path="/browse" element={<Browse />} />
+          <Route path="/listing/:id" element={<ListingDetail />} />
+          <Route path="/my-exchanges" element={<Exchanges />} />
+          <Route path="/modifier-annonce/:id" element={<AddListing />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/listings" element={<AdminListings />} />
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+          <Route path="/admin/messages" element={<AdminMessages />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

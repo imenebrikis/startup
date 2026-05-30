@@ -226,9 +226,6 @@ export default function AdminUsers() {
           backdropFilter: "blur(12px)", borderBottom: "1px solid #E5DFCE",
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
-            <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
-            </span>
             DarBelDar
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",

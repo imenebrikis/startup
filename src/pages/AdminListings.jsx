@@ -1,6 +1,7 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import "@photo-sphere-viewer/core/index.css";
 import AdminSidebar from "../components/AdminSidebar";
 import { Checkbox } from "../components/ui/checkbox";
 import {
@@ -14,21 +15,47 @@ import {
   DialogFooter, DialogClose, DialogTrigger,
 } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
+import { ButtonDiscard } from "../components/ui/button-discard";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogCancel, AlertDialogAction,
+} from "../components/ui/alert-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
-import { Check, XCircle } from "lucide-react";
+import {
+  Check, XCircle,
+  Wind, Thermometer, Wifi, Droplets, Flame, Zap, Car, Trees, Waves,
+  UtensilsCrossed, WashingMachine, ArrowUpDown, Globe2,
+} from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import { toast } from "sonner";
 
+// Lazily loaded so the heavy photo-sphere library is only fetched when an
+// admin actually opens a 360° tour.
+const ReactPhotoSphereViewer = lazy(() =>
+  import("react-photo-sphere-viewer").then(m => ({ default: m.ReactPhotoSphereViewer }))
+);
+
 const PAGE_SIZE = 15;
 
+// Clean lucide-react SVG icons — mirrors the mapping used on the public
+// listing detail page so amenities render consistently across the app.
 const AMENITY_ICONS = {
-  Climatisation: "❄️", Chauffage: "🔥", Wifi: "📶",
-  "Citerne d'eau": "💧", "Chauffe-eau": "♨️", "Groupe électrogène": "⚡",
-  "Parking / Garage": "🚗", "Jardin / Terrasse": "🌿", Piscine: "🏊",
-  "Cuisine équipée": "🍽️", "Machine à laver": "🫧", Ascenseur: "🛗",
+  Climatisation: Wind,
+  Chauffage: Thermometer,
+  Wifi: Wifi,
+  "Citerne d'eau": Droplets,
+  "Chauffe-eau": Flame,
+  "Groupe électrogène": Zap,
+  "Parking / Garage": Car,
+  "Jardin / Terrasse": Trees,
+  Piscine: Waves,
+  "Cuisine équipée": UtensilsCrossed,
+  "Machine à laver": WashingMachine,
+  Ascenseur: ArrowUpDown,
 };
 
 // ─── Badge config ────────────────────────────────────────────────────────────
@@ -50,6 +77,16 @@ function QualityBadge({ label, type }) {
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
       {label}
+    </span>
+  );
+}
+
+// Pink indicator shown when a listing has a 360° virtual tour.
+function Tour360Badge() {
+  return (
+    <span className="bg-pink-100 text-pink-800 border border-pink-300 rounded-full px-[9px] py-[3px] text-[11.5px] font-semibold inline-flex items-center gap-[7px] whitespace-nowrap leading-[1.4]">
+      <span className="w-[5px] h-[5px] rounded-full bg-pink-800 shrink-0" />
+      Visite 360°
     </span>
   );
 }
@@ -137,6 +174,7 @@ export default function AdminListings() {
   const [sheetOpen, setSheetOpen]       = useState(false);
   const [sheetListing, setSheetListing] = useState(null);
   const [sheetPhotoIdx, setSheetPhotoIdx] = useState(0);
+  const [tour360Open, setTour360Open]     = useState(false); // 360° preview collapsible
 
   // Rejection dialog
   const [rejectOpen, setRejectOpen]       = useState(false);
@@ -162,7 +200,7 @@ export default function AdminListings() {
       const [{ data: allData }, { data: countData }] = await Promise.all([
         supabase.from("listings")
           .select("*, profiles!listings_user_id_fkey(full_name, wilaya, created_at)")
-          .order("created_at", { ascending: true }),
+          .order("created_at", { ascending: false }),
         supabase.from("listings").select("user_id"),
       ]);
       const counts = {};
@@ -243,11 +281,53 @@ export default function AdminListings() {
     setBulkLoading(false);
   }
 
+  async function handleBulkReject() {
+    const ids = [...selected].filter(id => listings.some(l => l.id === id));
+    if (!ids.length || bulkLoading) return;
+    setBulkLoading(true);
+    setExitingIds(new Set(ids));
+    const reason = "Rejet groupé par l'administrateur";
+    const { error } = await supabase.from("listings").update({ status: "rejected", is_verified: false, rejection_reason: reason }).in("id", ids);
+    if (!error) {
+      await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
+      setListings(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "rejected", is_verified: false, rejection_reason: reason } : l));
+      setSelected(new Set());
+      setExitingIds(new Set());
+      toast.success(`${ids.length} annonce${ids.length > 1 ? "s" : ""} rejetée${ids.length > 1 ? "s" : ""}`);
+    } else {
+      setExitingIds(new Set());
+      toast.error("Erreur lors du rejet", { description: error.message });
+    }
+    setBulkLoading(false);
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected].filter(id => listings.some(l => l.id === id));
+    if (!ids.length || bulkLoading) return;
+    setBulkLoading(true);
+    setExitingIds(new Set(ids));
+    const { error } = await supabase.from("listings").delete().in("id", ids);
+    if (!error) {
+      await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
+      // Removing the rows from local state auto-updates every derived counter
+      // (pending/approved/rejected tab counts + sidebar badge).
+      setListings(prev => prev.filter(l => !ids.includes(l.id)));
+      setSelected(new Set());
+      setExitingIds(new Set());
+      toast.success(`${ids.length} annonce${ids.length > 1 ? "s" : ""} supprimée${ids.length > 1 ? "s" : ""} définitivement`);
+    } else {
+      setExitingIds(new Set());
+      toast.error("Erreur lors de la suppression", { description: error.message });
+    }
+    setBulkLoading(false);
+  }
+
   // ── Sheet helpers ────────────────────────────────────────────────────────────
   function openSheet(listing, e) {
     e?.stopPropagation();
     setSheetListing(listing);
     setSheetPhotoIdx(0);
+    setTour360Open(false); // collapse any 360° preview from a previous listing
     setSheetOpen(true);
   }
 
@@ -326,9 +406,6 @@ export default function AdminListings() {
           backdropFilter: "blur(12px)", borderBottom: "1px solid #E5DFCE",
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
-            <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
-            </span>
             DarBelDar
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#006E6E", color: "#ADEBB3", fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
@@ -376,27 +453,87 @@ export default function AdminListings() {
 
             {/* Toolbar */}
             <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap" }}>
-              <button
-                onClick={handleBulkApprove}
-                disabled={selected.size === 0 || bulkLoading}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 7,
-                  padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
-                  background: selected.size > 0 ? "#006E6E" : "#F5F5F5",
-                  color: selected.size > 0 ? "#ADEBB3" : "#BBBBBB",
-                  border: `1px solid ${selected.size > 0 ? "#005050" : "#E0E0E0"}`,
-                  cursor: selected.size === 0 || bulkLoading ? "not-allowed" : "pointer",
-                  transition: "all .2s", marginRight: 4, opacity: bulkLoading ? 0.75 : 1,
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
-                Approuver la sélection
-                {selected.size > 0 && (
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(173,235,179,.22)", color: "#ADEBB3", fontSize: 10.5, fontWeight: 700 }}>
-                    {selected.size}
-                  </span>
-                )}
-              </button>
+              {(filter === "approved" || filter === "rejected") ? (
+                /* Approved/Rejected tabs: bulk delete only (shared ButtonDiscard) */
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <ButtonDiscard
+                      disabled={selected.size === 0 || bulkLoading}
+                      style={{ marginRight: 4 }}
+                    >
+                      Supprimer la sélection
+                      {selected.size > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-[5px] text-[10.5px] font-bold bg-destructive/15 text-destructive">
+                          {selected.size}
+                        </span>
+                      )}
+                    </ButtonDiscard>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Cette action est irréversible. Cela supprimera définitivement ces annonces de nos serveurs.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annuler</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleBulkDelete}
+                        className="bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Supprimer définitivement
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                /* All other tabs (en attente, qualité, alertes): bulk approve + reject */
+                <>
+                  <button
+                    onClick={handleBulkApprove}
+                    disabled={selected.size === 0 || bulkLoading}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 7,
+                      padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                      background: selected.size > 0 ? "#006E6E" : "#F5F5F5",
+                      color: selected.size > 0 ? "#ADEBB3" : "#BBBBBB",
+                      border: `1px solid ${selected.size > 0 ? "#005050" : "#E0E0E0"}`,
+                      cursor: selected.size === 0 || bulkLoading ? "not-allowed" : "pointer",
+                      transition: "all .2s", marginRight: 4, opacity: bulkLoading ? 0.75 : 1,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
+                    Approuver la sélection
+                    {selected.size > 0 && (
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(173,235,179,.22)", color: "#ADEBB3", fontSize: 10.5, fontWeight: 700 }}>
+                        {selected.size}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleBulkReject}
+                    disabled={selected.size === 0 || bulkLoading}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 7,
+                      padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                      background: selected.size > 0 ? "#FEF3C7" : "#F5F5F5",
+                      color: selected.size > 0 ? "#B45309" : "#BBBBBB",
+                      border: `1px solid ${selected.size > 0 ? "#FCD34D" : "#E0E0E0"}`,
+                      cursor: selected.size === 0 || bulkLoading ? "not-allowed" : "pointer",
+                      transition: "all .2s", marginRight: 4, opacity: bulkLoading ? 0.75 : 1,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    Rejeter la sélection
+                    {selected.size > 0 && (
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(180,83,9,.18)", color: "#B45309", fontSize: 10.5, fontWeight: 700 }}>
+                        {selected.size}
+                      </span>
+                    )}
+                  </button>
+                </>
+              )}
               {/* Search */}
               <div style={{ flex: 1, maxWidth: 280, position: "relative" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#98A3A0" strokeWidth="2" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
@@ -601,6 +738,7 @@ export default function AdminListings() {
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
                           {listing.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                          {listing.tour_360_url && <Tour360Badge />}
                         </div>
                       </TableCell>
 
@@ -775,6 +913,7 @@ export default function AdminListings() {
                           <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Vente</span>
                         )}
                         {s.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                        {s.tour_360_url && <Tour360Badge />}
                       </div>
                     </div>
 
@@ -819,13 +958,63 @@ export default function AdminListings() {
                       <div>
                         <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Équipements</p>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 12px" }}>
-                          {s.amenities.map(name => (
-                            <div key={name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: 14 }}>{AMENITY_ICONS[name] || "✦"}</span>
-                              <span style={{ fontSize: 13, color: "#0F2A2A" }}>{name}</span>
-                            </div>
-                          ))}
+                          {s.amenities.map(name => {
+                            const Icon = AMENITY_ICONS[name] || Wifi;
+                            return (
+                              <div key={name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <Icon style={{ width: 16, height: 16, color: "#717182", flexShrink: 0 }} />
+                                <span style={{ fontSize: 13, color: "#0F2A2A" }}>{name}</span>
+                              </div>
+                            );
+                          })}
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── 360° Virtual Tour ── */}
+                    {s.tour_360_url && (
+                      <div>
+                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Visite virtuelle</p>
+                        <button
+                          onClick={() => setTour360Open(o => !o)}
+                          aria-expanded={tour360Open}
+                          style={{
+                            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                            padding: "12px 14px", borderRadius: 12,
+                            background: tour360Open ? "#006E6E" : "#FFFFFF",
+                            border: `1px solid ${tour360Open ? "#005050" : "#E5DFCE"}`,
+                            color: tour360Open ? "#ADEBB3" : "#0F2A2A",
+                            fontSize: 13.5, fontWeight: 600, cursor: "pointer", transition: "all .15s",
+                          }}
+                          onMouseEnter={e => { if (!tour360Open) e.currentTarget.style.borderColor = "#006E6E"; }}
+                          onMouseLeave={e => { if (!tour360Open) e.currentTarget.style.borderColor = "#E5DFCE"; }}
+                        >
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+                            <Globe2 style={{ width: 17, height: 17, flexShrink: 0 }} />
+                            Inspecter la visite 360°
+                          </span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                            style={{ transform: tour360Open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+
+                        {tour360Open && (
+                          <div style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", border: "1px solid #E5DFCE", background: "#0F2A2A" }}>
+                            <Suspense fallback={
+                              <div style={{ height: 400, display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: 13 }}>
+                                Chargement de la visite 360°…
+                              </div>
+                            }>
+                              <ReactPhotoSphereViewer
+                                src={s.tour_360_url}
+                                width="100%"
+                                height="400px"
+                                autorotate={false}
+                              />
+                            </Suspense>
+                          </div>
+                        )}
                       </div>
                     )}
 

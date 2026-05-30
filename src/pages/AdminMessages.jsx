@@ -28,6 +28,17 @@ function fmtMsgTime(s) {
   });
 }
 
+// Voice messages are stored as a public storage URL in `content`
+// (uploaded as `voice_<timestamp>.webm`). Detect those so they render
+// as an audio player instead of a raw link.
+function isAudioMessage(content) {
+  if (typeof content !== "string") return false;
+  const url = content.trim();
+  if (!/^https?:\/\//i.test(url)) return false;
+  const path = url.split("?")[0].toLowerCase();
+  return /\.(webm|mp3|ogg|oga|opus|wav|m4a|aac)$/.test(path) || /\/voice_/i.test(path);
+}
+
 const TONES = [
   { bg: "#E0F2FE", color: "#0369A1" },
   { bg: "#F3E8FF", color: "#7E22CE" },
@@ -388,7 +399,26 @@ export default function AdminMessages() {
                         boxShadow: "0 1px 2px rgba(15,23,42,.05)",
                         wordBreak: "break-word",
                       }}>
-                        {msg.content}
+                        {isAudioMessage(msg.content) ? (
+                          <div className="flex flex-col gap-1">
+                            <audio
+                              controls
+                              src={msg.content}
+                              className="w-full max-w-sm rounded-md"
+                            />
+                            <a
+                              href={msg.content}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                              className="self-start text-[11px] text-slate-400 underline hover:text-slate-600"
+                            >
+                              Télécharger l'audio
+                            </a>
+                          </div>
+                        ) : (
+                          msg.content
+                        )}
                       </div>
                       {showTime && (
                         <span style={{ fontSize: 10.5, color: "#94A3B8", whiteSpace: "nowrap", paddingBottom: 2 }}>

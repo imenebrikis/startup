@@ -139,9 +139,10 @@ function SectionLabel({ children }) {
 }
 
 // ─── Property card used inside sheets ────────────────────────────────────────
-function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
+function PropCard({ listing, label, ownerName, ownerRole }) {
+  const navigate = useNavigate();
   if (!listing) return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F8FAFC" }}>
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F8FAFC", height: "100%" }}>
       <div style={{ height: 110, display: "grid", placeItems: "center", color: "#94A3B8" }}>
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg>
       </div>
@@ -152,15 +153,24 @@ function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
   );
 
   return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
-      {/* Image */}
+    <div
+      role="button"
+      tabIndex={0}
+      title="Voir l'annonce"
+      onClick={() => navigate(`/listing/${listing.id}`)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/listing/${listing.id}`); } }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#006E6E"; e.currentTarget.style.boxShadow = "0 6px 18px -12px rgba(0,110,110,.45)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }}
+      style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff", height: "100%", cursor: "pointer", transition: "border-color .12s, box-shadow .12s", outline: "none" }}
+    >
+      {/* Image — fixed height keeps both cards' aspect ratio identical */}
       <div style={{ height: 120, background: "#F1F5F9", position: "relative", overflow: "hidden", flexShrink: 0 }}>
         {listing.images?.[0]
           ? <img src={listing.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg></div>}
         {label && (
           <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(255,255,255,.95)", color: "#0F172A", border: "1px solid #E2E8F0", letterSpacing: ".03em" }}>
-            {labelEmoji} {label}
+            {label}
           </span>
         )}
       </div>
@@ -176,7 +186,7 @@ function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
         <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", alignItems: "center", gap: 4 }}>
           <PinSvg /> {listing.wilaya}{listing.rooms ? ` · ${listing.rooms} ch.` : ""}
         </div>
-        {listing.price && (
+        {listing.price > 0 && (
           <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtPrice(listing.price)}</div>
         )}
       </div>
@@ -186,6 +196,7 @@ function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
 
 // ─── Sheet for a VENTE row ────────────────────────────────────────────────────
 function VenteSheet({ tx, onClose }) {
+  const navigate = useNavigate();
   // undefined = loading, null = no message found, object = first message row
   const [firstMsg, setFirstMsg] = useState(undefined);
 
@@ -249,24 +260,36 @@ function VenteSheet({ tx, onClose }) {
 
         {/* Target property */}
         <div>
-          <SectionLabel>Bien visé 🏡</SectionLabel>
-          <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+          <SectionLabel>Bien visé</SectionLabel>
+          <div
+            role={tx.listing?.id ? "button" : undefined}
+            tabIndex={tx.listing?.id ? 0 : undefined}
+            title={tx.listing?.id ? "Voir l'annonce" : undefined}
+            onClick={tx.listing?.id ? () => navigate(`/listing/${tx.listing.id}`) : undefined}
+            onKeyDown={tx.listing?.id ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/listing/${tx.listing.id}`); } }) : undefined}
+            onMouseEnter={tx.listing?.id ? (e => { e.currentTarget.style.borderColor = "#006E6E"; e.currentTarget.style.boxShadow = "0 6px 18px -12px rgba(0,110,110,.45)"; }) : undefined}
+            onMouseLeave={tx.listing?.id ? (e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }) : undefined}
+            style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", background: "#fff", cursor: tx.listing?.id ? "pointer" : "default", transition: "border-color .12s, box-shadow .12s", outline: "none" }}
+          >
             <div style={{ height: 180, background: "#F1F5F9", position: "relative", overflow: "hidden" }}>
               {tx.listing?.images?.[0]
                 ? <img src={tx.listing.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg></div>}
               {tx.listing?.is_verified && (
-                <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>✓ Vérifié</span>
+                <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="m5 12 5 5 9-11"/></svg>
+                  Vérifié
+                </span>
               )}
             </div>
             <div style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>{tx.listing?.title || "—"}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12.5, color: "#475569" }}>
                 {tx.listing?.wilaya && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><PinSvg size={11} />{tx.listing.wilaya}</span>}
-                {tx.listing?.rooms && <span>{tx.listing.rooms} chambre{tx.listing.rooms > 1 ? "s" : ""}</span>}
-                {tx.listing?.size && <span>{tx.listing.size} m²</span>}
+                {tx.listing?.rooms > 0 && <span>{tx.listing.rooms} chambre{tx.listing.rooms > 1 ? "s" : ""}</span>}
+                {tx.listing?.size > 0 && <span>{tx.listing.size} m²</span>}
               </div>
-              {tx.listing?.price && (
+              {tx.listing?.price > 0 && (
                 <div style={{ marginTop: 10, fontSize: 18, fontWeight: 800, color: "#0F172A", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
                   {fmtPrice(tx.listing.price)}
                 </div>
@@ -333,7 +356,8 @@ function EchangeSheet({ tx, onClose }) {
   const [msgCount, setMsgCount] = useState(null);
 
   const st = STATUS[tx.status] || STATUS.pending;
-  const dateRange = fmtDateRange(tx.start_date, tx.end_date);
+  // Show the availability window the receiver chose for the requested house.
+  const dateRange = fmtDateRange(tx.listing?.available_from, tx.listing?.available_to);
 
   // Derive itinerary from profile wilaya, fall back to the listing's wilaya
   const fromWilaya = tx.requester?.wilaya || tx.offered_house?.wilaya;
@@ -396,15 +420,14 @@ function EchangeSheet({ tx, onClose }) {
         {/* Two properties side by side */}
         <div>
           <SectionLabel>Logements concernés</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "stretch" }}>
             <PropCard
               listing={tx.offered_house}
               label="Logement Proposé"
-              labelEmoji="🔄"
               ownerName={tx.requester?.full_name}
               ownerRole="Demandeur"
             />
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <span style={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", background: "#ADEBB3", color: "#006E6E", border: "1px solid #86EFAC", boxShadow: "0 2px 8px -4px rgba(0,110,110,.35)" }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>
               </span>
@@ -412,7 +435,6 @@ function EchangeSheet({ tx, onClose }) {
             <PropCard
               listing={tx.listing}
               label="Logement Souhaité"
-              labelEmoji="🏡"
               ownerName={tx.receiver?.full_name}
               ownerRole="Récepteur"
             />
@@ -430,9 +452,9 @@ function EchangeSheet({ tx, onClose }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
               </span>
               <div>
-                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>Fenêtre proposée</div>
+                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>Période</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", lineHeight: 1.3 }}>
-                  {dateRange || "Non précisée"}
+                  {dateRange || "Dates flexibles"}
                 </div>
               </div>
             </div>
@@ -544,7 +566,7 @@ export default function AdminTransactions() {
           *,
           requester:profiles!exchanges_requester_id_fkey(id, full_name, wilaya, created_at, avatar_url, is_premium),
           receiver:profiles!exchanges_receiver_id_fkey(id, full_name, wilaya, created_at, avatar_url, is_premium),
-          listing:listings!exchanges_listing_id_fkey(id, title, wilaya, city, quartier, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price),
+          listing:listings!exchanges_listing_id_fkey(id, title, wilaya, city, quartier, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price, available_from, available_to),
           offered_house:listings!exchanges_offered_house_id_fkey(id, title, wilaya, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price)
         `)
         .order("created_at", { ascending: false }),
@@ -700,7 +722,9 @@ export default function AdminTransactions() {
 
             {paginated.length === 0 ? (
               <div style={{ padding: "52px 24px", textAlign: "center" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🔎</div>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, color: "#CBD5E1" }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
                 <div style={{ fontSize: 14, color: "#0F172A", fontWeight: 600 }}>Aucune activité ne correspond</div>
                 <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 3 }}>Essayez d'élargir vos filtres.</div>
               </div>

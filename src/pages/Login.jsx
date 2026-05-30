@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
+
+const SUSPENDED_MSG = 'Votre compte a été suspendu. Veuillez contacter le support pour plus d’informations.'
 
 const styleTag = document.createElement('style')
 styleTag.textContent = `
@@ -62,11 +64,34 @@ const floatLabel = [
 ].join(' ')
 
 export default function Login() {
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(null)
+  // Show the suspension notice when bounced here by the route guard.
+  const [error, setError] = useState(location.state?.suspended ? SUSPENDED_MSG : null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  // Catch suspended users who arrive with an existing session (e.g. Google
+  // OAuth return, or a still-active session) — sign them out and inform them.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_banned')
+        .eq('id', user.id)
+        .single()
+      if (cancelled) return
+      if (profile?.is_banned) {
+        await supabase.auth.signOut()
+        setError(SUSPENDED_MSG)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -76,9 +101,15 @@ export default function Login() {
     if (error) { setError(error.message); setLoading(false); return }
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_banned')
       .eq('id', data.user.id)
       .single()
+    if (profile?.is_banned) {
+      await supabase.auth.signOut()
+      setError(SUSPENDED_MSG)
+      setLoading(false)
+      return
+    }
     navigate(profile?.role === 'admin' ? '/admin' : '/dashboard')
   }
 
