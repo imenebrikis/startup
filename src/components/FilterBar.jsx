@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Calendar, SlidersHorizontal, Minus, Plus, MapPin, X } from "lucide-react";
+import { SlidersHorizontal, Minus, Plus, MapPin, X } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import { fr, enUS } from "date-fns/locale";
 import { format } from "date-fns";
+import { motion } from "framer-motion";
 import "react-day-picker/style.css";
 
 // `value` is the canonical value persisted to / filtered against the DB; `key`
@@ -58,11 +59,7 @@ const CHECK_RULES = [
 const SMOKING = [{ v: null, key: "any" }, { v: "Non-fumeur", key: "nonSmoker" }, { v: "Fumeur", key: "smoker" }];
 const PETS = [{ v: null, key: "any" }, { v: "Pas d'animaux", key: "noPets" }, { v: "Animaux acceptés", key: "petsAllowed" }];
 
-// Matches the "Publier" CTA on the same navbar: mint-green pill, black bold text.
-const CHIP =
-  "bg-[#ADEBB3] text-black px-4 py-2 rounded-full text-[13px] font-bold flex items-center gap-1.5 hover:bg-[#9FE0A6] transition-colors cursor-pointer whitespace-nowrap";
 const ITEM = "rounded-xl text-sm text-gray-800 hover:bg-gray-100 cursor-pointer transition-colors";
-const ICON_CLASS = "w-4 h-4 stroke-[2] text-black";
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 function fmtDay(d, locale = fr) {
@@ -71,8 +68,10 @@ function fmtDay(d, locale = fr) {
   return p.join(" ");
 }
 
-// Chip whose dropdown is portaled to <body> so it's never clipped by the row.
-function FilterChip({ id, label, icon, open, setOpen, width = 260, children }) {
+// One segment of the Airbnb-style search bar. Dropdown is portaled to <body>
+// so the rounded pill container never clips it. `label` is the segment caption
+// (Où / Quand …); clicking toggles its dropdown.
+function FilterChip({ id, label, open, setOpen, hovered, setHovered, width = 260, children }) {
   const btnRef = useRef(null);
   const [pos, setPos] = useState(null);
   const isOpen = open === id;
@@ -82,14 +81,35 @@ function FilterChip({ id, label, icon, open, setOpen, width = 260, children }) {
     const r = btnRef.current.getBoundingClientRect();
     let left = Math.min(r.left, window.innerWidth - width - 8);
     left = Math.max(8, left);
-    setPos({ top: r.bottom + 8, left });
+    setPos({ top: r.bottom + 14, left });
   }, [isOpen, width]);
 
   return (
     <>
-      <button ref={btnRef} type="button" className={CHIP} onClick={() => setOpen(isOpen ? null : id)}>
-        {label}
-        {icon}
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen(isOpen ? null : id)}
+        onMouseEnter={() => setHovered(id)}
+        onMouseLeave={() => setHovered(null)}
+        className="fb-seg"
+        style={{
+          position: "relative",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          textAlign: "center", padding: "12px 20px", border: "none", cursor: "pointer",
+          whiteSpace: "nowrap", flexShrink: 0, fontFamily: "'Inter', sans-serif",
+          fontSize: 13, fontWeight: 600, color: "#1a1a1a", background: "transparent",
+        }}
+      >
+        {(isOpen || hovered === id) && (
+          <motion.div
+            layoutId="search-bar-highlight"
+            className="absolute inset-0 bg-gray-100 rounded-full"
+            style={{ zIndex: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          />
+        )}
+        <span style={{ position: "relative", zIndex: 10 }}>{label}</span>
       </button>
       {isOpen && pos && createPortal(
         <div
@@ -109,6 +129,7 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
   const { t, i18n } = useTranslation();
   const dpLocale = i18n.language === "en" ? enUS : fr;
   const [open, setOpen] = useState(null);
+  const [hovered, setHovered] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const rowRef = useRef(null);
 
@@ -168,8 +189,11 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
 
   const toggleEquip = (a) => setMEquip((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]));
 
+  // Thin hairline rule between bar segments.
+  const divider = <span style={{ width: 1, height: 30, background: "#e5e7eb", flexShrink: 0 }} />;
+
   return (
-    <div ref={rowRef} className="flex flex-row items-center gap-3 overflow-x-auto no-scrollbar py-2">
+    <div ref={rowRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
@@ -188,100 +212,125 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
         .fb-cal .rdp-chevron { fill: #0A3D3D; }
       `}</style>
 
-      {/* ── Wilaya ── */}
-      <FilterChip id="wilaya" open={open} setOpen={setOpen} width={300} label={wilaya || t("filter.wilaya")} icon={<ChevronDown className={ICON_CLASS} />}>
-        <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: "auto" }}>
-          <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ wilaya: null }); setOpen(null); }}>
-            {t("filter.allWilayas")}
+      {/* ── Airbnb-style segmented search bar ── */}
+      <div style={{
+        display: "flex", alignItems: "center",
+        background: "#ffffff", borderRadius: 999,
+        border: "1px solid #ebebeb", padding: 5,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.10)",
+      }}>
+
+        {/* Où → wilaya */}
+        <FilterChip id="wilaya" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={300} label={t("filter.where")} value={wilaya || t("filter.anywhere")}>
+          <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: "auto" }}>
+            <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ wilaya: null }); setOpen(null); }}>
+              {t("filter.allWilayas")}
+            </div>
+            {wilayas.map((w) => (
+              <div key={w} className={ITEM} style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }} onClick={() => { onChange({ wilaya: w }); setOpen(null); }}>
+                <MapPin style={{ width: 14, height: 14, color: "#0A3D3D", flexShrink: 0 }} />
+                {w}
+              </div>
+            ))}
           </div>
-          {wilayas.map((w) => (
-            <div key={w} className={ITEM} style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }} onClick={() => { onChange({ wilaya: w }); setOpen(null); }}>
-              <MapPin style={{ width: 14, height: 14, color: "#0A3D3D", flexShrink: 0 }} />
-              {w}
+        </FilterChip>
+
+        {divider}
+
+        {/* Quand → date range */}
+        <FilterChip id="date" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={660} label={t("filter.when")} value={dateRange?.from ? dateLabel : t("filter.addDates")}>
+          <div className="fb-cal">
+            <DayPicker
+              mode="range"
+              numberOfMonths={2}
+              locale={dpLocale}
+              selected={dateRange?.from ? dateRange : undefined}
+              onSelect={(range) => onChange({ dateRange: range || { from: null, to: null } })}
+            />
+            {dateRange?.from && (
+              <button
+                type="button"
+                onClick={() => { onChange({ dateRange: { from: null, to: null } }); setOpen(null); }}
+                className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
+                style={{ marginTop: 6, marginLeft: 8 }}
+              >
+                {t("filter.clearDates")}
+              </button>
+            )}
+          </div>
+        </FilterChip>
+
+        {divider}
+
+        {/* Logement */}
+        <FilterChip id="logement" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={220} label={t("filter.logements")} value={logementOpt ? logementLabel : t("filter.allLogements")}>
+          <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: null }); setOpen(null); }}>
+            {t("filter.allLogements")}
+          </div>
+          {LOGEMENT_OPTIONS.map((o) => (
+            <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: o.value }); setOpen(null); }}>
+              {t(`filter.logementOptions.${o.key}`)}
             </div>
           ))}
-        </div>
-      </FilterChip>
+        </FilterChip>
 
-      {/* ── Type ── */}
-      <FilterChip id="type" open={open} setOpen={setOpen} width={220} label={typeLabel} icon={<ChevronDown className={ICON_CLASS} />}>
-        <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: null }); setOpen(null); }}>
-          {t("filter.allTypes")}
-        </div>
-        {TYPE_OPTIONS.map((o) => (
-          <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: o.value }); setOpen(null); }}>
-            {t(`filter.typeOptions.${o.key}`)}
+        {divider}
+
+        {/* Chambres (stepper) */}
+        <FilterChip id="rooms" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={240} label={t("filter.rooms")} value={chambres > 0 ? roomsLabel : t("filter.anyRooms")}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
+            <span className="text-sm font-medium text-gray-800">{t("filter.roomsMin")}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <button
+                type="button"
+                onClick={() => onChange({ chambres: Math.max(0, chambres - 1) })}
+                disabled={chambres === 0}
+                className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
+                style={{ width: 30, height: 30 }}
+              >
+                <Minus style={{ width: 14, height: 14 }} />
+              </button>
+              <span className="text-sm font-semibold text-gray-900" style={{ minWidth: 24, textAlign: "center" }}>{chambres}</span>
+              <button
+                type="button"
+                onClick={() => onChange({ chambres: Math.min(10, chambres + 1) })}
+                disabled={chambres === 10}
+                className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
+                style={{ width: 30, height: 30 }}
+              >
+                <Plus style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
           </div>
-        ))}
-      </FilterChip>
+        </FilterChip>
 
-      {/* ── Logements ── */}
-      <FilterChip id="logement" open={open} setOpen={setOpen} width={220} label={logementLabel} icon={<ChevronDown className={ICON_CLASS} />}>
-        <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: null }); setOpen(null); }}>
-          {t("filter.allLogements")}
-        </div>
-        {LOGEMENT_OPTIONS.map((o) => (
-          <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: o.value }); setOpen(null); }}>
-            {t(`filter.logementOptions.${o.key}`)}
+        {divider}
+
+        {/* Type (5th segment) */}
+        <FilterChip id="type" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={220} label={t("filter.type")} value={typeOpt ? typeLabel : t("filter.allTypes")}>
+          <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: null }); setOpen(null); }}>
+            {t("filter.allTypes")}
           </div>
-        ))}
-      </FilterChip>
+          {TYPE_OPTIONS.map((o) => (
+            <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: o.value }); setOpen(null); }}>
+              {t(`filter.typeOptions.${o.key}`)}
+            </div>
+          ))}
+        </FilterChip>
+      </div>
 
-      {/* ── Chambres (stepper) ── */}
-      <FilterChip id="rooms" open={open} setOpen={setOpen} width={240} label={roomsLabel} icon={<ChevronDown className={ICON_CLASS} />}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
-          <span className="text-sm font-medium text-gray-800">{t("filter.roomsMin")}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button
-              type="button"
-              onClick={() => onChange({ chambres: Math.max(0, chambres - 1) })}
-              disabled={chambres === 0}
-              className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
-              style={{ width: 30, height: 30 }}
-            >
-              <Minus style={{ width: 14, height: 14 }} />
-            </button>
-            <span className="text-sm font-semibold text-gray-900" style={{ minWidth: 24, textAlign: "center" }}>{chambres}</span>
-            <button
-              type="button"
-              onClick={() => onChange({ chambres: Math.min(10, chambres + 1) })}
-              disabled={chambres === 10}
-              className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
-              style={{ width: 30, height: 30 }}
-            >
-              <Plus style={{ width: 14, height: 14 }} />
-            </button>
-          </div>
-        </div>
-      </FilterChip>
-
-      {/* ── Date range ── */}
-      <FilterChip id="date" open={open} setOpen={setOpen} width={660} label={dateLabel} icon={<Calendar className={ICON_CLASS} />}>
-        <div className="fb-cal">
-          <DayPicker
-            mode="range"
-            numberOfMonths={2}
-            locale={dpLocale}
-            selected={dateRange?.from ? dateRange : undefined}
-            onSelect={(range) => onChange({ dateRange: range || { from: null, to: null } })}
-          />
-          {dateRange?.from && (
-            <button
-              type="button"
-              onClick={() => { onChange({ dateRange: { from: null, to: null } }); setOpen(null); }}
-              className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
-              style={{ marginTop: 6, marginLeft: 8 }}
-            >
-              {t("filter.clearDates")}
-            </button>
-          )}
-        </div>
-      </FilterChip>
-
-      {/* ── Plus de filtres ── */}
-      <button type="button" className={CHIP} onClick={openModal}>
-        <SlidersHorizontal className={ICON_CLASS} />
-        {t("filter.moreFilters")}
+      {/* ── Plus de filtres → circular icon, outside the white pill (modal logic unchanged) ── */}
+      <button
+        type="button"
+        onClick={openModal}
+        aria-label={t("filter.moreFilters")}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 48, height: 48, borderRadius: "50%", border: "none",
+          background: "#0A3D3D", color: "#fff", cursor: "pointer", flexShrink: 0,
+        }}
+      >
+        <SlidersHorizontal style={{ width: 18, height: 18 }} />
       </button>
 
       {/* ── Modal ── */}

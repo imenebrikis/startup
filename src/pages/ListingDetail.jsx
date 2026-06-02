@@ -512,22 +512,30 @@ export default function ListingDetail() {
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "8px" }}>
-                    <div style={{
-                      width: "84px", height: "84px", background: "#0A3D3D",
-                      borderRadius: "50%", display: "flex", alignItems: "center",
-                      justifyContent: "center", color: "#ADEBB3",
-                      fontWeight: "700", fontSize: "30px",
-                      fontFamily: "'Bricolage Grotesque', sans-serif",
-                      marginBottom: "4px",
-                    }}>
-                      {initFrom(listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name : null) || "P")}
-                    </div>
-                    <p style={{
-                      fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
-                      fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
-                    }}>
-                      {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || t("details.ownerFallback")}
-                    </p>
+                    <Link
+                      to={`/profile/${listing.user_id}`}
+                      className="hover:opacity-80"
+                      style={{ textDecoration: "none", transition: "opacity 0.15s" }}
+                    >
+                      <div style={{
+                        width: "84px", height: "84px", background: "#0A3D3D",
+                        borderRadius: "50%", display: "flex", alignItems: "center",
+                        justifyContent: "center", color: "#ADEBB3",
+                        fontWeight: "700", fontSize: "30px",
+                        fontFamily: "'Bricolage Grotesque', sans-serif",
+                        marginBottom: "4px",
+                      }}>
+                        {initFrom(listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name : null) || "P")}
+                      </div>
+                    </Link>
+                    <Link to={`/profile/${listing.user_id}`} style={{ textDecoration: "none" }}>
+                      <p className="hover:underline" style={{
+                        fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
+                        fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
+                      }}>
+                        {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || t("details.ownerFallback")}
+                      </p>
+                    </Link>
                     {listing.profiles?.wilaya && (
                       <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#0A3D3D", fontWeight: "500" }}>
                         <MapPin style={{ width: "13px", height: "13px" }} />

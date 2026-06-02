@@ -25,7 +25,7 @@ export default function LanguageSelector() {
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Changer de langue"
-          className="inline-flex h-9 items-center gap-2 rounded-full border border-[#E5DFCE] bg-white text-[13.5px] font-medium text-[#005B5B] transition-colors hover:bg-[#F3EEE0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#005B5B]/40"
+          className="inline-flex h-9 items-center gap-2 rounded-full border border-[#E5DFCE] bg-white text-[13.5px] font-medium text-[#005B5B] transition-colors hover:bg-[#ADEBB3] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#005B5B]/40"
           style={{ padding: "0 14px" }}
         >
           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{active.flag}</span>
@@ -42,7 +42,7 @@ export default function LanguageSelector() {
       >
         <button
           onClick={() => i18n.changeLanguage(other)}
-          className="flex w-full items-center gap-2 rounded-md text-left text-[13.5px] font-medium text-[#005B5B] transition-colors hover:bg-[#F3EEE0] focus:outline-none focus-visible:bg-[#F3EEE0]"
+          className="flex w-full items-center gap-2 rounded-md text-left text-[13.5px] font-medium text-[#005B5B] transition-colors hover:bg-[#ADEBB3] focus:outline-none focus-visible:bg-[#F3EEE0]"
           style={{ padding: "9px 12px" }}
         >
           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{LANGS[other].flag}</span>

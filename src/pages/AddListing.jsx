@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Logo from "../components/Logo";
 import {
   Upload, X, Wind, Thermometer, Wifi, Droplets, Flame, Zap,
@@ -26,44 +27,44 @@ const WILAYAS = [
   "El Kantara","Bir El Ater","Ksar El Boukhari","El Aricha",
 ];
 
+// `name` is the value stored in DB and matched by FilterBar — must stay French.
+// `key` maps to existing filter.amenities.* i18n keys for display.
 const AMENITIES = [
-  { name: "Climatisation",      Icon: Wind },
-  { name: "Chauffage",          Icon: Thermometer },
-  { name: "Wifi",               Icon: Wifi },
-  { name: "Citerne d'eau",      Icon: Droplets },
-  { name: "Chauffe-eau",        Icon: Flame },
-  { name: "Groupe électrogène", Icon: Zap },
-  { name: "Parking / Garage",   Icon: Car },
-  { name: "Jardin / Terrasse",  Icon: Trees },
-  { name: "Piscine",            Icon: Waves },
-  { name: "Cuisine équipée",    Icon: UtensilsCrossed },
-  { name: "Machine à laver",    Icon: WashingMachine },
-  { name: "Ascenseur",          Icon: ArrowUpDown },
+  { name: "Climatisation",      key: "ac",         Icon: Wind },
+  { name: "Chauffage",          key: "heating",    Icon: Thermometer },
+  { name: "Wifi",               key: "wifi",       Icon: Wifi },
+  { name: "Citerne d'eau",      key: "waterTank",  Icon: Droplets },
+  { name: "Chauffe-eau",        key: "waterHeater",Icon: Flame },
+  { name: "Groupe électrogène", key: "generator",  Icon: Zap },
+  { name: "Parking / Garage",   key: "parking",    Icon: Car },
+  { name: "Jardin / Terrasse",  key: "garden",     Icon: Trees },
+  { name: "Piscine",            key: "pool",       Icon: Waves },
+  { name: "Cuisine équipée",    key: "kitchen",    Icon: UtensilsCrossed },
+  { name: "Machine à laver",    key: "washer",     Icon: WashingMachine },
+  { name: "Ascenseur",          key: "elevator",   Icon: ArrowUpDown },
 ];
 
+// `value` is stored directly to house_rules in DB — must stay French.
+// `key` maps to addListing.rules.* for translated display.
 const RULES_PILLS = [
-  "Non-fumeur","Fumeur","Pas d'animaux","Animaux acceptés",
-  "Pas de fêtes","Familles uniquement","Livret de famille",
-  "Pas d'alcool","Femmes uniquement","Heures de silence",
+  { value: "Non-fumeur",          key: "nonSmoker"    },
+  { value: "Fumeur",              key: "smoker"       },
+  { value: "Pas d'animaux",       key: "noPets"       },
+  { value: "Animaux acceptés",    key: "petsAllowed"  },
+  { value: "Pas de fêtes",        key: "noParties"    },
+  { value: "Familles uniquement", key: "familiesOnly" },
+  { value: "Livret de famille",   key: "familyBook"   },
+  { value: "Pas d'alcool",        key: "noAlcohol"    },
+  { value: "Femmes uniquement",   key: "womenOnly"    },
+  { value: "Heures de silence",   key: "quietHours"   },
 ];
 
+// `value` is stored in DB. `labelKey` maps to addListing.propertyTypes.*.
 const PROPERTY_TYPES = [
-  { value: "appart",    label: "Appartement" },
-  { value: "villa",     label: "Villa" },
-  { value: "penthouse", label: "Penthouse" },
-  { value: "studio",    label: "Studio" },
-];
-
-const STEP_TITLES = [
-  "Commençons par le type d'annonce",
-  "Présentez votre logement",
-  "Où se trouve votre logement ?",
-  "Décrivez le bien",
-  "Quels équipements sont disponibles ?",
-  "Vos règles de la maison",
-  "Quand est-ce disponible ?",
-  "Où voulez-vous aller ?",
-  "Place aux photos !",
+  { value: "appart",    labelKey: "appart"    },
+  { value: "villa",     labelKey: "villa"     },
+  { value: "penthouse", labelKey: "penthouse" },
+  { value: "studio",    labelKey: "studio"    },
 ];
 
 const STEP_ILLOS = [
@@ -90,6 +91,7 @@ export default function AddListing() {
   const isEdit = Boolean(id);
   const fileInputRef = useRef(null);
   const wilayaInputRef = useRef(null);
+  const { t } = useTranslation();
 
   // Wizard
   const [step, setStep] = useState(1);
@@ -133,6 +135,19 @@ export default function AddListing() {
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [stepError, setStepError] = useState("");
+
+  // Translated step titles — inside component so t() is reactive to locale changes.
+  const STEP_TITLES = [
+    t("addListing.stepTitles.s1"),
+    t("addListing.stepTitles.s2"),
+    t("addListing.stepTitles.s3"),
+    t("addListing.stepTitles.s4"),
+    t("addListing.stepTitles.s5"),
+    t("addListing.stepTitles.s6"),
+    t("addListing.stepTitles.s7"),
+    t("addListing.stepTitles.s8"),
+    t("addListing.stepTitles.s9"),
+  ];
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -252,13 +267,13 @@ export default function AddListing() {
       setSuccess(true);
       setTimeout(() => navigate(isEdit ? "/profile" : "/dashboard"), 2000);
     } catch (err) {
-      setError(err.message || "Une erreur est survenue.");
+      setError(err.message || t("addListing.errors.generic"));
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleRule = (r) => setSelectedRules((p) => p.includes(r) ? p.filter((x) => x !== r) : [...p, r]);
+  const toggleRule = (v) => setSelectedRules((p) => p.includes(v) ? p.filter((x) => x !== v) : [...p, v]);
   const toggleAmenity = (n) => setAmenities((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n]);
   const toggleDestWilaya = (w) => setDestinationWilayas((p) => p.includes(w) ? p.filter((x) => x !== w) : [...p, w]);
   const destOptions = WILAYAS.filter((w) => w.toLowerCase().includes(wilayaSearch.toLowerCase()));
@@ -273,34 +288,31 @@ export default function AddListing() {
   function getStepError() {
     switch (step) {
       case 2:
-        if (!title.trim()) return "Veuillez saisir un titre pour votre annonce.";
+        if (!title.trim()) return t("addListing.errors.titleRequired");
         break;
       case 3:
-        if (!wilaya) return "Veuillez sélectionner une wilaya.";
-        if (!city.trim()) return "Veuillez saisir le nom de la ville.";
-        if (!quartier.trim()) return "Veuillez saisir le quartier / commune.";
+        if (!wilaya) return t("addListing.errors.wilayaRequired");
+        if (!city.trim()) return t("addListing.errors.cityRequired");
+        if (!quartier.trim()) return t("addListing.errors.quartierRequired");
         break;
       case 4:
-        if (!propertyType) return "Veuillez choisir le type de logement.";
-        if (!rooms) return "Veuillez indiquer le nombre de chambres.";
-        if (propertyType === "appart" && floor === "") return "Veuillez indiquer l'étage (0 pour rez-de-chaussée).";
-        if (type === "sale" && !size) return "Veuillez indiquer la superficie.";
-        if (type === "sale" && !price) return "Veuillez indiquer le prix de vente.";
+        if (!propertyType) return t("addListing.errors.propertyTypeRequired");
+        if (!rooms) return t("addListing.errors.roomsRequired");
+        if (propertyType === "appart" && floor === "") return t("addListing.errors.floorRequired");
+        if (type === "sale" && !size) return t("addListing.errors.sizeRequired");
+        if (type === "sale" && !price) return t("addListing.errors.priceRequired");
         break;
       case 5:
-        if (amenities.length === 0) return "Veuillez sélectionner au moins un équipement.";
+        if (amenities.length === 0) return t("addListing.errors.amenityRequired");
         break;
       case 7:
-        if (!availableFrom && !availableTo)
-          return "Veuillez indiquer au moins une date de disponibilité.";
+        if (!availableFrom && !availableTo) return t("addListing.errors.dateRequired");
         break;
       case 8:
-        if (!anyWilaya && destinationWilayas.length === 0)
-          return "Veuillez sélectionner au moins une wilaya, ou activer « Toutes les wilayas ».";
+        if (!anyWilaya && destinationWilayas.length === 0) return t("addListing.errors.destinationRequired");
         break;
       case 9:
-        if (existingImages.length + photos.length < 3)
-          return "Veuillez ajouter au moins 3 photos avant de soumettre.";
+        if (existingImages.length + photos.length < 3) return t("addListing.errors.photosRequired");
         break;
       default:
         break;
@@ -350,7 +362,7 @@ export default function AddListing() {
         </Link>
         <Link to={isEdit ? "/profile" : "/dashboard"} style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 13.5, fontWeight: 500, padding: "8px 12px", borderRadius: 999, textDecoration: "none" }}>
           <X style={{ width: 14, height: 14 }} />
-          Quitter
+          {t("addListing.quit")}
         </Link>
       </header>
 
@@ -359,7 +371,7 @@ export default function AddListing() {
         {success && (
           <div style={{ background: "#D6EEDD", border: "1px solid #ADEBB3", borderRadius: 14, padding: "16px 20px", marginBottom: 24, color: "#1F7A4F", fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 10 }}>
             <Check style={{ width: 18, height: 18 }} />
-            {isEdit ? "Annonce mise à jour — en attente de re-vérification !" : "Annonce soumise — en attente de vérification !"}
+            {isEdit ? t("addListing.success.updated") : t("addListing.success.created")}
           </div>
         )}
         {error && (
@@ -376,7 +388,7 @@ export default function AddListing() {
             <div style={{ fontSize: 14, color: "#005B5B", fontWeight: 600, letterSpacing: "0.02em" }}>
               <Logo size={14} color="#005B5B" />{" "}
               <span style={{ background: "#ADEBB3", color: "#005B5B", padding: "2px 8px", borderRadius: 6, marginLeft: 6, fontSize: 11, letterSpacing: "0.04em" }}>
-                Annonce
+                {t("addListing.badge")}
               </span>
             </div>
 
@@ -390,7 +402,7 @@ export default function AddListing() {
                 {STEP_TITLES[step - 1]}
               </h2>
               <div style={{ fontSize: 13, color: "#6E7B79", fontWeight: 500 }}>
-                Étape {String(step).padStart(2, "0")} sur {String(TOTAL).padStart(2, "0")}
+                {t("addListing.stepLabel", { current: String(step).padStart(2, "0"), total: String(TOTAL).padStart(2, "0") })}
               </div>
               <div style={{ display: "flex", gap: 6, width: 280, maxWidth: "80%" }}>
                 {Array.from({ length: TOTAL }).map((_, i) => (
@@ -400,10 +412,10 @@ export default function AddListing() {
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, color: "#6E7B79" }}>
-              <span>© 2026 DarBelDar. Tous droits réservés.</span>
+              <span>{t("addListing.copyright")}</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#005B5B", fontWeight: 500 }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6C19 16.5 12 21 12 21z" /></svg>
-                Made in Algeria
+                {t("addListing.madeIn")}
               </span>
             </div>
           </aside>
@@ -411,27 +423,27 @@ export default function AddListing() {
           {/* Right: form */}
           <section style={{ background: "#FAF6E9", padding: "40px 44px 28px", display: "flex", flexDirection: "column" }}>
 
-            {/* Step 1 — Type d'annonce */}
+            {/* Step 1 — Listing type */}
             {step === 1 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Type d'annonce</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Choisissez une option</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s1.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s1.hint")}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                   {[
-                    { val: "exchange", label: "Pour échange",  sub: "Troquez votre logement",  icon: <><path d="M7 7h11l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><path d="M17 17H6l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /></> },
-                    { val: "sale",     label: "Pour vente",    sub: "Cédez votre bien",         icon: <><path d="M3 10h18M5 10V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M5 10v9h14v-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><circle cx="12" cy="15" r="2" stroke="currentColor" strokeWidth="1.8" fill="none" /></> },
-                    { val: "both",     label: "Les deux",      sub: "Échange ou vente",         icon: <><path d="M12 3v18M3 12h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" fill="none" /></> },
-                  ].map(({ val, label, sub, icon }) => {
+                    { val: "exchange", labelKey: "exchange", subKey: "exchangeSub", icon: <><path d="M7 7h11l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><path d="M17 17H6l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /></> },
+                    { val: "sale",     labelKey: "sale",     subKey: "saleSub",     icon: <><path d="M3 10h18M5 10V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M5 10v9h14v-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><circle cx="12" cy="15" r="2" stroke="currentColor" strokeWidth="1.8" fill="none" /></> },
+                    { val: "both",     labelKey: "both",     subKey: "bothSub",     icon: <><path d="M12 3v18M3 12h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" fill="none" /></> },
+                  ].map(({ val, labelKey, subKey, icon }) => {
                     const on = type === val;
                     return (
                       <button key={val} type="button" onClick={() => setType(val)} style={tile(on)}>
                         <span style={{ width: 46, height: 46, borderRadius: 14, background: on ? "#ADEBB3" : "#E4F6E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#005B5B", transition: "background 0.15s" }}>
                           <svg width="24" height="24" viewBox="0 0 24 24">{icon}</svg>
                         </span>
-                        {label}
-                        <span style={{ fontSize: 12, color: on ? "#8FD89A" : "#6E7B79", fontWeight: 500 }}>{sub}</span>
+                        {t(`addListing.listingType.${labelKey}`)}
+                        <span style={{ fontSize: 12, color: on ? "#8FD89A" : "#6E7B79", fontWeight: 500 }}>{t(`addListing.listingType.${subKey}`)}</span>
                       </button>
                     );
                   })}
@@ -439,50 +451,50 @@ export default function AddListing() {
               </div>
             )}
 
-            {/* Step 2 — Titre + description */}
+            {/* Step 2 — Title + description */}
             {step === 2 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Présentez votre logement</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Soyez clair et accrocheur</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s2.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s2.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Titre de l'annonce <span style={{ color: "#004848" }}>*</span></label>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex: Appartement moderne au centre-ville" style={inp}
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s2.titleLabel")} <span style={{ color: "#004848" }}>*</span></label>
+                  <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("addListing.steps.s2.titlePlaceholder")} style={inp}
                     onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                     onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Description</label>
-                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Décrivez votre propriété : ambiance, voisinage, points forts…" rows={5}
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s2.descriptionLabel")}</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("addListing.steps.s2.descriptionPlaceholder")} rows={5}
                     style={{ ...inp, resize: "vertical", lineHeight: 1.5, minHeight: 108 }}
                     onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                     onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
-                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>Plus la description est détaillée, plus elle attire de candidats sérieux.</p>
+                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>{t("addListing.steps.s2.descriptionHint")}</p>
                 </div>
               </div>
             )}
 
-            {/* Step 3 — Localisation */}
+            {/* Step 3 — Location */}
             {step === 3 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Localisation</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Placez un repère approximatif</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s3.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s3.hint")}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Wilaya <span style={{ color: "#004848" }}>*</span></label>
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s3.wilayaLabel")} <span style={{ color: "#004848" }}>*</span></label>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button style={{ ...inp, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: wilaya ? "#0F2A2A" : "#B0B5B3", paddingRight: 38, position: "relative" }}>
-                          {wilaya ? `${String(WILAYAS.indexOf(wilaya) + 1).padStart(2, "0")} — ${wilaya}` : "Sélectionnez…"}
+                          {wilaya ? `${String(WILAYAS.indexOf(wilaya) + 1).padStart(2, "0")} — ${wilaya}` : t("addListing.steps.s3.wilayaPlaceholder")}
                           <ChevronDown style={{ width: 14, height: 14, flexShrink: 0 }} />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent style={{ backgroundColor: "#fff", border: "1px solid #E5DFCE", borderRadius: 12, padding: 6, minWidth: 240, maxHeight: 260, overflowY: "auto", scrollbarWidth: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 9999 }}>
                         <DropdownMenuRadioGroup value={wilaya} onValueChange={setWilaya}>
-                          <DropdownMenuRadioItem value="" style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#B0B5B3", fontFamily: "inherit" }}>Sélectionnez…</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="" style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#B0B5B3", fontFamily: "inherit" }}>{t("addListing.steps.s3.wilayaPlaceholder")}</DropdownMenuRadioItem>
                           {WILAYAS.map((w, i) => (
                             <DropdownMenuRadioItem key={w} value={w} style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#0F2A2A", backgroundColor: wilaya === w ? "#F3EEE0" : "transparent", fontFamily: "inherit" }}>
                               {String(i + 1).padStart(2, "0")} — {w}
@@ -493,22 +505,21 @@ export default function AddListing() {
                     </DropdownMenu>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Ville</label>
-                    <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Nom de la ville" style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s3.cityLabel")}</label>
+                    <input value={city} onChange={(e) => setCity(e.target.value)} placeholder={t("addListing.steps.s3.cityPlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Quartier / Commune</label>
-                  <input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder="ex: Bir Mourad Raïs, Hydra, Bab Ezzouar…" style={inp}
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s3.quartierLabel")}</label>
+                  <input value={quartier} onChange={(e) => setQuartier(e.target.value)} placeholder={t("addListing.steps.s3.quartierPlaceholder")} style={inp}
                     onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                     onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
-                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>Visible publiquement — votre adresse exacte ne l'est jamais.</p>
+                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>{t("addListing.steps.s3.quartierHint")}</p>
                 </div>
-                {/* Map */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Emplacement approximatif sur la carte</label>
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s3.mapLabel")}</label>
                   <LocationPicker
                     lat={latitude}
                     lng={longitude}
@@ -518,21 +529,21 @@ export default function AddListing() {
               </div>
             )}
 
-            {/* Step 4 — Caractéristiques */}
+            {/* Step 4 — Property details */}
             {step === 4 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Caractéristiques</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Type, chambres et superficie</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s4.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s4.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Type de logement <span style={{ color: "#004848" }}>*</span></label>
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.propertyTypeLabel")} <span style={{ color: "#004848" }}>*</span></label>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                    {PROPERTY_TYPES.map(({ value, label }) => {
+                    {PROPERTY_TYPES.map(({ value, labelKey }) => {
                       const on = propertyType === value;
                       return (
                         <button key={value} type="button" onClick={() => setPropertyType(value)} style={tile(on)}>
-                          {label}
+                          {t(`addListing.propertyTypes.${labelKey}`)}
                         </button>
                       );
                     })}
@@ -540,28 +551,28 @@ export default function AddListing() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Nombre de chambres <span style={{ color: "#004848" }}>*</span></label>
-                    <input type="number" min="0" value={rooms} onChange={(e) => setRooms(e.target.value)} placeholder="ex: 3" style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.roomsLabel")} <span style={{ color: "#004848" }}>*</span></label>
+                    <input type="number" min="0" value={rooms} onChange={(e) => setRooms(e.target.value)} placeholder={t("addListing.steps.s4.roomsPlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Superficie (m²)</label>
-                    <input type="number" min="0" value={size} onChange={(e) => setSize(e.target.value)} placeholder="ex: 85" style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.sizeLabel")}</label>
+                    <input type="number" min="0" value={size} onChange={(e) => setSize(e.target.value)} placeholder={t("addListing.steps.s4.sizePlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Étage</label>
-                    <input type="number" min="0" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="0 = RDC" style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.floorLabel")}</label>
+                    <input type="number" min="0" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder={t("addListing.steps.s4.floorPlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                 </div>
                 {showPrice && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Prix (DZD) <span style={{ color: "#004848" }}>*</span></label>
-                    <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="ex: 15 000 000" style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.priceLabel")} <span style={{ color: "#004848" }}>*</span></label>
+                    <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t("addListing.steps.s4.pricePlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
@@ -569,20 +580,20 @@ export default function AddListing() {
               </div>
             )}
 
-            {/* Step 5 — Équipements */}
+            {/* Step 5 — Amenities */}
             {step === 5 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Équipements</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Sélectionnez tout ce qui s'applique</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s5.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s5.hint")}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  {AMENITIES.map(({ name, Icon }) => {
+                  {AMENITIES.map(({ name, key, Icon }) => {
                     const on = amenities.includes(name);
                     return (
                       <button key={name} type="button" onClick={() => toggleAmenity(name)} style={chip(on)}>
                         <Icon style={{ width: 18, height: 18 }} />
-                        {name}
+                        {t(`filter.amenities.${key}`)}
                       </button>
                     );
                   })}
@@ -590,65 +601,66 @@ export default function AddListing() {
               </div>
             )}
 
-            {/* Step 6 — Règles */}
+            {/* Step 6 — House rules */}
             {step === 6 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Règles de la maison</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Plusieurs choix possibles</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s6.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s6.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {RULES_PILLS.map((r) => (
-                    <button key={r} type="button" onClick={() => toggleRule(r)} style={pill(selectedRules.includes(r))}>{r}</button>
+                  {RULES_PILLS.map(({ value, key }) => (
+                    <button key={value} type="button" onClick={() => toggleRule(value)} style={pill(selectedRules.includes(value))}>
+                      {t(`addListing.rules.${key}`)}
+                    </button>
                   ))}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Règles supplémentaires</label>
-                  <textarea value={houseRules} onChange={(e) => setHouseRules(e.target.value)} placeholder="Ajoutez vos propres règles, une par ligne…" rows={4}
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s6.extraLabel")}</label>
+                  <textarea value={houseRules} onChange={(e) => setHouseRules(e.target.value)} placeholder={t("addListing.steps.s6.extraPlaceholder")} rows={4}
                     style={{ ...inp, resize: "vertical", lineHeight: 1.5, minHeight: 96 }}
                     onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                     onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
-                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>Visible par les candidats à l'échange ou à la vente.</p>
+                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>{t("addListing.steps.s6.extraHint")}</p>
                 </div>
               </div>
             )}
 
-            {/* Step 7 — Disponibilité */}
+            {/* Step 7 — Availability */}
             {step === 7 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Disponibilité</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Période d'échange ou de vente</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s7.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s7.hint")}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Disponible à partir du <span style={{ color: "#004848" }}>*</span></label>
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s7.fromLabel")} <span style={{ color: "#004848" }}>*</span></label>
                     <input type="date" value={availableFrom} min={today} onChange={(e) => setAvailableFrom(e.target.value)} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>Jusqu'au</label>
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s7.toLabel")}</label>
                     <input type="date" value={availableTo} min={availableFrom || today} onChange={(e) => setAvailableTo(e.target.value)} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                 </div>
                 <div style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", borderRadius: 12, padding: "12px 14px", color: "#005B5B", fontSize: 13 }}>
-                  Les dates passées sont désactivées. Laissez "Jusqu'au" vide si votre logement est disponible sans limite de date.
+                  {t("addListing.steps.s7.dateHint")}
                 </div>
               </div>
             )}
 
-            {/* Step 8 — Destinations souhaitées */}
+            {/* Step 8 — Desired destinations */}
             {step === 8 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Destinations souhaitées</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Où voulez-vous aller ?</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s8.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s8.hint")}</span>
                 </div>
 
-                {/* "Open to all wilayas" toggle */}
                 <div
                   onClick={() => { setAnyWilaya((v) => !v); setDestDropdownOpen(false); }}
                   style={{
@@ -660,10 +672,9 @@ export default function AddListing() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, color: "#0F2A2A" }}>Ouvert à toutes les wilayas</div>
-                    <div style={{ fontSize: 12.5, color: "#6E7B79", marginTop: 2 }}>Recevez des propositions de partout en Algérie</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: "#0F2A2A" }}>{t("addListing.steps.s8.anyTitle")}</div>
+                    <div style={{ fontSize: 12.5, color: "#6E7B79", marginTop: 2 }}>{t("addListing.steps.s8.anySub")}</div>
                   </div>
-                  {/* Toggle switch */}
                   <div style={{ width: 46, height: 26, borderRadius: 999, flexShrink: 0, position: "relative", background: anyWilaya ? "#005B5B" : "#E5DFCE", transition: "background 0.2s" }}>
                     <div style={{
                       position: "absolute", top: 3, left: anyWilaya ? 23 : 3,
@@ -675,10 +686,9 @@ export default function AddListing() {
                   </div>
                 </div>
 
-                {/* Wilaya tag-input */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: anyWilaya ? 0.45 : 1, pointerEvents: anyWilaya ? "none" : "auto", filter: anyWilaya ? "saturate(0.7)" : "none", transition: "opacity 0.15s" }}>
                   <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>
-                    Wilayas souhaitées <span style={{ color: "#004848" }}>*</span>
+                    {t("addListing.steps.s8.wilayasLabel")} <span style={{ color: "#004848" }}>*</span>
                   </label>
                   <div
                     onClick={() => wilayaInputRef.current?.focus()}
@@ -691,7 +701,6 @@ export default function AddListing() {
                       boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
                     }}
                   >
-                    {/* Selected tags */}
                     {(Array.isArray(destinationWilayas) ? destinationWilayas : []).map((w) => (
                       <span key={w} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#005B5B", color: "#ADEBB3", padding: "5px 6px 5px 11px", borderRadius: 999, fontSize: 13, fontWeight: 500 }}>
                         {w}
@@ -705,7 +714,6 @@ export default function AddListing() {
                         </button>
                       </span>
                     ))}
-                    {/* Search input */}
                     <input
                       ref={wilayaInputRef}
                       value={wilayaSearch}
@@ -725,14 +733,13 @@ export default function AddListing() {
                           setDestDropdownOpen(false);
                         }
                       }}
-                      placeholder={destinationWilayas.length === 0 ? "Tapez pour rechercher une wilaya…" : ""}
+                      placeholder={destinationWilayas.length === 0 ? t("addListing.steps.s8.searchPlaceholder") : ""}
                       style={{ flex: 1, minWidth: 120, border: 0, outline: 0, background: "transparent", padding: "6px 4px", fontFamily: "inherit", color: "#0F2A2A", fontSize: 14 }}
                     />
-                    {/* Dropdown */}
                     {destDropdownOpen && (
                       <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)", background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 12, boxShadow: "0 8px 24px rgba(0,91,91,0.08)", maxHeight: 220, overflowY: "auto", scrollbarWidth: "none", zIndex: 100 }}>
                         {destOptions.length === 0 ? (
-                          <div style={{ padding: "14px", fontSize: 13, color: "#6E7B79", textAlign: "center" }}>Aucune wilaya trouvée</div>
+                          <div style={{ padding: "14px", fontSize: 13, color: "#6E7B79", textAlign: "center" }}>{t("addListing.steps.s8.noResult")}</div>
                         ) : destOptions.slice(0, 60).map((w, i) => (
                           <button
                             key={w}
@@ -760,7 +767,7 @@ export default function AddListing() {
                       </div>
                     )}
                   </div>
-                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>Sélectionnez une ou plusieurs wilayas où vous souhaitez échanger.</p>
+                  <p style={{ fontSize: 12, color: "#6E7B79", margin: 0 }}>{t("addListing.steps.s8.wilayasHint")}</p>
                 </div>
               </div>
             )}
@@ -769,10 +776,9 @@ export default function AddListing() {
             {step === 9 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>Photos du logement</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>Minimum 3 photos</span>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s9.heading")}</h2>
+                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s9.hint")}</span>
                 </div>
-                {/* Drop zone */}
                 <label
                   htmlFor="photoUpload"
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -789,11 +795,10 @@ export default function AddListing() {
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#E4F6E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#005B5B" }}>
                     <Upload style={{ width: 20, height: 20 }} />
                   </div>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, color: "#005B5B" }}>Glissez-déposez ou cliquez pour parcourir</div>
-                  <div style={{ fontSize: 12.5, color: "#6E7B79" }}>PNG, JPG jusqu'à 10MB — 5 photos max</div>
+                  <div style={{ fontSize: 14.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s9.dropLabel")}</div>
+                  <div style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s9.dropHint")}</div>
                   <input id="photoUpload" ref={fileInputRef} type="file" multiple accept="image/png,image/jpeg,image/jpg" style={{ display: "none" }} onChange={(e) => handleFiles(e.target.files)} />
                 </label>
-                {/* Photo grid */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                   {[...existingImages, ...previews].map((src, i) => (
                     <div key={i} style={{ position: "relative", aspectRatio: 1, borderRadius: 14, overflow: "hidden", background: "#E5DFCE", border: "1px solid #D5E9D8" }}>
@@ -807,7 +812,6 @@ export default function AddListing() {
                       </button>
                     </div>
                   ))}
-                  {/* Empty slots */}
                   {Array.from({ length: Math.max(0, 3 - (existingImages.length + previews.length)) }).map((_, i) => (
                     <div key={`empty-${i}`} style={{ aspectRatio: 1, borderRadius: 14, background: "#E4F6E6", border: "1px solid #D5E9D8", display: "flex", alignItems: "center", justifyContent: "center", color: "#8FD89A" }}>
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 5v14M5 12h14" /></svg>
@@ -820,7 +824,6 @@ export default function AddListing() {
             {/* Footer nav */}
             <div style={{ paddingTop: 24, marginTop: "auto", borderTop: "1px dashed #E5DFCE", display: "flex", flexDirection: "column", gap: 12 }}>
 
-              {/* Inline validation error */}
               {stepError && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 8,
@@ -842,7 +845,7 @@ export default function AddListing() {
                   style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "transparent", color: "#005B5B", border: "none", cursor: step === 1 ? "default" : "pointer", visibility: step === 1 ? "hidden" : "visible" }}
                 >
                   <ChevronLeft style={{ width: 14, height: 14 }} />
-                  Retour
+                  {t("addListing.nav.back")}
                 </button>
 
                 <div style={{ display: "flex", gap: 10 }}>
@@ -852,7 +855,7 @@ export default function AddListing() {
                       onClick={handleNext}
                       style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer" }}
                     >
-                      Étape suivante
+                      {t("addListing.nav.next")}
                       <ChevronRight style={{ width: 14, height: 14 }} />
                     </button>
                   ) : (
@@ -862,7 +865,7 @@ export default function AddListing() {
                         onClick={() => navigate(isEdit ? "/profile" : "/dashboard")}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
                       >
-                        Annuler
+                        {t("addListing.nav.cancel")}
                       </button>
                       <button
                         type="button"
@@ -871,7 +874,7 @@ export default function AddListing() {
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: loading || success ? "#6E7B79" : "#005B5B", color: "#ADEBB3", border: "none", cursor: loading || success ? "not-allowed" : "pointer" }}
                       >
                         <Check style={{ width: 14, height: 14 }} />
-                        {loading ? "Envoi en cours…" : isEdit ? "Mettre à jour" : "Soumettre pour vérification"}
+                        {loading ? t("addListing.nav.submitting") : isEdit ? t("addListing.nav.update") : t("addListing.nav.submit")}
                       </button>
                     </>
                   )}

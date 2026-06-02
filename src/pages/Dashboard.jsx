@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Plus, Search, Repeat, LogOut } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
@@ -11,6 +12,7 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [profileName, setProfileName] = useState(null);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const fetchDashboardData = async (userId) => {
     try {
@@ -39,9 +41,9 @@ export default function Dashboard() {
     : user?.email?.split("@")[0] || "Utilisateur";
 
   const actionCards = [
-    { to: "/add-listing",   Icon: Plus,   title: "Publier une annonce", sub: "Listez votre propriété pour échange ou vente",    btn: "Commencer" },
-    { to: "/browse",        Icon: Search, title: "Parcourir",            sub: "Découvrez des propriétés à travers l'Algérie",    btn: "Explorer"  },
-    { to: "/my-exchanges",  Icon: Repeat, title: "Mes échanges",         sub: "Voir et gérer vos échanges",                      btn: "Ouvrir"    },
+    { to: "/add-listing",   Icon: Plus,   title: t("dashboard.publishTitle"),   sub: t("dashboard.publishSub"),   btn: t("dashboard.publishBtn")   },
+    { to: "/browse",        Icon: Search, title: t("dashboard.browseTitle"),    sub: t("dashboard.browseSub"),    btn: t("dashboard.browseBtn")    },
+    { to: "/my-exchanges",  Icon: Repeat, title: t("dashboard.exchangesTitle"), sub: t("dashboard.exchangesSub"), btn: t("dashboard.exchangesBtn") },
   ];
 
   return (
@@ -57,7 +59,7 @@ export default function Dashboard() {
             style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#005B5B", padding: "8px 12px", borderRadius: 999, background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
           >
             <LogOut style={{ width: 14, height: 14 }} />
-            Déconnexion
+            {t("dashboard.logout")}
           </button>
           <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
@@ -68,12 +70,11 @@ export default function Dashboard() {
         {/* Welcome */}
         <section style={{ margin: "6px 0 24px" }}>
           <h1 style={{ fontSize: 42, lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>
-            Bienvenue,{" "}
+            {t("dashboard.welcome")},{" "}
             <span style={{ background: "#ADEBB3", padding: "0 0.18em", borderRadius: 6, color: "#005B5B" }}>
               {displayName}
             </span>!
           </h1>
-          <p style={{ margin: "10px 0 0", color: "#6E7B79", fontSize: 15 }}>Voici ce qui se passe avec vos échanges</p>
         </section>
 
         {/* Quick actions */}

@@ -440,7 +440,7 @@ export default function Browse() {
           textDecoration: 'none', fontFamily: "'Bricolage Grotesque', sans-serif",
           flexShrink: 0, marginRight: '8px',
         }}>
-          <Logo size={18} color="#ffffff" />
+          <Logo size={23} color="#ffffff" />
         </Link>
 
         {/* CENTER — chip filter bar (inside the teal navbar) */}
