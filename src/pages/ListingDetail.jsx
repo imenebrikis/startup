@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 
 const NeighborhoodMap = lazy(() => import('../components/NeighborhoodMap'))
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import Logo from "../components/Logo";
 import {
   ChevronLeft,
   ChevronRight,
@@ -56,17 +58,17 @@ const fmtDate = (s) => {
 };
 const fmtPrice = (p) =>
   p ? new Intl.NumberFormat("fr-DZ").format(p) + " DZD" : null;
-const fmtRange = (from, to) => {
+const fmtRange = (from, to, t, locale = "fr-FR") => {
   const fmt = (s, withYear) => {
     if (!s) return null;
     const d = new Date(s + "T00:00:00");
-    return d.toLocaleDateString("fr-FR", {
+    return d.toLocaleDateString(locale, {
       day: "numeric", month: "long", ...(withYear ? { year: "numeric" } : {}),
     });
   };
-  if (from && to) return `Du ${fmt(from)} au ${fmt(to, true)}`;
-  if (from) return `À partir du ${fmt(from, true)}`;
-  if (to) return `Jusqu'au ${fmt(to, true)}`;
+  if (from && to) return t("details.dateRange", { from: fmt(from), to: fmt(to, true) });
+  if (from) return t("details.dateFrom", { from: fmt(from, true) });
+  if (to) return t("details.dateUntil", { to: fmt(to, true) });
   return null;
 };
 const initFrom = (name) =>
@@ -123,6 +125,8 @@ function Skeleton({ h = 16, w = "100%", radius = 8 }) {
 }
 
 export default function ListingDetail() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -260,7 +264,7 @@ export default function ListingDetail() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate("/"); return; }
+      if (!user) { navigate("/login"); return; }
       setUser(user);
       const fn = user.user_metadata?.full_name;
       setInitials(
@@ -321,7 +325,7 @@ export default function ListingDetail() {
         <Link to="/dashboard" style={{
           fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
           textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif",
-        }}>DarBelDar</Link>
+        }}><Logo size={22} color="#0A3D3D" /></Link>
         <div style={{
           width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -338,7 +342,7 @@ export default function ListingDetail() {
           textDecoration: "none", marginBottom: "24px",
         }}>
           <ChevronLeft style={{ width: "16px", height: "16px" }} />
-          Retour aux annonces
+          {t("details.back")}
         </Link>
 
         {loading ? (
@@ -348,7 +352,7 @@ export default function ListingDetail() {
             <Skeleton h={120} />
           </div>
         ) : !listing ? (
-          <p style={muted}>Annonce introuvable.</p>
+          <p style={muted}>{t("details.notFound")}</p>
         ) : (
           <>
             {/* ── Rejection banner (owner only) ── */}
@@ -361,15 +365,15 @@ export default function ListingDetail() {
                 <span style={{ fontSize: "20px", flexShrink: 0, lineHeight: 1 }}>⚠️</span>
                 <div>
                   <p style={{ margin: "0 0 4px", fontSize: "14px", fontWeight: "700", color: "#991B1B", fontFamily: "'Inter', sans-serif" }}>
-                    Votre annonce a été refusée
+                    {t("details.rejected.title")}
                   </p>
                   <p style={{ margin: 0, fontSize: "13.5px", color: "#B91C1C", lineHeight: 1.6, fontFamily: "'Inter', sans-serif" }}>
                     {listing.rejection_reason?.trim()
                       ? listing.rejection_reason
-                      : "Aucun motif spécifique fourni. Veuillez contacter le support."}
+                      : t("details.rejected.noReason")}
                   </p>
                   <p style={{ margin: "8px 0 0", fontSize: "12.5px", color: "#991B1B", opacity: 0.75, fontFamily: "'Inter', sans-serif" }}>
-                    Corrigez les points mentionnés puis modifiez votre annonce pour la soumettre à nouveau.
+                    {t("details.rejected.hint")}
                   </p>
                 </div>
               </div>
@@ -386,12 +390,12 @@ export default function ListingDetail() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {listing.is_for_exchange && (
                     <span style={{ background: "#0A3D3D", color: "#fff", fontSize: "12px", fontWeight: "600", padding: "4px 14px", borderRadius: "999px" }}>
-                      Échange
+                      {t("details.exchange")}
                     </span>
                   )}
                   {listing.is_for_sale && (
                     <span style={{ background: "#4B3FD8", color: "#fff", fontSize: "12px", fontWeight: "600", padding: "4px 14px", borderRadius: "999px" }}>
-                      Vente
+                      {t("details.sale")}
                     </span>
                   )}
                 </div>
@@ -413,7 +417,7 @@ export default function ListingDetail() {
                     <>
                       <img
                         src={photos[photoIdx]}
-                        alt="photo principale"
+                        alt={t("details.photoMain")}
                         onClick={() => setIsFullscreen(true)}
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: "pointer" }}
                       />
@@ -463,7 +467,7 @@ export default function ListingDetail() {
                           transition: "border-color 0.15s",
                         }}
                       >
-                        <img src={src} alt={`miniature ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                        <img src={src} alt={t("details.thumbnail", { n: i + 1 })} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       </button>
                     ))}
                     {photos.length > 4 && (
@@ -477,7 +481,7 @@ export default function ListingDetail() {
                         }}
                       >
                         <span style={{ fontSize: "20px", color: "#fff" }}>⊞</span>
-                        <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600", fontFamily: "'Inter', sans-serif" }}>Voir tout</span>
+                        <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600", fontFamily: "'Inter', sans-serif" }}>{t("details.viewAll")}</span>
                       </button>
                     )}
                   </div>
@@ -487,12 +491,12 @@ export default function ListingDetail() {
                 <div style={{ background: "#ADEBB3", borderRadius: "20px", padding: "28px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
                     <span style={{ fontSize: "11px", fontWeight: "700", color: "#0A3D3D", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Propriétaire
+                      {t("details.owner")}
                     </span>
                     {showExchange && (
                       exchangeSent ? (
                         <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D", background: "rgba(10,61,61,0.12)", padding: "8px 16px", borderRadius: "999px" }}>
-                          ✓ Demande envoyée
+                          {t("details.requestSent")}
                         </span>
                       ) : (
                         <SwapSheet
@@ -503,7 +507,7 @@ export default function ListingDetail() {
                       )
                     )}
                     {isOwner && (
-                      <span style={{ fontSize: "12px", color: "#0A3D3D80", fontStyle: "italic" }}>Votre annonce</span>
+                      <span style={{ fontSize: "12px", color: "#0A3D3D80", fontStyle: "italic" }}>{t("details.yourListing")}</span>
                     )}
                   </div>
 
@@ -522,7 +526,7 @@ export default function ListingDetail() {
                       fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
                       fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
                     }}>
-                      {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || "Propriétaire"}
+                      {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || t("details.ownerFallback")}
                     </p>
                     {listing.profiles?.wilaya && (
                       <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#0A3D3D", fontWeight: "500" }}>
@@ -532,7 +536,7 @@ export default function ListingDetail() {
                     )}
                     {listing.profiles?.created_at && (
                       <span style={{ fontSize: "12px", color: "rgba(10,61,61,0.6)" }}>
-                        Membre depuis {fmtDate(listing.profiles.created_at)}
+                        {t("details.memberSince", { date: fmtDate(listing.profiles.created_at) })}
                       </span>
                     )}
                   </div>
@@ -548,7 +552,7 @@ export default function ListingDetail() {
                         fontFamily: "'Inter', sans-serif", textAlign: "center",
                         boxSizing: "border-box",
                       }}>
-                        ✓ Demande envoyée
+                        {t("details.requestSent")}
                       </div>
                     ) : (
                       <button
@@ -565,7 +569,7 @@ export default function ListingDetail() {
                           transition: "opacity 0.15s",
                         }}
                       >
-                        {contactSaleLoading ? "Chargement…" : "Contacter le vendeur"}
+                        {contactSaleLoading ? t("details.loading") : t("details.contactSeller")}
                       </button>
                     )
                   )}
@@ -591,7 +595,7 @@ export default function ListingDetail() {
                     }}
                   >
                     <Heart style={{ width: "17px", height: "17px", fill: isLiked ? "#ef4444" : "none" }} />
-                    {isLiked ? "Sauvegardé" : "Sauvegarder"}
+                    {isLiked ? t("details.saved") : t("details.save")}
                   </button>
                   {!isOwner && (
                     <button
@@ -608,7 +612,7 @@ export default function ListingDetail() {
                       }}
                     >
                       <MessageCircle style={{ width: "17px", height: "17px" }} />
-                      {contactLoading ? "Chargement…" : "Contacter"}
+                      {contactLoading ? t("details.loading") : t("details.contact")}
                     </button>
                   )}
                 </div>
@@ -616,14 +620,16 @@ export default function ListingDetail() {
                 {/* Availability / info card */}
                 <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
                   <p style={sectionLabel}>
-                    Disponibilités{listing.profiles?.full_name ? ` de ${listing.profiles.full_name}` : ""}
+                    {listing.profiles?.full_name
+                      ? t("details.availabilityOf", { name: listing.profiles.full_name })
+                      : t("details.availability")}
                   </p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-                    {fmtRange(listing.available_from, listing.available_to) && (
+                    {fmtRange(listing.available_from, listing.available_to, t, dateLocale) && (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ADEBB3", borderRadius: "999px", padding: "7px 14px" }}>
                         <Calendar style={{ width: "14px", height: "14px", color: "#0A3D3D" }} />
                         <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D" }}>
-                          {fmtRange(listing.available_from, listing.available_to)}
+                          {fmtRange(listing.available_from, listing.available_to, t, dateLocale)}
                         </span>
                       </div>
                     )}
@@ -645,7 +651,7 @@ export default function ListingDetail() {
                     if (!anyWilaya && wilayas.length === 0) return null;
                     return (
                       <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid #f3f4f6" }}>
-                        <p style={{ ...sectionLabel, marginBottom: "10px" }}>Destinations souhaitées</p>
+                        <p style={{ ...sectionLabel, marginBottom: "10px" }}>{t("details.desiredDestinations")}</p>
                         {anyWilaya ? (
                           <div style={{
                             display: "inline-flex", alignItems: "center", gap: "7px",
@@ -653,7 +659,7 @@ export default function ListingDetail() {
                           }}>
                             <Globe2 style={{ width: "13px", height: "13px", color: "#0A3D3D" }} />
                             <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D" }}>
-                              Ouvert à toutes les wilayas
+                              {t("details.openToAllWilayas")}
                             </span>
                           </div>
                         ) : (
@@ -692,7 +698,7 @@ export default function ListingDetail() {
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px" }}>
                     <BedDouble style={{ width: "20px", height: "20px", color: "#0A3D3D" }} />
                     <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
-                      {listing.rooms} chambre{listing.rooms > 1 ? "s" : ""}
+                      {t("details.rooms", { count: listing.rooms })}
                     </span>
                   </div>
                   {listing.size && (
@@ -702,7 +708,7 @@ export default function ListingDetail() {
                     }}>
                       <Maximize2 style={{ width: "18px", height: "18px", color: "#0A3D3D" }} />
                       <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
-                        {listing.size} m² superficie
+                        {t("details.area", { size: listing.size })}
                       </span>
                     </div>
                   )}
@@ -713,7 +719,7 @@ export default function ListingDetail() {
                     }}>
                       <Layers style={{ width: "18px", height: "18px", color: "#0A3D3D" }} />
                       <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A3D3D", fontFamily: "'Inter', sans-serif" }}>
-                        {listing.floor === 0 ? "RDC" : `Étage ${listing.floor}`}
+                        {listing.floor === 0 ? t("details.groundFloor") : t("details.floor", { floor: listing.floor })}
                       </span>
                     </div>
                   )}
@@ -722,7 +728,7 @@ export default function ListingDetail() {
                 {/* Description */}
                 {listing.description && (
                   <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
-                    <p style={sectionLabel}>Description</p>
+                    <p style={sectionLabel}>{t("details.description")}</p>
                     <p style={{ fontSize: "14px", color: "#1a1a1a", lineHeight: 1.75, margin: 0 }}>
                       {listing.description}
                     </p>
@@ -732,7 +738,7 @@ export default function ListingDetail() {
                 {/* Amenities */}
                 {listing.amenities?.length > 0 && (
                   <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
-                    <p style={sectionLabel}>Équipements</p>
+                    <p style={sectionLabel}>{t("details.amenities")}</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
                       {listing.amenities.map((name) => {
                         const Icon = AMENITY_ICONS[name] || Wifi;
@@ -752,7 +758,7 @@ export default function ListingDetail() {
                   <div style={{ background: "#ADEBB3", borderRadius: "16px", padding: "20px 24px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                       <BookOpen style={{ width: "15px", height: "15px", color: "#0A3D3D" }} />
-                      <p style={{ ...sectionLabel, color: "#0A3D3D", marginBottom: 0 }}>Règles du logement</p>
+                      <p style={{ ...sectionLabel, color: "#0A3D3D", marginBottom: 0 }}>{t("details.houseRules")}</p>
                     </div>
                     <p style={{ fontSize: "14px", color: "#0A3D3D", lineHeight: 1.75, margin: 0 }}>
                       {listing.house_rules}
@@ -762,10 +768,10 @@ export default function ListingDetail() {
 
                 {/* ── Neighbourhood map (SeLoger-style privacy zone) ── */}
                 <div>
-                  <p style={sectionLabel}>Carte du quartier</p>
+                  <p style={sectionLabel}>{t("details.neighborhoodMap")}</p>
                   <Suspense fallback={
                     <div style={{ height: "240px", borderRadius: "14px", border: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: "13px", color: "#9ca3af", fontFamily: "'Inter',sans-serif" }}>Chargement…</span>
+                      <span style={{ fontSize: "13px", color: "#9ca3af", fontFamily: "'Inter',sans-serif" }}>{t("details.loading")}</span>
                     </div>
                   }>
                     <NeighborhoodMap listing={listing} />
@@ -781,12 +787,12 @@ export default function ListingDetail() {
                 fontSize: "22px", fontWeight: "700", color: "#1a1a1a",
                 marginBottom: "20px",
               }}>
-                Avis ({reviews.length})
+                {t("details.reviews", { count: reviews.length })}
               </h2>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 {reviews.length === 0 && (
-                  <p style={muted}>Aucun avis pour le moment.</p>
+                  <p style={muted}>{t("details.noReviews")}</p>
                 )}
                 {reviews.map((r) => (
                   <div key={r.id} style={{
@@ -802,7 +808,7 @@ export default function ListingDetail() {
                         {initFrom(r.profiles?.full_name)}
                       </div>
                       <div>
-                        <p style={{ ...label, marginBottom: "2px" }}>{r.profiles?.full_name || "Utilisateur"}</p>
+                        <p style={{ ...label, marginBottom: "2px" }}>{r.profiles?.full_name || t("details.userFallback")}</p>
                         <Stars rating={r.rating} />
                       </div>
                       <span style={{ ...muted, marginLeft: "auto", fontSize: "12px" }}>
@@ -817,13 +823,13 @@ export default function ListingDetail() {
 
                 {!isOwner && user && (
                   <div style={{ background: "#ADEBB3", borderRadius: "14px", padding: "20px", marginTop: "8px" }}>
-                    <p style={{ ...label, marginBottom: "12px", fontSize: "14px", color: "#0A3D3D" }}>Laisser un avis</p>
+                    <p style={{ ...label, marginBottom: "12px", fontSize: "14px", color: "#0A3D3D" }}>{t("details.leaveReview")}</p>
                     <Stars rating={rating} onClick={setRating} hoveredStar={hoveredStar} setHoveredStar={setHoveredStar} emptyColor="rgba(0,73,73,0.35)" />
                     <textarea
                       rows={3}
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder="Partagez votre expérience..."
+                      placeholder={t("details.reviewPlaceholder")}
                       style={{
                         width: "100%", marginTop: "12px", padding: "10px 14px",
                         borderRadius: "10px", border: "1.5px solid rgba(0,73,73,0.2)",
@@ -846,7 +852,7 @@ export default function ListingDetail() {
                         transition: "background 0.15s",
                       }}
                     >
-                      {submittingReview ? "Publication…" : "Publier l'avis"}
+                      {submittingReview ? t("details.publishing") : t("details.publishReview")}
                     </button>
                   </div>
                 )}
@@ -877,7 +883,7 @@ export default function ListingDetail() {
           </button>
           <img
             src={photos[photoIdx]}
-            alt="fullscreen"
+            alt={t("details.fullscreen")}
             style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain" }}
           />
           {photos.length > 1 && (

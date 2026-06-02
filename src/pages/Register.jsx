@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
+import Logo from "../components/Logo";
 
 
 const styleTag = document.createElement("style");
@@ -229,7 +230,7 @@ export default function Register() {
             lineHeight: 1.1,
           }}
         >
-          Dar<span style={{ color: "#4B3FD8" }}>Bel</span>Dar
+          <Logo size={30} color="#0A3D3D" />
         </div>
 
         {/* Subtitle */}

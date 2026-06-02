@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { MessageCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
@@ -8,21 +9,23 @@ import NotificationBell from "../components/NotificationBell";
 const initFrom = (name) =>
   name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
 
-const fmtRelativeTime = (ts) => {
+// Date helpers take the active locale (and `t` for word-based labels) so
+// timestamps adapt to the current language.
+const fmtRelativeTime = (ts, t, locale = "fr-DZ") => {
   if (!ts) return "";
   const diff = Date.now() - new Date(ts).getTime();
-  if (diff < 60_000) return "maintenant";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}min`;
+  if (diff < 60_000) return t("messages.now");
+  if (diff < 3_600_000) return t("messages.minutesAgo", { count: Math.floor(diff / 60_000) });
   if (diff < 86_400_000)
-    return new Date(ts).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" });
-  return new Date(ts).toLocaleDateString("fr-DZ", { day: "numeric", month: "short" });
+    return new Date(ts).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleDateString(locale, { day: "numeric", month: "short" });
 };
 
-const fmtClock = (ts) =>
-  ts ? new Date(ts).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" }) : "";
+const fmtClock = (ts, locale = "fr-DZ") =>
+  ts ? new Date(ts).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : "";
 
-const fmtDay = (ts) =>
-  ts ? new Date(ts).toLocaleDateString("fr-DZ", { day: "numeric", month: "long" }) : "";
+const fmtDay = (ts, locale = "fr-DZ") =>
+  ts ? new Date(ts).toLocaleDateString(locale, { day: "numeric", month: "long" }) : "";
 
 function SkeletonConversation() {
   return (
@@ -50,9 +53,13 @@ function SkeletonMessage({ align = "left" }) {
 }
 
 export default function Messages() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-DZ";
   const navigate = useNavigate();
   const location = useLocation();
   const preselectedConvId = location.state?.conversationId ?? null;
+  const activeChatUserId   = location.state?.activeChatUserId ?? null;
+  const activeChatUserName = location.state?.activeChatUserName ?? null;
 
   const [user, setUser]                   = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -67,6 +74,8 @@ export default function Messages() {
   const [isRecording, setIsRecording]     = useState(false);
   const [activeExchange, setActiveExchange] = useState(null);
   const [exchangeLoading, setExchangeLoading] = useState(false);
+  const [hoveredMsgId, setHoveredMsgId]   = useState(null);
+  const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
 
   const messagesEndRef   = useRef(null);
   const channelRef       = useRef(null);
@@ -74,11 +83,25 @@ export default function Messages() {
   const imageInputRef    = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
+  const activeConvIdRef  = useRef(null);
+
+  // Keep a ref of the open conversation so the inbox subscription (which is set up
+  // once per user) can tell whether an incoming message belongs to the open thread.
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
+
+  const markConvRead = useCallback((convId) => {
+    setUnreadConvIds((prev) => {
+      if (!convId || !prev.has(convId)) return prev;
+      const next = new Set(prev);
+      next.delete(convId);
+      return next;
+    });
+  }, []);
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate("/"); return; }
+      if (!user) { navigate("/login"); return; }
       setUser(user);
     });
   }, [navigate]);
@@ -152,8 +175,9 @@ export default function Messages() {
     setActiveConvId(conv.id);
     setActivePartner(conv.partner);
     setActiveConvListing(conv.listing ?? null);
+    markConvRead(conv.id);
     fetchMessages(conv.id);
-  }, [conversations, user, preselectedConvId, fetchMessages]);
+  }, [conversations, user, preselectedConvId, fetchMessages, markConvRead]);
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -178,10 +202,44 @@ export default function Messages() {
           fetchConversations();
         },
       )
+      .on("postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConvId}` },
+        (payload) => {
+          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+          fetchConversations();
+        },
+      )
       .subscribe();
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); channelRef.current = null; };
   }, [activeConvId, user, fetchConversations]);
+
+  // ── Inbox-wide realtime ────────────────────────────────────────────────────
+  // One extra subscription (on the same WebSocket) for every incoming message
+  // addressed to the current user, so the conversation list reorders / shows an
+  // unread marker live — even for threads that aren't currently open.
+  useEffect(() => {
+    if (!user) return;
+    const inboxCh = supabase
+      .channel(`inbox-${user.id}`)
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` },
+        (payload) => {
+          const convId = payload.new?.conversation_id;
+          if (convId && convId !== activeConvIdRef.current) {
+            setUnreadConvIds((prev) => {
+              if (prev.has(convId)) return prev;
+              const next = new Set(prev);
+              next.add(convId);
+              return next;
+            });
+          }
+          fetchConversations(); // refresh previews + ordering
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(inboxCh); };
+  }, [user, fetchConversations]);
 
   // ── Fetch exchange for active conversation ────────────────────────────────
   const fetchExchange = useCallback(async (listingId, partnerId) => {
@@ -197,12 +255,63 @@ export default function Messages() {
     setActiveExchange(data ?? null);
   }, [user]);
 
+  // ── Auto-select / create conversation when arriving from Exchanges ────────
+  useEffect(() => {
+    if (!activeChatUserId || !user || didAutoSelect.current || loadingConvs) return;
+
+    const existing = conversations.find((c) => c.partner?.id === activeChatUserId);
+    if (existing) {
+      didAutoSelect.current = true;
+      setActiveConvId(existing.id);
+      setActivePartner(existing.partner);
+      setActiveConvListing(existing.listing ?? null);
+      setActiveExchange(null);
+      markConvRead(existing.id);
+      fetchMessages(existing.id);
+      fetchExchange(existing.listing?.id ?? null, existing.partner?.id ?? null);
+      return;
+    }
+
+    // No conversation with this user yet — create an empty one, then open it.
+    didAutoSelect.current = true;
+    (async () => {
+      // conversations table requires participant_one < participant_two (UUID order)
+      const [p1, p2] = [user.id, activeChatUserId].sort();
+      const { data: created, error } = await supabase
+        .from("conversations")
+        .insert({ participant_one: p1, participant_two: p2 })
+        .select("*, listing:listings(id, title, wilaya, city, rooms, images, is_for_exchange, is_for_sale)")
+        .single();
+      if (error || !created) {
+        console.error("[Messages] could not start conversation:", error);
+        didAutoSelect.current = false;
+        return;
+      }
+      const { data: partner } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .eq("id", activeChatUserId)
+        .maybeSingle();
+      const conv = {
+        ...created,
+        partner: partner ?? { id: activeChatUserId, full_name: activeChatUserName, avatar_url: null },
+      };
+      setConversations((prev) => (prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev]));
+      setActiveConvId(conv.id);
+      setActivePartner(conv.partner);
+      setActiveConvListing(conv.listing ?? null);
+      setActiveExchange(null);
+      fetchMessages(conv.id);
+    })();
+  }, [conversations, user, activeChatUserId, activeChatUserName, loadingConvs, fetchMessages, fetchExchange, markConvRead]);
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const selectConversation = (conv) => {
     setActiveConvId(conv.id);
     setActivePartner(conv.partner);
     setActiveConvListing(conv.listing ?? null);
     setActiveExchange(null);
+    markConvRead(conv.id);
     fetchMessages(conv.id);
     fetchExchange(conv.listing?.id ?? null, conv.partner?.id ?? null);
   };
@@ -228,17 +337,20 @@ export default function Messages() {
     setNewMessage("");
     const conv = conversations.find((c) => c.id === activeConvId);
     const receiverId = conv?.participant_one === user.id ? conv.participant_two : conv.participant_one;
+    const previewText = content.includes(".webm") ? "🎤 Message vocal" : content.slice(0, 80);
+    // Bump the conversation BEFORE inserting the message: the message-insert event
+    // is what wakes up the recipient's inbox, so the conversation row must already
+    // carry the fresh last_message_at by then for live reordering to be correct.
+    await supabase
+      .from("conversations")
+      .update({ last_message_at: new Date().toISOString(), last_message_preview: previewText })
+      .eq("id", activeConvId);
     const { data: msg } = await supabase
       .from("messages")
       .insert({ conversation_id: activeConvId, sender_id: user.id, receiver_id: receiverId, content })
       .select("*, sender:profiles!messages_sender_id_fkey(id, full_name, avatar_url)")
       .single();
     if (msg) setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
-    const previewText = content.includes(".webm") ? "🎤 Message vocal" : content.slice(0, 80);
-    await supabase
-      .from("conversations")
-      .update({ last_message_at: new Date().toISOString(), last_message_preview: previewText })
-      .eq("id", activeConvId);
 
     fetchConversations();
     setSending(false);
@@ -248,6 +360,19 @@ export default function Messages() {
     if (!text.trim() || !activeConvId || sending) return;
     setNewMessage("");
     handleSend(text.trim());
+  };
+
+  // ── Delete a message globally (sender only, propagates via realtime) ───────
+  const handleDeleteMessage = async (id) => {
+    // Optimistic removal for the current user
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    const { error } = await supabase.from("messages").delete().eq("id", id);
+    if (error) {
+      console.error("[handleDeleteMessage]", error);
+      if (activeConvId) fetchMessages(activeConvId); // restore on failure
+      return;
+    }
+    fetchConversations(); // refresh inbox preview if the last message was removed
   };
 
   const handleKeyDown = (e) => {
@@ -269,7 +394,7 @@ export default function Messages() {
       .upload(path, audioBlob, { contentType: "audio/webm" });
     if (error) {
       console.error("[handleVoiceMessage] upload failed:", error);
-      alert("Impossible d'envoyer le message vocal : " + error.message);
+      alert(t("messages.voiceError", { error: error.message }));
       return;
     }
     const { data: urlData } = supabase.storage.from("listings").getPublicUrl(path);
@@ -315,7 +440,7 @@ export default function Messages() {
 
         {/* ── Topbar ── */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>Messages</h1>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>{t("messages.title")}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <NotificationBell userId={user?.id} />
             <div
@@ -339,11 +464,11 @@ export default function Messages() {
                   <svg style={{ width: 16, height: 16 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M3 7l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/>
                   </svg>
-                  Boîte
+                  {t("messages.inbox")}
                 </button>
               </div>
               <button
-                aria-label="Rechercher"
+                aria-label={t("messages.search")}
                 style={{ width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#005B5B", background: "none", border: "none", cursor: "pointer" }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,91,91,0.06)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
@@ -360,12 +485,13 @@ export default function Messages() {
               ) : conversations.length === 0 ? (
                 <div style={{ padding: "48px 24px", textAlign: "center" }}>
                   <MessageCircle style={{ width: 36, height: 36, color: "#E5DFCE", margin: "0 auto 12px", display: "block" }} />
-                  <p style={{ fontSize: 14, color: "#6E7B79", margin: 0 }}>Aucune conversation</p>
+                  <p style={{ fontSize: 14, color: "#6E7B79", margin: 0 }}>{t("messages.noConversations")}</p>
                 </div>
               ) : (
                 conversations.map((conv) => {
                   const { partner } = conv;
                   const isActive = conv.id === activeConvId;
+                  const isUnread = !isActive && unreadConvIds.has(conv.id);
                   return (
                     <div
                       key={conv.id}
@@ -387,18 +513,22 @@ export default function Messages() {
                       </div>
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: "#0F2A2A", letterSpacing: "-0.005em", margin: "0 0 2px", lineHeight: 1.1 }}>
-                          {partner?.full_name || "Utilisateur"}
+                          {partner?.full_name || t("messages.userFallback")}
                           {conv.last_message_at && (
                             <span style={{ color: "#6E7B79", fontWeight: 500, fontSize: 11.5, marginLeft: 8 }}>
-                              {fmtRelativeTime(conv.last_message_at)}
+                              {fmtRelativeTime(conv.last_message_at, t, dateLocale)}
                             </span>
                           )}
                         </p>
-                        <p style={{ fontSize: 12.5, color: "#6E7B79", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 185 }}>
-                          {conv.last_message_preview?.includes(".webm") || conv.last_message_preview?.startsWith("https://") ? "🎤 Message vocal" : (conv.last_message_preview || "Démarrer la conversation…")}
+                        <p style={{ fontSize: 12.5, color: isUnread ? "#0F2A2A" : "#6E7B79", fontWeight: isUnread ? 600 : 400, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 185 }}>
+                          {conv.last_message_preview?.includes(".webm") || conv.last_message_preview?.startsWith("https://") ? t("messages.voiceMessage") : (conv.last_message_preview || t("messages.startConversation"))}
                         </p>
                       </div>
-                      <div />
+                      {isUnread ? (
+                        <span aria-label={t("messages.unread")} style={{ width: 9, height: 9, borderRadius: "50%", background: "#005B5B", flexShrink: 0, alignSelf: "center" }} />
+                      ) : (
+                        <div />
+                      )}
                     </div>
                   );
                 })
@@ -417,13 +547,13 @@ export default function Messages() {
                   </div>
                   <div>
                     <p style={{ fontSize: 15, fontWeight: 700, color: "#0F2A2A", margin: 0, lineHeight: 1.1 }}>
-                      {activePartner?.full_name || "Utilisateur"}
+                      {activePartner?.full_name || t("messages.userFallback")}
                     </p>
                     <button
                       onClick={() => navigate(`/profile/${activePartner?.id}`)}
                       style={{ fontSize: 12.5, color: "#005B5B", fontWeight: 500, margin: "2px 0 0", display: "inline-flex", gap: 4, alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                     >
-                      Voir le profil →
+                      {t("messages.viewProfile")}
                     </button>
                   </div>
                 </header>
@@ -435,12 +565,12 @@ export default function Messages() {
                   ) : messages.length === 0 ? (
                     <div style={{ margin: "auto", textAlign: "center" }}>
                       <MessageCircle style={{ width: 36, height: 36, color: "#E5DFCE", margin: "0 auto 10px", display: "block" }} />
-                      <p style={{ fontSize: 14, color: "#6E7B79", margin: 0 }}>Aucun message. Dites bonjour&nbsp;!</p>
+                      <p style={{ fontSize: 14, color: "#6E7B79", margin: 0 }}>{t("messages.noMessages")}</p>
                     </div>
                   ) : (
                     messages.reduce((els, msg, i) => {
-                      const msgDay  = fmtDay(msg.created_at);
-                      const prevDay = i > 0 ? fmtDay(messages[i - 1].created_at) : null;
+                      const msgDay  = fmtDay(msg.created_at, dateLocale);
+                      const prevDay = i > 0 ? fmtDay(messages[i - 1].created_at, dateLocale) : null;
                       const isOwn   = msg.sender_id === user?.id;
 
                       if (i === 0 || msgDay !== prevDay) {
@@ -454,13 +584,42 @@ export default function Messages() {
                       els.push(
                         <div
                           key={msg.id}
+                          onMouseEnter={() => setHoveredMsgId(msg.id)}
+                          onMouseLeave={() => setHoveredMsgId((id) => (id === msg.id ? null : id))}
                           style={{ display: "flex", gap: 10, maxWidth: "78%", alignSelf: isOwn ? "flex-end" : "flex-start", flexDirection: isOwn ? "row-reverse" : "row" }}
                         >
                           {/* Avatar */}
                           <div style={{ width: 34, height: 34, borderRadius: "50%", background: isOwn ? "#ADEBB3" : "#005B5B", color: isOwn ? "#005B5B" : "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 12.5, flexShrink: 0 }}>
                             {isOwn ? userInitials : initFrom(msg.sender?.full_name)}
                           </div>
-                          <div>
+                          <div style={{ position: "relative" }}>
+                            {/* Delete (own messages only) — appears on hover.
+                                Anchored flush to the bubble's left edge with padding acting as an
+                                invisible bridge, so the cursor never crosses a dead zone gap. */}
+                            {isOwn && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                aria-label={t("messages.deleteMessage")}
+                                title={t("messages.delete")}
+                                style={{
+                                  position: "absolute", right: "100%", top: "50%", transform: "translateY(-50%)",
+                                  marginRight: -2, padding: 8, borderRadius: "50%", lineHeight: 0,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  border: "none", background: "transparent", color: "#6E7B79",
+                                  cursor: "pointer", flexShrink: 0,
+                                  opacity: hoveredMsgId === msg.id ? 1 : 0,
+                                  pointerEvents: hoveredMsgId === msg.id ? "auto" : "none",
+                                  transition: "opacity 0.15s, background 0.15s, color 0.15s",
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(193,60,38,0.10)"; e.currentTarget.style.color = "#C13C26"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#6E7B79"; }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6m5 4v6m4-6v6"/>
+                                </svg>
+                              </button>
+                            )}
                             {/* Bubble */}
                             <div style={{
                               background: isOwn ? "#005B5B" : "#E4F6E6",
@@ -485,7 +644,7 @@ export default function Messages() {
                             </div>
                             {/* Timestamp */}
                             <p style={{ fontSize: 11.5, color: "#6E7B79", margin: isOwn ? "4px 4px 0 0" : "4px 0 0 4px", textAlign: isOwn ? "right" : "left" }}>
-                              {fmtClock(msg.created_at)}
+                              {fmtClock(msg.created_at, dateLocale)}
                             </p>
                           </div>
                         </div>
@@ -532,7 +691,7 @@ export default function Messages() {
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Votre message"
+                      placeholder={t("messages.placeholder")}
                       style={{ flex: 1, border: 0, outline: 0, background: "transparent", fontSize: 14, color: "#0F2A2A", fontFamily: "inherit" }}
                     />
                   </label>
@@ -541,7 +700,7 @@ export default function Messages() {
                   <button
                     type="button"
                     onClick={isRecording ? stopRecording : handleMicClick}
-                    aria-label={isRecording ? "Arrêter l'enregistrement" : "Enregistrer"}
+                    aria-label={isRecording ? t("messages.stopRecording") : t("messages.record")}
                     style={{ width: 36, height: 36, borderRadius: "50%", background: isRecording ? "#C13C26" : "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "none", cursor: "pointer", transition: "background 0.2s" }}
                   >
                     {isRecording ? (
@@ -562,9 +721,9 @@ export default function Messages() {
               /* No conversation selected */
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
                 <MessageCircle style={{ width: 40, height: 40, color: "#E5DFCE" }} />
-                <p style={{ fontSize: 15, fontWeight: 600, color: "#0F2A2A", margin: 0 }}>Sélectionnez une conversation</p>
+                <p style={{ fontSize: 15, fontWeight: 600, color: "#0F2A2A", margin: 0 }}>{t("messages.selectConversation")}</p>
                 <p style={{ fontSize: 13, color: "#6E7B79", margin: 0, textAlign: "center", maxWidth: 240 }}>
-                  Choisissez un contact à gauche pour commencer à échanger.
+                  {t("messages.selectConversationHint")}
                 </p>
               </div>
             )}
@@ -594,7 +753,7 @@ export default function Messages() {
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/>
                           </svg>
-                          {activeConvListing.is_for_exchange && activeConvListing.is_for_sale ? "Échange & Vente" : activeConvListing.is_for_sale ? "Vente" : "Échange"}
+                          {activeConvListing.is_for_exchange && activeConvListing.is_for_sale ? t("messages.badge.exchangeSale") : activeConvListing.is_for_sale ? t("messages.badge.sale") : t("messages.badge.exchange")}
                         </span>
                         {/* Owner icon */}
                         <div style={{ position: "absolute", left: "50%", bottom: -20, transform: "translateX(-50%)", width: 44, height: 44, borderRadius: "50%", background: "#E4F6E6", color: "#005B5B", display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid #FFFFFF", boxShadow: "0 4px 10px rgba(0,0,0,.15)" }}>
@@ -619,7 +778,7 @@ export default function Messages() {
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#005B5B" strokeWidth="1.8">
                               <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>
                             </svg>
-                            {activeConvListing.rooms} chambre{activeConvListing.rooms > 1 ? "s" : ""}
+                            {t("messages.rooms", { count: activeConvListing.rooms })}
                           </div>
                         )}
                         {/* CTA */}
@@ -629,13 +788,13 @@ export default function Messages() {
                           onMouseEnter={(e) => { e.currentTarget.style.background = "#ADEBB3"; e.currentTarget.style.borderColor = "#ADEBB3"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = "#E4F6E6"; e.currentTarget.style.borderColor = "#D5E9D8"; e.currentTarget.style.transform = "none"; }}
                         >
-                          Voir l'annonce
+                          {t("messages.viewListing")}
                         </button>
                       </div>
                     </article>
                   ) : (
                     <div style={{ background: "#F3EEE0", border: "1px solid #E5DFCE", borderRadius: 22, padding: "28px 16px", textAlign: "center", color: "#6E7B79", fontSize: 13 }}>
-                      Aucune annonce associée
+                      {t("messages.noListing")}
                     </div>
                   )}
 
@@ -665,7 +824,7 @@ export default function Messages() {
                     activeExchange.status === "pending" ? (
                       <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                         <button
-                          onClick={() => handleExchangeAction("rejected")}
+                          onClick={() => handleExchangeAction("refused")}
                           disabled={exchangeLoading}
                           style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#005B5B", transition: "border-color 0.15s", opacity: exchangeLoading ? 0.6 : 1 }}
                           onMouseEnter={(e) => { if (!exchangeLoading) e.currentTarget.style.borderColor = "#005B5B"; }}
@@ -674,7 +833,7 @@ export default function Messages() {
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>
                           </svg>
-                          Annuler
+                          {t("messages.cancel")}
                         </button>
                         <button
                           onClick={() => handleExchangeAction("accepted")}
@@ -686,19 +845,19 @@ export default function Messages() {
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                             <circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>
                           </svg>
-                          Confirmer
+                          {t("messages.confirm")}
                         </button>
                       </div>
                     ) : (
                       <div style={{ marginTop: 2, padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 600, background: activeExchange.status === "accepted" ? "#ADEBB3" : "#F3EEE0", color: activeExchange.status === "accepted" ? "#005B5B" : "#6E7B79", border: `1px solid ${activeExchange.status === "accepted" ? "#ADEBB3" : "#E5DFCE"}` }}>
-                        {activeExchange.status === "accepted" ? "✓ Échange confirmé" : "✕ Échange annulé"}
+                        {activeExchange.status === "accepted" ? t("messages.exchangeConfirmed") : t("messages.exchangeCancelled")}
                       </div>
                     )
                   ) : null}
                 </>
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#6E7B79", fontSize: 13, textAlign: "center" }}>
-                  Sélectionnez une conversation pour voir les détails
+                  {t("messages.selectForDetails")}
                 </div>
               )}
             </div>

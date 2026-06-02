@@ -93,7 +93,7 @@ export default function AdminReports() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/"); return; }
+    if (!user) { navigate("/login"); return; }
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
     setAdminProfile(profile);
@@ -429,6 +429,7 @@ export default function AdminReports() {
           </div>
         )}
       </main>
+
     </div>
   );
 }

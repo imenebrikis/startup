@@ -1,9 +1,14 @@
 import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import Logo from '../components/Logo'
+import FilterBar from '../components/FilterBar'
+import LanguageSelector from '../components/LanguageSelector'
+import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft, Menu } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -25,15 +30,16 @@ const WILAYAS = [
   'In Salah', 'In Guezzam', 'Touggourt', 'Djanet', "El M'Ghair", 'El Meniaa',
 ]
 
-const MONTHS_FR = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc']
-
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatDate(dateStr) {
+// Day + short month in the active language, keeping day-month order in both
+// (e.g. "12 Mai" in FR, "12 May" in EN).
+function formatDate(dateStr, locale = 'fr-FR') {
   if (!dateStr) return null
   const d = new Date(dateStr + 'T00:00:00')
-  const month = MONTHS_FR[d.getMonth()]
+  const month = new Intl.DateTimeFormat(locale, { month: 'short' })
+    .format(d)
+    .replace('.', '')
   return `${d.getDate()} ${month.charAt(0).toUpperCase() + month.slice(1)}`
 }
 
@@ -43,49 +49,6 @@ function getInitials(name) {
 }
 
 // ── Shared dropdown pill style ────────────────────────────────────────────────
-
-const CHEVRON_DARK = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231a1a1a'/%3E%3C/svg%3E")`
-const CHEVRON_WHITE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E")`
-
-function pillSelectStyle(active) {
-  return {
-    padding: '7px 30px 7px 14px',
-    borderRadius: '999px',
-    border: `1.5px solid ${active ? '#1a1a1a' : '#d1d5db'}`,
-    background: active ? '#1a1a1a' : 'transparent',
-    color: active ? '#ffffff' : '#1a1a1a',
-    fontSize: '13px',
-    fontWeight: active ? '600' : '500',
-    outline: 'none',
-    cursor: 'pointer',
-    fontFamily: "'Inter', sans-serif",
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    backgroundImage: active ? CHEVRON_WHITE : CHEVRON_DARK,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 10px center',
-    flexShrink: 0,
-  }
-}
-
-function pillTriggerStyle(active) {
-  return {
-    padding: '7px 14px',
-    borderRadius: '999px',
-    border: `1.5px solid ${active ? '#1a1a1a' : '#d1d5db'}`,
-    background: active ? '#1a1a1a' : 'transparent',
-    color: active ? '#ffffff' : '#1a1a1a',
-    fontSize: '13px',
-    fontWeight: active ? '600' : '500',
-    outline: 'none',
-    cursor: 'pointer',
-    fontFamily: "'Inter', sans-serif",
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-  }
-}
 
 // ── SkeletonCard ──────────────────────────────────────────────────────────────
 
@@ -111,17 +74,16 @@ function SkeletonCard() {
 // ── ListingCard ───────────────────────────────────────────────────────────────
 
 function TypeBadge({ listing }) {
+  const { t } = useTranslation()
   const { is_for_exchange, is_for_sale } = listing
-  let label, bg
+  let label
+  const bg = '#004949'
   if (is_for_exchange && is_for_sale) {
-    label = 'Éch. & Vente'
-    bg = '#004949'
+    label = t('browse.badge.exchangeSale')
   } else if (is_for_exchange) {
-    label = 'Échange'
-    bg = '#004949'
+    label = t('browse.badge.exchange')
   } else {
-    label = 'Vente'
-    bg = '#004949'
+    label = t('browse.badge.sale')
   }
   return (
     <span style={{
@@ -138,6 +100,8 @@ function TypeBadge({ listing }) {
 }
 
 function ListingCard({ listing, navigate, userId }) {
+  const { t, i18n } = useTranslation()
+  const dateLocale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
   const [hovered, setHovered] = useState(false)
   const [isFavorited, setIsFavorited] = useState(false)
   const [likeLoading, setLikeLoading] = useState(false)
@@ -168,8 +132,8 @@ function ListingCard({ listing, navigate, userId }) {
   }
 
   const photo = listing.images?.[0]
-  const from = formatDate(listing.available_from)
-  const to = formatDate(listing.available_to)
+  const from = formatDate(listing.available_from, dateLocale)
+  const to = formatDate(listing.available_to, dateLocale)
   const location = [listing.wilaya, listing.quartier || listing.city].filter(Boolean).join(', ')
   const ownerInitials = getInitials(listing.profiles?.full_name)
 
@@ -317,7 +281,7 @@ function ListingCard({ listing, navigate, userId }) {
               <ArrowRightLeft style={{ width: '11px', height: '11px', color: '#717182', flexShrink: 0 }} />
               {anyWilaya ? (
                 <span style={{ fontSize: '11px', color: '#717182', fontWeight: '500' }}>
-                  Toutes les wilayas
+                  {t('browse.card.allWilayas')}
                 </span>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' }}>
@@ -367,7 +331,7 @@ function ListingCard({ listing, navigate, userId }) {
             fontFamily: "'Inter', sans-serif",
           }}
         >
-          {listing.is_for_exchange ? "Demande d'échange" : 'Voir les détails'}
+          {listing.is_for_exchange ? t('browse.card.requestExchange') : t('browse.card.viewDetails')}
         </button>
       </div>
     </div>
@@ -377,22 +341,28 @@ function ListingCard({ listing, navigate, userId }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Browse() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [initials, setInitials] = useState('?')
   const [userId, setUserId] = useState(null)
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const [search, setSearch] = useState('')
-  const [filterWilaya, setFilterWilaya] = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filterRooms, setFilterRooms] = useState('')
-  const [filterDate, setFilterDate] = useState('')
+  const [activeFilters, setActiveFilters] = useState({
+    wilaya: null,
+    type: null,        // 'exchange' | 'sale' | 'both'
+    logement: null,    // property_type: 'maison' | 'appart' | 'villa' | 'studio' | 'penthouse'
+    chambres: 0,
+    dateRange: { from: null, to: null },
+    equipments: [],    // array of amenity strings
+    rules: {},         // { smoking, pets, [ruleLabel]: label }
+  })
+  const patchFilters = (partial) => setActiveFilters((prev) => ({ ...prev, ...partial }))
   const [isMapView, setIsMapView] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate('/'); return }
+      if (!user) { navigate('/login'); return }
       setUserId(user.id)
       const fullName = user.user_metadata?.full_name
       if (fullName) setInitials(fullName.split(' ').map(n => n[0]).join('').toUpperCase())
@@ -409,45 +379,46 @@ export default function Browse() {
       })
   }, [navigate])
 
-  const hasAnyFilter = search || filterWilaya || filterType || filterRooms || filterDate
-
   function applyUserFilters(list) {
+    const { wilaya, type, logement, chambres, dateRange, equipments, rules } = activeFilters
+    const reqFrom = dateRange?.from ? new Date(dateRange.from) : null
+    const reqTo = dateRange?.to ? new Date(dateRange.to) : reqFrom
     return list.filter(l => {
-      if (search) {
-        const q = search.toLowerCase()
-        const blob = [l.title, l.wilaya, l.city, l.quartier].filter(Boolean).join(' ').toLowerCase()
-        if (!blob.includes(q)) return false
+      // Wilaya & Type — exact match when a value is selected
+      if (wilaya && l.wilaya !== wilaya) return false
+      if (type === 'exchange' && !l.is_for_exchange) return false
+      if (type === 'sale' && !l.is_for_sale) return false
+      if (type === 'both' && !(l.is_for_exchange && l.is_for_sale)) return false
+      // Logement — housing type must match exactly when selected
+      if (logement && l.property_type !== logement) return false
+      // Chambres — capacity must be >= the selected count
+      if (chambres > 0 && !(l.rooms >= chambres)) return false
+      // Date range — listing availability must cover the requested period
+      if (reqFrom) {
+        if (l.available_from && new Date(l.available_from) > reqFrom) return false
+        if (l.available_to && new Date(l.available_to) < reqTo) return false
       }
-      if (filterWilaya && l.wilaya !== filterWilaya) return false
-      if (filterType === 'exchange' && !l.is_for_exchange) return false
-      if (filterType === 'sale' && !l.is_for_sale) return false
-      if (filterType === 'both' && !(l.is_for_exchange && l.is_for_sale)) return false
-      if (filterRooms) {
-        const r = parseInt(filterRooms)
-        if (filterRooms === '5+' ? l.rooms < 5 : l.rooms !== r) return false
+      // Équipements — must include ALL selected options
+      if (equipments.length && !equipments.every(e => (l.amenities || []).includes(e))) return false
+      // Règles de la maison — every active rule must hold; unselected keys are ignored
+      for (const key in rules) {
+        const required = rules[key]
+        if (!required) continue
+        if (!(l.house_rules || '').includes(required)) return false
       }
-      if (filterDate && l.available_from && l.available_from > filterDate) return false
       return true
     })
   }
 
-  const filtered = useMemo(() =>
+  const filteredProperties = useMemo(() =>
     applyUserFilters(listings),
-    [listings, search, filterWilaya, filterType, filterRooms, filterDate]
+    [listings, activeFilters]
   )
 
   const filteredMap = useMemo(() =>
     applyUserFilters(listings.filter(l => l.latitude && l.longitude)),
-    [listings, search, filterWilaya, filterType, filterRooms, filterDate]
+    [listings, activeFilters]
   )
-
-  function clearAll() {
-    setSearch('')
-    setFilterWilaya('')
-    setFilterType('')
-    setFilterRooms('')
-    setFilterDate('')
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#F7F7EC', fontFamily: "'Inter', sans-serif" }}>
@@ -458,9 +429,9 @@ export default function Browse() {
       <header style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: '#004949',
-        padding: '0 28px',
-        height: '62px',
-        display: 'flex', alignItems: 'center', gap: '14px',
+        padding: '10px 32px',
+        minHeight: '76px',
+        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', rowGap: '12px',
       }}>
 
         {/* Logo */}
@@ -469,68 +440,36 @@ export default function Browse() {
           textDecoration: 'none', fontFamily: "'Bricolage Grotesque', sans-serif",
           flexShrink: 0, marginRight: '8px',
         }}>
-          DarBelDar
+          <Logo size={18} color="#ffffff" />
         </Link>
 
-        {/* Search */}
-        <div style={{ position: 'relative', flex: 1, maxWidth: '340px' }}>
-          <Search style={{
-            position: 'absolute', left: '12px', top: '50%',
-            transform: 'translateY(-50%)',
-            width: '14px', height: '14px', color: 'rgba(255,255,255,0.45)',
-            pointerEvents: 'none',
-          }} />
-          <input
-            type="text"
-            placeholder="Rechercher une wilaya, titre..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 14px 8px 34px',
-              borderRadius: '999px',
-              border: '1.5px solid rgba(255,255,255,0.15)',
-              fontSize: '13px',
-              color: '#ffffff',
-              background: 'rgba(255,255,255,0.10)',
-              outline: 'none',
-              fontFamily: "'Inter', sans-serif",
-              transition: 'border-color 0.15s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'rgba(255,255,255,0.4)'}
-            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.15)'}
-          />
+        {/* CENTER — chip filter bar (inside the teal navbar) */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FilterBar filters={activeFilters} onChange={patchFilters} wilayas={WILAYAS} />
         </div>
 
-        <div style={{ flex: 1 }} />
+        {/* Language switcher (FR / EN) */}
+        <LanguageSelector />
 
-        {/* Favoris → Maisons aimées tab on profile */}
-        <Link to="/profile?tab=likes" style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
-          textDecoration: 'none', flexShrink: 0,
-        }}>
-          <Heart style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.85)' }} />
-          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontFamily: "'Inter', sans-serif", fontWeight: '500' }}>Favoris</span>
-        </Link>
-
-        {/* Chat → messagerie */}
-        <Link to="/messages" style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
-          textDecoration: 'none', flexShrink: 0,
-        }}>
-          <MessageSquare style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.85)' }} />
-          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontFamily: "'Inter', sans-serif", fontWeight: '500' }}>Chat</span>
-        </Link>
-
-        {/* User avatar → profile */}
-        <Link to="/profile" style={{
-          width: '34px', height: '34px', background: '#4B3FD8',
-          borderRadius: '50%', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '12px',
-          flexShrink: 0, textDecoration: 'none',
-        }}>
-          {initials}
-        </Link>
+        {/* Carte / Liste toggle */}
+        <button
+          onClick={() => setIsMapView(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '9px 16px', borderRadius: '999px',
+            border: '1.5px solid rgba(255,255,255,0.25)',
+            background: isMapView ? '#ffffff' : 'transparent',
+            color: isMapView ? '#004949' : '#ffffff',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif", flexShrink: 0, whiteSpace: 'nowrap',
+            transition: 'all 0.18s',
+          }}
+        >
+          {isMapView
+            ? <List style={{ width: '14px', height: '14px' }} />
+            : <MapIcon style={{ width: '14px', height: '14px' }} />}
+          {isMapView ? t('browse.nav.list') : t('browse.nav.map')}
+        </button>
 
         {/* CTA */}
         <Link
@@ -549,216 +488,56 @@ export default function Browse() {
           }}
         >
           <Plus style={{ width: '13px', height: '13px' }} />
-          Publier
+          {t('browse.nav.publish')}
         </Link>
-      </header>
 
-      {/* ══════════════════════════════════════════════════
-          WHITE FILTER BAR — filters centred, map toggle right
-      ══════════════════════════════════════════════════ */}
-      <div style={{
-        position: 'sticky', top: '62px', zIndex: 99,
-        background: '#ffffff',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '10px 28px',
-        display: 'flex', alignItems: 'center', gap: '10px',
-      }}>
-
-        {/* Centred filter pills */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: '10px', flexWrap: 'wrap', flex: 1,
-        }}>
-
-          {/* 1 — Wilaya */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button style={pillTriggerStyle(!!filterWilaya)}>
-                {filterWilaya || 'Wilaya'}
-                <ChevronDown style={{ width: '10px', height: '10px' }} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '12px',
-              padding: '6px',
-              minWidth: '200px',
-              maxHeight: '260px',
-              overflowY: 'auto',
-              scrollbarWidth: 'none',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-              zIndex: 9999,
-            }}>
-              <DropdownMenuRadioGroup value={filterWilaya} onValueChange={setFilterWilaya}>
-                <DropdownMenuRadioItem value="" style={{
-                  padding: '9px 36px 9px 12px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  color: '#1f2937',
-                  backgroundColor: filterWilaya === '' ? '#f3f4f6' : 'transparent',
-                  fontFamily: "'Inter', sans-serif",
-                }}>Toutes les wilayas</DropdownMenuRadioItem>
-                {WILAYAS.map(w => (
-                  <DropdownMenuRadioItem key={w} value={w} style={{
-                    padding: '9px 36px 9px 12px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    color: '#1f2937',
-                    backgroundColor: filterWilaya === w ? '#f3f4f6' : 'transparent',
-                    fontFamily: "'Inter', sans-serif",
-                  }}>{w}</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* 2 — Type */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button style={pillTriggerStyle(!!filterType)}>
-                {filterType === 'exchange' ? 'Échange'
-                  : filterType === 'sale' ? 'Vente'
-                  : filterType === 'both' ? 'Échange & Vente'
-                  : 'Type'}
-                <ChevronDown style={{ width: '10px', height: '10px' }} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '12px',
-              padding: '6px',
-              minWidth: '170px',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-              zIndex: 9999,
-            }}>
-              <DropdownMenuRadioGroup value={filterType} onValueChange={setFilterType}>
-                {[
-                  { value: '', label: 'Tous les types' },
-                  { value: 'exchange', label: 'Échange' },
-                  { value: 'sale', label: 'Vente' },
-                  { value: 'both', label: 'Échange & Vente' },
-                ].map(({ value, label }) => (
-                  <DropdownMenuRadioItem key={value} value={value} style={{
-                    padding: '9px 36px 9px 12px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    color: '#1f2937',
-                    backgroundColor: filterType === value ? '#f3f4f6' : 'transparent',
-                    fontFamily: "'Inter', sans-serif",
-                  }}>{label}</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* 3 — Chambres */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button style={pillTriggerStyle(!!filterRooms)}>
-                {filterRooms === '1' ? '1 chambre'
-                  : filterRooms ? `${filterRooms} chambres`
-                  : 'Chambres'}
-                <ChevronDown style={{ width: '10px', height: '10px' }} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '12px',
-              padding: '6px',
-              minWidth: '160px',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-              zIndex: 9999,
-            }}>
-              <DropdownMenuRadioGroup value={filterRooms} onValueChange={setFilterRooms}>
-                {[
-                  { value: '', label: 'Toutes' },
-                  { value: '1', label: '1 chambre' },
-                  { value: '2', label: '2 chambres' },
-                  { value: '3', label: '3 chambres' },
-                  { value: '4', label: '4 chambres' },
-                  { value: '5+', label: '5+ chambres' },
-                ].map(({ value, label }) => (
-                  <DropdownMenuRadioItem key={value} value={value} style={{
-                    padding: '9px 36px 9px 12px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    color: '#1f2937',
-                    backgroundColor: filterRooms === value ? '#f3f4f6' : 'transparent',
-                    fontFamily: "'Inter', sans-serif",
-                  }}>{label}</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* 4 — Date */}
-          <input
-            type="date"
-            value={filterDate}
-            onChange={e => setFilterDate(e.target.value)}
-            title="Disponible dès"
-            style={{
-              ...pillSelectStyle(!!filterDate),
-              backgroundImage: 'none',
-              paddingRight: '14px',
-              colorScheme: filterDate ? 'dark' : 'light',
-            }}
-          />
-
-          {/* Clear — appears only when something is active */}
-          {hasAnyFilter && (
+        {/* Airbnb-style profile menu pill */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              onClick={clearAll}
+              aria-label={t('browse.nav.profileMenu')}
               style={{
-                padding: '7px 14px',
-                borderRadius: '999px',
-                border: '1.5px solid #e5e7eb',
-                background: 'transparent',
-                color: '#717182',
-                fontSize: '13px', fontWeight: '500',
-                cursor: 'pointer',
-                fontFamily: "'Inter', sans-serif",
-                display: 'flex', alignItems: 'center', gap: '5px',
-                flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '5px 6px 5px 14px', borderRadius: '999px',
+                border: '1px solid #e5e7eb', background: '#ffffff',
+                cursor: 'pointer', flexShrink: 0,
               }}
             >
-              <X style={{ width: '12px', height: '12px' }} />
-              Réinitialiser
+              <Menu style={{ width: '16px', height: '16px', color: '#1a1a1a' }} />
+              <span style={{
+                width: '30px', height: '30px', borderRadius: '50%',
+                background: '#4B3FD8', color: '#ffffff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: '600', fontFamily: "'Inter', sans-serif",
+              }}>
+                {initials}
+              </span>
             </button>
-          )}
-        </div>
-
-        {/* Map / List toggle */}
-        <button
-          onClick={() => setIsMapView(v => !v)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '7px 16px',
-            borderRadius: '999px',
-            border: `1.5px solid ${isMapView ? '#1a1a1a' : '#d1d5db'}`,
-            background: isMapView ? '#1a1a1a' : 'transparent',
-            color: isMapView ? '#ffffff' : '#1a1a1a',
-            fontSize: '13px', fontWeight: '600',
-            cursor: 'pointer',
-            fontFamily: "'Inter', sans-serif",
-            flexShrink: 0,
-            transition: 'all 0.18s',
-          }}
-        >
-          {isMapView
-            ? <List style={{ width: '13px', height: '13px' }} />
-            : <MapIcon style={{ width: '13px', height: '13px' }} />
-          }
-          {isMapView ? 'Liste' : 'Carte'}
-        </button>
-      </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={10} style={{
+            backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
+            borderRadius: '12px', padding: '6px', minWidth: '200px',
+            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+            zIndex: 9999,
+          }}>
+            <DropdownMenuItem asChild>
+              <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                <User style={{ width: '15px', height: '15px' }} /> {t('browse.nav.profile')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/profile?tab=likes" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                <Heart style={{ width: '15px', height: '15px' }} /> {t('browse.nav.favorites')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/messages" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                <MessageSquare style={{ width: '15px', height: '15px' }} /> {t('browse.nav.messages')}
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
 
       {/* ── Main content ── */}
       <main className={isMapView ? '' : 'browse-main'} style={isMapView ? {} : { maxWidth: '1440px', margin: '0 auto' }}>
@@ -766,12 +545,12 @@ export default function Browse() {
         {isMapView ? (
           <Suspense fallback={
             <div style={{
-              height: 'calc(100vh - 122px)',
+              height: 'calc(100vh - 76px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: '#F7F7EC',
             }}>
               <span style={{ color: '#717182', fontFamily: "'Inter',sans-serif", fontSize: '14px' }}>
-                Chargement de la carte…
+                {t('browse.nav.loadingMap')}
               </span>
             </div>
           }>
@@ -782,7 +561,7 @@ export default function Browse() {
             {/* Results count */}
             {!loading && (
               <p style={{ fontSize: '12px', color: '#717182', marginBottom: '20px' }}>
-                {filtered.length} logement{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
+                {t('browse.results', { count: filteredProperties.length })}
               </p>
             )}
 
@@ -795,7 +574,7 @@ export default function Browse() {
               }}>
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
               </div>
-            ) : filtered.length === 0 ? (
+            ) : filteredProperties.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '80px 24px' }}>
                 <div style={{
                   width: '64px', height: '64px', background: '#ffffff',
@@ -809,10 +588,10 @@ export default function Browse() {
                   fontFamily: "'Bricolage Grotesque', sans-serif",
                   fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '8px',
                 }}>
-                  Aucun logement trouvé
+                  {t('browse.empty.title')}
                 </p>
                 <p style={{ fontSize: '13px', color: '#717182' }}>
-                  Essayez de modifier vos filtres
+                  {t('browse.empty.subtitle')}
                 </p>
               </div>
             ) : (
@@ -821,7 +600,7 @@ export default function Browse() {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
                 gap: '20px',
               }}>
-                {filtered.map(listing => (
+                {filteredProperties.map(listing => (
                   <ListingCard key={listing.id} listing={listing} navigate={navigate} userId={userId} />
                 ))}
               </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
+import Logo from '../components/Logo'
 
 const styleTag = document.createElement('style')
 styleTag.textContent = `
@@ -86,7 +87,7 @@ export default function Login() {
       <div className="dbd-card-login" style={{ background: '#F7F7EC', borderRadius: '24px', padding: '44px 40px 40px', width: '100%', maxWidth: '420px', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', position: 'relative', zIndex: 1 }}>
         
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '30px', fontWeight: '800', color: '#0A3D3D', letterSpacing: '-0.8px', textAlign: 'center', marginBottom: '6px' }}>
-          Dar<span style={{ color: '#4B3FD8' }}>Bel</span>Dar
+          <Logo size={30} color="#0A3D3D" />
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '13.5px', color: '#6A8A78', marginBottom: '32px', lineHeight: 1.5 }}>

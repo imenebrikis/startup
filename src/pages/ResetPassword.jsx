@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
+import Logo from '../components/Logo'
 import { Eye, EyeOff, Check } from 'lucide-react'
 
 const styleTag = document.createElement('style')
@@ -122,7 +123,7 @@ export default function ResetPassword() {
       <div className="dbd-card-rp" style={{ background: '#F7F7EC', borderRadius: '24px', padding: '48px 40px 44px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}>
 
         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: '30px', fontWeight: '800', color: '#0A3D3D', letterSpacing: '-0.8px', textAlign: 'center', marginBottom: '32px' }}>
-          Dar<span style={{ color: '#4B3FD8' }}>Bel</span>Dar
+          <Logo size={30} color="#0A3D3D" />
         </div>
 
         {!success ? (

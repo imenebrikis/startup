@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Bell, MessageSquare, Star, ArrowRightLeft, ShieldAlert, CheckCheck,
 } from "lucide-react";
@@ -20,20 +21,24 @@ function iconFor(type) {
   return TYPE_ICON[type] || TYPE_ICON.system;
 }
 
-function timeAgo(s) {
+// `t` resolves the relative-time wording and `locale` the date fallback, so the
+// timestamps follow the active language.
+function timeAgo(s, t, locale = "fr-FR") {
   if (!s) return "";
   const seconds = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
-  if (seconds < 60) return "À l'instant";
+  if (seconds < 60) return t("notifications.justNow");
   const min = Math.floor(seconds / 60);
-  if (min < 60) return `Il y a ${min} min`;
+  if (min < 60) return t("notifications.minutesAgo", { count: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `Il y a ${h} h`;
+  if (h < 24) return t("notifications.hoursAgo", { count: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `Il y a ${d} j`;
-  return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  if (d < 7) return t("notifications.daysAgo", { count: d });
+  return new Date(s).toLocaleDateString(locale, { day: "numeric", month: "short" });
 }
 
 export default function NotificationBell({ userId }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
@@ -74,7 +79,7 @@ export default function NotificationBell({ userId }) {
             description: n.body || undefined,
             icon: iconFor(n.type),
             action: n.link
-              ? { label: "Voir", onClick: () => navigate(n.link) }
+              ? { label: t("notifications.view"), onClick: () => navigate(n.link) }
               : undefined,
           });
         },
@@ -119,7 +124,7 @@ export default function NotificationBell({ userId }) {
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          aria-label="Notifications"
+          aria-label={t("notifications.title")}
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E5DFCE] bg-white text-[#005B5B] transition-colors hover:bg-[#F3EEE0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#005B5B]/40"
         >
           <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} />
@@ -130,7 +135,7 @@ export default function NotificationBell({ userId }) {
             />
           )}
           <span className="sr-only">
-            {unreadCount > 0 ? `${unreadCount} non lues` : "Aucune notification"}
+            {unreadCount > 0 ? t("notifications.unreadCount", { count: unreadCount }) : t("notifications.none")}
           </span>
         </button>
       </DropdownMenuTrigger>
@@ -144,7 +149,7 @@ export default function NotificationBell({ userId }) {
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-[#0F172A]" strokeWidth={1.8} />
             <span className="text-[14px] font-semibold tracking-tight text-[#0F172A]">
-              Notifications
+              {t("notifications.title")}
             </span>
             {unreadCount > 0 && (
               <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10.5px] font-bold leading-none text-red-600 ring-1 ring-red-100">
@@ -158,7 +163,7 @@ export default function NotificationBell({ userId }) {
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium text-[#475569] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <CheckCheck className="h-3.5 w-3.5" />
-            Tout marquer lu
+            {t("notifications.markAllRead")}
           </button>
         </div>
 
@@ -180,10 +185,10 @@ export default function NotificationBell({ userId }) {
                 <Bell className="h-5 w-5 text-[#94A3B8]" strokeWidth={1.6} />
               </div>
               <div className="text-[13.5px] font-semibold text-[#0F172A]">
-                Tout est calme
+                {t("notifications.emptyTitle")}
               </div>
               <div className="text-[12px] leading-relaxed text-[#94A3B8]">
-                Vos prochaines notifications apparaîtront ici.
+                {t("notifications.emptySubtitle")}
               </div>
             </div>
           ) : (
@@ -214,7 +219,7 @@ export default function NotificationBell({ userId }) {
                           </span>
                         )}
                         <span className="mt-0.5 text-[11px] text-[#94A3B8]">
-                          {timeAgo(n.created_at)}
+                          {timeAgo(n.created_at, t, dateLocale)}
                         </span>
                       </span>
                     </button>

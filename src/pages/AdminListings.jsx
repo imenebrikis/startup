@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
+import Logo from "../components/Logo";
 import { Checkbox } from "../components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -37,7 +39,8 @@ const BADGE_STYLES = {
   ok:   { bg: "#E4F6E6", color: "#006E6E", border: "#ADEBB3" },
 };
 
-function QualityBadge({ label, type }) {
+function QualityBadge({ labelKey, type }) {
+  const { t } = useTranslation();
   const s = BADGE_STYLES[type] || BADGE_STYLES.warn;
   return (
     <span style={{
@@ -47,7 +50,7 @@ function QualityBadge({ label, type }) {
       fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", lineHeight: 1.4,
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-      {label}
+      {t(labelKey)}
     </span>
   );
 }
@@ -60,21 +63,22 @@ function daysInQueue(createdAt) {
 function getQualityBadges(listing, totalListings) {
   const result = [];
 
-  // Modification badge — must appear first
+  // Modification badge — must appear first. Badges carry a translation key
+  // (labelKey) so they re-localize instantly when the language is switched.
   if (listing.has_been_approved === true && listing.is_verified === false) {
-    result.push({ label: "Modification", type: "mod" });
+    result.push({ labelKey: "admin.quality.modification", type: "mod" });
   }
 
   const warnings = [];
-  if ((listing.images || []).length <= 1)                                       warnings.push({ label: "Photos insuffisantes",     type: "warn" });
-  if (!(listing.amenities || []).length)                                         warnings.push({ label: "Équipements ignorés",      type: "warn" });
-  if (!listing.rooms || listing.rooms === 0)                                     warnings.push({ label: "Capacité non renseignée", type: "warn" });
+  if ((listing.images || []).length <= 1)                                       warnings.push({ labelKey: "admin.quality.fewPhotos",         type: "warn" });
+  if (!(listing.amenities || []).length)                                         warnings.push({ labelKey: "admin.quality.noAmenities",       type: "warn" });
+  if (!listing.rooms || listing.rooms === 0)                                     warnings.push({ labelKey: "admin.quality.noCapacity",        type: "warn" });
   if ((!listing.quartier || !listing.quartier.trim()) && (!listing.latitude || !listing.longitude))
-                                                                                 warnings.push({ label: "Adresse incomplète",       type: "warn" });
+                                                                                 warnings.push({ labelKey: "admin.quality.incompleteAddress", type: "warn" });
 
   result.push(...warnings);
-  if (totalListings === 1) result.push({ label: "Premier logement", type: "info" });
-  if (warnings.length === 0 && !result.some(b => b.type === "mod")) result.push({ label: "Qualité OK", type: "ok" });
+  if (totalListings === 1) result.push({ labelKey: "admin.quality.firstListing", type: "info" });
+  if (warnings.length === 0 && !result.some(b => b.type === "mod")) result.push({ labelKey: "admin.quality.ok", type: "ok" });
   return result;
 }
 
@@ -114,6 +118,7 @@ function PlaceholderThumb({ index }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminListings() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [loading, setLoading]           = useState(true);
@@ -148,7 +153,7 @@ export default function AdminListings() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/"); return; }
+    if (!user) { navigate("/login"); return; }
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!profile || profile.role !== "admin") { setLoading(false); return; }
     setAdminProfile({ ...profile, email: user.email });
@@ -212,9 +217,9 @@ export default function AdminListings() {
       setRejectId(null);
       setRejectMotif("");
       setRejectComment("");
-      toast.success("Logement refusé avec succès", { description: fullReason });
+      toast.success(t("admin.reject.successToast"), { description: fullReason });
     } else {
-      toast.error("Erreur lors du refus", { description: error.message });
+      toast.error(t("admin.reject.errorToast"), { description: error.message });
     }
 
     setRejectLoading(false);
@@ -296,7 +301,7 @@ export default function AdminListings() {
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        Chargement…
+        {t("admin.loading")}
       </div>
     );
   }
@@ -305,9 +310,9 @@ export default function AdminListings() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
         <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>Accès réservé aux administrateurs</h2>
+        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>{t("admin.unauthorized.title")}</h2>
         <button onClick={() => navigate("/dashboard")} style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#006E6E", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-          Retour au tableau de bord
+          {t("admin.unauthorized.back")}
         </button>
       </div>
     );
@@ -338,17 +343,17 @@ export default function AdminListings() {
             <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
             </span>
-            DarBelDar
+            <Logo size={14} color="#0F2A2A" />
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#006E6E", color: "#ADEBB3", fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-              Admin
+              {t("admin.badge")}
             </span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Annonces en attente</b>
+            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.listings.breadcrumb")}</b>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79", padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE" }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-            En direct
+            {t("admin.live")}
           </span>
         </header>
 
@@ -358,24 +363,24 @@ export default function AdminListings() {
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div>
               <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>
-                Annonces en attente
+                {t("admin.listings.title")}
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-                {listings.length} annonce{listings.length !== 1 ? "s" : ""} à modérer · classées de la plus ancienne
+                {t("admin.listings.subtitle", { count: listings.length })}
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {enriched.filter(l => l.slaHigh).length > 0 && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 12.5, fontWeight: 600 }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-                  {enriched.filter(l => l.slaHigh).length} hors délai (&gt;5 j)
+                  {t("admin.listings.overdue", { count: enriched.filter(l => l.slaHigh).length })}
                 </span>
               )}
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: "#B45309", fontSize: 12.5, fontWeight: 600 }}>
-                {warnCount} avec avertissements
+                {t("admin.listings.withWarnings", { count: warnCount })}
               </span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#E4F6E6", border: "1px solid #ADEBB3", color: "#006E6E", fontSize: 12.5, fontWeight: 600 }}>
-                {okCount} qualité OK
+                {t("admin.listings.qualityOk", { count: okCount })}
               </span>
             </div>
           </div>
@@ -399,7 +404,7 @@ export default function AdminListings() {
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
-                Approuver la sélection
+                {t("admin.listings.approveSelection")}
                 {selected.size > 0 && (
                   <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(173,235,179,.22)", color: "#ADEBB3", fontSize: 10.5, fontWeight: 700 }}>
                     {selected.size}
@@ -413,7 +418,7 @@ export default function AdminListings() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Titre, hôte, wilaya…"
+                  placeholder={t("admin.listings.searchPlaceholder")}
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
                   style={{
@@ -438,9 +443,9 @@ export default function AdminListings() {
 
               <div style={{ display: "flex", gap: 6 }}>
                 {[
-                  { key: "all",  label: `Toutes (${enriched.length})` },
-                  { key: "warn", label: `Avec alertes (${warnCount})` },
-                  { key: "ok",   label: `Qualité OK (${okCount})` },
+                  { key: "all",  label: t("admin.listings.filters.all", { count: enriched.length }) },
+                  { key: "warn", label: t("admin.listings.filters.withAlerts", { count: warnCount }) },
+                  { key: "ok",   label: t("admin.listings.filters.qualityOk", { count: okCount }) },
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -464,11 +469,11 @@ export default function AdminListings() {
                   <TableHead style={{ paddingLeft: 20, width: 44 }}>
                     <Checkbox checked={masterChecked} onCheckedChange={toggleAll} />
                   </TableHead>
-                  <TableHead style={{ width: 280, color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Propriété</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Localisation</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Hôte</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, minWidth: 180 }}>Qualité</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 20 }}>Actions</TableHead>
+                  <TableHead style={{ width: 280, color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.property")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.location")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.host")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, minWidth: 180 }}>{t("admin.listings.cols.quality")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 20 }}>{t("admin.listings.cols.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
 
@@ -476,7 +481,7 @@ export default function AdminListings() {
                 {pageRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "48px 24px", color: "#6E7B79", fontSize: 14 }}>
-                      Aucune annonce dans cette catégorie.
+                      {t("admin.listings.empty")}
                     </TableCell>
                   </TableRow>
                 ) : pageRows.map((listing, i) => {
@@ -524,7 +529,7 @@ export default function AdminListings() {
                               {listing.rooms > 0 && (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#6E7B79" }}>
                                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                                  {listing.rooms} ch.
+                                  {t("admin.pending.rooms", { count: listing.rooms })}
                                 </span>
                               )}
                               {listing.size && <span style={{ fontSize: 11.5, color: "#6E7B79" }}>{listing.size} m²</span>}
@@ -541,7 +546,7 @@ export default function AdminListings() {
                         </div>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 500, color: listing.slaHigh ? "#ef4444" : "#98A3A0" }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                          {listing.days === 0 ? "Soumis aujourd'hui" : `En attente depuis ${listing.days} jour${listing.days > 1 ? "s" : ""}`}
+                          {listing.days === 0 ? t("admin.listings.submittedToday") : t("admin.listings.waitingDays", { count: listing.days })}
                         </div>
                       </TableCell>
 
@@ -553,10 +558,10 @@ export default function AdminListings() {
                           </span>
                           <div>
                             <div style={{ fontWeight: 600, fontSize: 13, color: "#0F2A2A", letterSpacing: "-.003em" }}>
-                              {listing.profiles?.full_name || "Inconnu"}
+                              {listing.profiles?.full_name || t("admin.activity.unknown")}
                             </div>
                             <div style={{ fontSize: 11.5, color: "#98A3A0", marginTop: 2, fontFamily: "monospace" }}>
-                              {userListingCounts[listing.user_id] || 1} annonce{(userListingCounts[listing.user_id] || 1) > 1 ? "s" : ""} au total
+                              {t("admin.listings.totalListings", { count: userListingCounts[listing.user_id] || 1 })}
                             </div>
                           </div>
                         </div>
@@ -565,7 +570,7 @@ export default function AdminListings() {
                       {/* ── Qualité ─────────────────────────────────────── */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
-                          {listing.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                          {listing.badges.map(b => <QualityBadge key={b.labelKey} labelKey={b.labelKey} type={b.type} />)}
                         </div>
                       </TableCell>
 
@@ -577,7 +582,7 @@ export default function AdminListings() {
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 8, background: "#F5F5F5", border: "1px solid #E5DFCE", color: "#6E7B79", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            Examiner
+                            {t("admin.listings.review")}
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); handleApprove(listing.id); }}
@@ -587,7 +592,7 @@ export default function AdminListings() {
                             onMouseLeave={e => { e.currentTarget.style.background = "#E4F6E6"; }}
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
-                            Approuver
+                            {t("admin.actions.approve")}
                           </button>
                           <DialogTrigger asChild>
                             <button
@@ -598,7 +603,7 @@ export default function AdminListings() {
                               onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; }}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                              Rejeter
+                              {t("admin.listings.reject")}
                             </button>
                           </DialogTrigger>
                         </div>
@@ -613,8 +618,8 @@ export default function AdminListings() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #E5DFCE", fontSize: 12.5, color: "#6E7B79" }}>
               <span>
                 {filtered.length === 0
-                  ? "0 résultat"
-                  : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} sur ${filtered.length}`
+                  ? t("admin.listings.noResult")
+                  : t("admin.listings.pageRange", { start: (page - 1) * PAGE_SIZE + 1, end: Math.min(page * PAGE_SIZE, filtered.length), total: filtered.length })
                 }
               </span>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -727,17 +732,17 @@ export default function AdminListings() {
                         </h2>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 500, color: s.slaHigh ? "#ef4444" : "#98A3A0", flexShrink: 0, marginTop: 3 }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                          {s.days === 0 ? "Soumis aujourd'hui" : `${s.days}j en attente`}
+                          {s.days === 0 ? t("admin.listings.submittedToday") : t("admin.listings.daysWaitingShort", { count: s.days })}
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                         {s.is_for_exchange && (
-                          <span style={{ background: "#0F2A2A", color: "#ADEBB3", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Échange</span>
+                          <span style={{ background: "#0F2A2A", color: "#ADEBB3", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>{t("admin.listings.exchange")}</span>
                         )}
                         {s.is_for_sale && (
-                          <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Vente</span>
+                          <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>{t("admin.listings.sale")}</span>
                         )}
-                        {s.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                        {s.badges.map(b => <QualityBadge key={b.labelKey} labelKey={b.labelKey} type={b.type} />)}
                       </div>
                     </div>
 
@@ -752,7 +757,7 @@ export default function AdminListings() {
                       {s.rooms > 0 && (
                         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0A3D3D" strokeWidth="1.8"><path d="M2 9h20M2 9v10h20V9M5 9V5h14v4"/><path d="M2 14h20"/></svg>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{s.rooms} chambre{s.rooms > 1 ? "s" : ""}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{t("admin.listings.bedrooms", { count: s.rooms })}</span>
                         </div>
                       )}
                       {s.size && (
@@ -764,7 +769,7 @@ export default function AdminListings() {
                       {s.floor != null && (
                         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, borderLeft: "1px solid rgba(10,61,61,.2)", paddingLeft: 16 }}>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A3D3D" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{s.floor === 0 ? "RDC" : `Étage ${s.floor}`}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{s.floor === 0 ? t("details.groundFloor") : t("details.floor", { floor: s.floor })}</span>
                         </div>
                       )}
                     </div>
@@ -772,7 +777,7 @@ export default function AdminListings() {
                     {/* Description */}
                     {s.description && (
                       <div>
-                        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Description</p>
+                        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>{t("details.description")}</p>
                         <p style={{ margin: 0, fontSize: 13.5, color: "#0F2A2A", lineHeight: 1.75 }}>{s.description}</p>
                       </div>
                     )}
@@ -780,7 +785,7 @@ export default function AdminListings() {
                     {/* Amenities */}
                     {s.amenities?.length > 0 && (
                       <div>
-                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Équipements</p>
+                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>{t("details.amenities")}</p>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 12px" }}>
                           {s.amenities.map(name => (
                             <div key={name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -798,10 +803,10 @@ export default function AdminListings() {
                         {initials(s.profiles?.full_name)}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>{s.profiles?.full_name || "Inconnu"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>{s.profiles?.full_name || t("admin.activity.unknown")}</div>
                         {s.profiles?.wilaya && <div style={{ fontSize: 12.5, color: "#6E7B79", marginTop: 2 }}>{s.profiles.wilaya}</div>}
                         <div style={{ fontSize: 11.5, color: "#98A3A0", marginTop: 2 }}>
-                          {userListingCounts[s.user_id] || 1} annonce{(userListingCounts[s.user_id] || 1) > 1 ? "s" : ""} au total
+                          {t("admin.listings.totalListings", { count: userListingCounts[s.user_id] || 1 })}
                         </div>
                       </div>
                     </div>
@@ -818,7 +823,7 @@ export default function AdminListings() {
                       style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px", borderRadius: 10, background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 13.5, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer" }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                      Rejeter
+                      {t("admin.listings.reject")}
                     </button>
                   </DialogTrigger>
                   <button
@@ -829,7 +834,7 @@ export default function AdminListings() {
                     onMouseLeave={e => { e.currentTarget.style.background = "#006E6E"; }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
-                    {busy ? "En cours…" : "Approuver"}
+                    {busy ? t("admin.inProgress") : t("admin.actions.approve")}
                   </button>
                 </div>
               </>
@@ -851,28 +856,28 @@ export default function AdminListings() {
     >
       <DialogHeader className="space-y-1.5 text-left">
         <DialogTitle className="text-xl font-semibold tracking-tight">
-          Motif du refus
+          {t("admin.reject.title")}
         </DialogTitle>
         <DialogDescription className="text-sm text-muted-foreground">
-          Sélectionnez un motif et ajoutez un commentaire optionnel.
+          {t("admin.reject.desc")}
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-3 py-2">
         <Select value={rejectMotif} onValueChange={setRejectMotif}>
           <SelectTrigger className="w-full bg-background border border-input text-sm rounded-md px-3 py-2">
-            <SelectValue placeholder="Choisir un motif…" />
+            <SelectValue placeholder={t("admin.reject.selectMotif")} />
           </SelectTrigger>
           <SelectContent className="bg-popover text-popover-foreground border border-border rounded-md shadow-md">
-            <SelectItem value="photos">Photos floues</SelectItem>
-            <SelectItem value="incomplet">Informations incomplètes</SelectItem>
-            <SelectItem value="doublon">Doublon</SelectItem>
-            <SelectItem value="inapproprie">Inapproprié</SelectItem>
+            <SelectItem value="photos">{t("admin.reject.motifs.photos")}</SelectItem>
+            <SelectItem value="incomplet">{t("admin.reject.motifs.incomplet")}</SelectItem>
+            <SelectItem value="doublon">{t("admin.reject.motifs.doublon")}</SelectItem>
+            <SelectItem value="inapproprie">{t("admin.reject.motifs.inapproprie")}</SelectItem>
           </SelectContent>
         </Select>
 
         <Textarea
-          placeholder="Commentaire additionnel (optionnel)…"
+          placeholder={t("admin.reject.commentPlaceholder")}
           rows={3}
           value={rejectComment}
           onChange={e => setRejectComment(e.target.value)}
@@ -883,7 +888,7 @@ export default function AdminListings() {
       <DialogFooter className="flex flex-row justify-end gap-2 pt-4">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={rejectLoading}>
-            Annuler
+            {t("admin.reject.cancel")}
           </Button>
         </DialogClose>
         <Button
@@ -892,7 +897,7 @@ export default function AdminListings() {
           onClick={handleRejectConfirm}
           disabled={!rejectMotif || rejectLoading}
         >
-          {rejectLoading ? "Refus en cours…" : "Confirmer le refus"}
+          {rejectLoading ? t("admin.reject.confirming") : t("admin.reject.confirm")}
         </Button>
       </DialogFooter>
     </DialogContent>

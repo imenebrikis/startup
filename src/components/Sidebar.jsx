@@ -1,17 +1,22 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Search, List, Repeat, MessageSquare, User } from "lucide-react";
 import DockLeftIcon from "./icons/DockLeftIcon";
+import Logo from "./Logo";
 
+// `id` is the stable value matched against the `active` prop (keep in French —
+// pages pass these literally); `tKey` resolves the translated, displayed label.
 const NAV = [
-  { to: "/browse",       Icon: Search,        label: "Parcourir" },
-  { to: "/profile",      Icon: List,          label: "Mes annonces" },
-  { to: "/my-exchanges", Icon: Repeat,        label: "Mes échanges" },
-  { to: "/messages",     Icon: MessageSquare, label: "Messages" },
-  { to: "/profile",      Icon: User,          label: "Profil" },
+  { to: "/browse",       Icon: Search,        id: "Parcourir",    tKey: "browse" },
+  { to: "/profile",      Icon: List,          id: "Mes annonces", tKey: "listings" },
+  { to: "/my-exchanges", Icon: Repeat,        id: "Mes échanges", tKey: "exchanges" },
+  { to: "/messages",     Icon: MessageSquare, id: "Messages",     tKey: "messages" },
+  { to: "/profile",      Icon: User,          id: "Profil",       tKey: "profile" },
 ];
 
 export default function Sidebar({ active }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
@@ -33,13 +38,7 @@ export default function Sidebar({ active }) {
         minHeight: 32,
       }}>
         {isSidebarExpanded && (
-          <Link to="/dashboard" style={{
-            padding: "6px 10px 4px", fontWeight: 700, letterSpacing: "-0.01em",
-            fontSize: 19, color: "#005B5B", textDecoration: "none",
-            whiteSpace: "nowrap",
-          }}>
-            DarBelDar
-          </Link>
+          <Logo to="/dashboard" size={24} color="#0A3D3D" style={{ padding: "6px 10px 4px" }} />
         )}
         <button
           onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
@@ -57,14 +56,17 @@ export default function Sidebar({ active }) {
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {NAV.map(({ to, Icon, label }) => {
-          const on = label === active;
-          const isHov = hovered === label && !on;
+        {NAV.map((item) => {
+          const { to, id, tKey } = item;
+          const Icon = item.Icon;
+          const on = id === active;
+          const isHov = hovered === id && !on;
+          const label = t(`sidebar.${tKey}`);
           return (
             <Link
-              key={label}
+              key={id}
               to={to}
-              onMouseEnter={() => setHovered(label)}
+              onMouseEnter={() => setHovered(id)}
               onMouseLeave={() => setHovered(null)}
               style={{
                 display: "flex", alignItems: "center",

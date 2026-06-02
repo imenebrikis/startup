@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import Logo from "../components/Logo";
 import {
   Upload, X, Wind, Thermometer, Wifi, Droplets, Flame, Zap,
   Car, Trees, Waves, UtensilsCrossed, WashingMachine, ArrowUpDown,
@@ -135,7 +136,7 @@ export default function AddListing() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate("/"); return; }
+      if (!user) { navigate("/login"); return; }
       const fn = user.user_metadata?.full_name;
       setUserInitials(fn ? fn.split(" ").map((n) => n[0]).join("").toUpperCase() : user.email?.[0].toUpperCase() || "?");
     });
@@ -206,7 +207,7 @@ export default function AddListing() {
     setLoading(true);
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) { navigate("/"); return; }
+      if (!currentUser) { navigate("/login"); return; }
 
       const imageUrls = [];
       for (const photo of photos) {
@@ -345,7 +346,7 @@ export default function AddListing() {
       {/* Top bar */}
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", borderBottom: "1px solid #E5DFCE", background: "#F3EEE0" }}>
         <Link to="/dashboard" style={{ fontWeight: 700, letterSpacing: "-0.01em", fontSize: 19, color: "#005B5B", textDecoration: "none" }}>
-          DarBelDar
+          <Logo size={19} color="#005B5B" />
         </Link>
         <Link to={isEdit ? "/profile" : "/dashboard"} style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005B5B", fontSize: 13.5, fontWeight: 500, padding: "8px 12px", borderRadius: 999, textDecoration: "none" }}>
           <X style={{ width: 14, height: 14 }} />
@@ -373,7 +374,7 @@ export default function AddListing() {
           {/* Left: illustration */}
           <aside style={{ background: "#EEF3DF", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 32, position: "relative" }}>
             <div style={{ fontSize: 14, color: "#005B5B", fontWeight: 600, letterSpacing: "0.02em" }}>
-              DarBelDar{" "}
+              <Logo size={14} color="#005B5B" />{" "}
               <span style={{ background: "#ADEBB3", color: "#005B5B", padding: "2px 8px", borderRadius: 6, marginLeft: 6, fontSize: 11, letterSpacing: "0.04em" }}>
                 Annonce
               </span>

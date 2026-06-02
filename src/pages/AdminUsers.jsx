@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
+import Logo from "../components/Logo";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "../components/ui/sheet";
@@ -38,6 +40,8 @@ function Stars({ rating }) {
 }
 
 function ReviewCard({ review, labelLine }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   return (
     <div style={{
       padding: "12px 14px", borderRadius: 12,
@@ -46,11 +50,11 @@ function ReviewCard({ review, labelLine }) {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
         <Stars rating={review.rating} />
         <span style={{ fontSize: 11, color: "#98A3A0", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-          {new Date(review.created_at).toLocaleDateString("fr-FR")}
+          {new Date(review.created_at).toLocaleDateString(dateLocale)}
         </span>
       </div>
       <p style={{ margin: "0 0 5px", fontSize: 13, color: "#0F2A2A", lineHeight: 1.5 }}>
-        {review.comment || <em style={{ color: "#98A3A0" }}>Aucun commentaire</em>}
+        {review.comment || <em style={{ color: "#98A3A0" }}>{t("admin.users.noComment")}</em>}
       </p>
       <p style={{ margin: 0, fontSize: 11.5, color: "#6E7B79" }}>{labelLine}</p>
     </div>
@@ -58,6 +62,8 @@ function ReviewCard({ review, labelLine }) {
 }
 
 export default function AdminUsers() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -80,7 +86,7 @@ export default function AdminUsers() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/"); return; }
+    if (!user) { navigate("/login"); return; }
 
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!profile || profile.role !== "admin") { setLoading(false); return; }
@@ -164,7 +170,7 @@ export default function AdminUsers() {
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        Chargement...
+        {t("admin.loading")}
       </div>
     );
   }
@@ -174,10 +180,10 @@ export default function AdminUsers() {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
         <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>Accès réservé aux administrateurs</h2>
-        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>Votre compte n'a pas les droits d'accès à cette page.</p>
+        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>{t("admin.unauthorized.title")}</h2>
+        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>{t("admin.unauthorized.desc")}</p>
         <button onClick={() => navigate("/dashboard")} style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#006E6E", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-          Retour au tableau de bord
+          {t("admin.unauthorized.back")}
         </button>
       </div>
     );
@@ -202,19 +208,19 @@ export default function AdminUsers() {
             <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
             </span>
-            DarBelDar
+            <Logo size={14} color="#0F2A2A" />
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",
               borderRadius: 999, background: "#006E6E", color: "#ADEBB3",
               fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
             }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-              Admin
+              {t("admin.badge")}
             </span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <Link to="/admin" style={{ color: "#6E7B79", textDecoration: "none" }}>Tableau de bord</Link>
+            <Link to="/admin" style={{ color: "#6E7B79", textDecoration: "none" }}>{t("admin.dashboard")}</Link>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Utilisateurs</b>
+            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.sidebar.users")}</b>
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{
@@ -222,7 +228,7 @@ export default function AdminUsers() {
               padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-              En direct
+              {t("admin.live")}
             </span>
           </div>
         </header>
@@ -231,9 +237,9 @@ export default function AdminUsers() {
 
           {/* Title */}
           <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>Gestion des utilisateurs</h1>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>{t("admin.users.title")}</h1>
             <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-              {users.length} compte{users.length !== 1 ? "s" : ""} enregistré{users.length !== 1 ? "s" : ""} sur la plateforme
+              {t("admin.users.accountsCount", { count: users.length })}
             </p>
           </div>
 
@@ -257,7 +263,7 @@ export default function AdminUsers() {
                 <input
                   value={searchQuery}
                   onChange={e => handleSearch(e.target.value)}
-                  placeholder="Rechercher par nom, email ou wilaya…"
+                  placeholder={t("admin.users.searchByNameEmail")}
                   style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13.5 }}
                 />
                 {searchQuery && (
@@ -275,7 +281,7 @@ export default function AdminUsers() {
                 color: "#006E6E", fontSize: 12.5, fontWeight: 600,
               }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#006E6E" }} />
-                {filtered.length} utilisateur{filtered.length !== 1 ? "s" : ""}
+                {t("admin.users.countChip", { count: filtered.length })}
               </span>
             </div>
 
@@ -284,22 +290,22 @@ export default function AdminUsers() {
               <TableHeader>
                 <TableRow>
                   <TableHead style={{ paddingLeft: 24, paddingRight: 16, color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Utilisateur
+                    {t("admin.users.cols.user")}
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Email
+                    {t("admin.users.cols.email")}
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Téléphone
+                    {t("admin.users.cols.phone")}
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Wilaya
+                    {t("admin.users.cols.wilaya")}
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    Inscrit le
+                    {t("admin.users.cols.registeredOn")}
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 24 }}>
-                    Actions
+                    {t("admin.users.cols.actions")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -307,7 +313,7 @@ export default function AdminUsers() {
                 {pageUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "40px 24px", color: "#6E7B79", fontSize: 14 }}>
-                      {searchQuery ? "Aucun utilisateur correspond à cette recherche." : "Aucun utilisateur trouvé."}
+                      {searchQuery ? t("admin.users.emptySearch") : t("admin.users.emptyNoResults")}
                     </TableCell>
                   </TableRow>
                 ) : pageUsers.map((user, i) => {
@@ -336,7 +342,7 @@ export default function AdminUsers() {
                                   display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px",
                                   borderRadius: 999, background: "#006E6E", color: "#ADEBB3",
                                   fontSize: 10, fontWeight: 700, letterSpacing: ".05em",
-                                }}>Admin</span>
+                                }}>{t("admin.role.admin")}</span>
                               )}
                               <span style={{ fontSize: 11, color: "#98A3A0", fontFamily: "monospace" }}>#{user.id.slice(0, 8)}</span>
                             </div>
@@ -370,7 +376,7 @@ export default function AdminUsers() {
 
                       {/* Inscrit le */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79", fontFamily: "monospace" }}>
-                        {user.created_at ? new Date(user.created_at).toLocaleDateString("fr-FR") : "—"}
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString(dateLocale) : "—"}
                       </TableCell>
 
                       {/* Actions */}
@@ -386,7 +392,7 @@ export default function AdminUsers() {
                           onMouseEnter={e => e.currentTarget.style.background = "#ADEBB3"}
                           onMouseLeave={e => e.currentTarget.style.background = "#E4F6E6"}
                         >
-                          Voir profil
+                          {t("admin.users.viewProfile")}
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                         </button>
                       </TableCell>
@@ -403,7 +409,7 @@ export default function AdminUsers() {
               fontSize: 12.5, color: "#6E7B79",
             }}>
               <span>
-                {filtered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}`} sur <b style={{ color: "#0F2A2A" }}>{filtered.length}</b> utilisateur{filtered.length !== 1 ? "s" : ""}
+                {t("admin.users.pageFooter", { count: filtered.length, range: filtered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}` })}
               </span>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <button
@@ -483,7 +489,7 @@ export default function AdminUsers() {
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <SheetTitle style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700, margin: 0 }}>
-                      {selectedUser.full_name || "Utilisateur"}
+                      {selectedUser.full_name || t("admin.activity.userFallback")}
                     </SheetTitle>
                     <SheetDescription style={{ color: "rgba(173,235,179,.85)", margin: "4px 0 0", fontSize: 13 }}>
                       {selectedUser.email}
@@ -495,7 +501,7 @@ export default function AdminUsers() {
                         background: "rgba(173,235,179,.2)", border: "1px solid rgba(173,235,179,.35)",
                         color: "#ADEBB3", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em",
                       }}>
-                        ✦ Administrateur
+                        ✦ {t("admin.users.administrator")}
                       </span>
                     )}
                   </div>
@@ -507,14 +513,14 @@ export default function AdminUsers() {
                 {/* Basic Info Grid */}
                 <section>
                   <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                    Informations
+                    {t("admin.users.information")}
                   </h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {[
-                      { label: "Wilaya", value: selectedUser.wilaya || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg> },
-                      { label: "Téléphone", value: selectedUser.phone || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 5.5 5.5l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
-                      { label: "Inscrit le", value: selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
-                      { label: "Quartier", value: selectedUser.quartier || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg> },
+                      { label: t("admin.users.cols.wilaya"), value: selectedUser.wilaya || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg> },
+                      { label: t("admin.users.cols.phone"), value: selectedUser.phone || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 5.5 5.5l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
+                      { label: t("admin.users.cols.registeredOn"), value: selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }) : "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
+                      { label: t("admin.users.neighborhood"), value: selectedUser.quartier || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg> },
                     ].map(({ label, value, icon }) => (
                       <div key={label} style={{ padding: "12px 14px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#6E7B79", marginBottom: 5, fontSize: 11.5, fontWeight: 500 }}>
@@ -537,7 +543,7 @@ export default function AdminUsers() {
                     }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    Voir profil public
+                    {t("admin.users.viewPublicProfile")}
                   </Link>
                 </section>
 
@@ -545,7 +551,7 @@ export default function AdminUsers() {
                 <section>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                      Avis reçus
+                      {t("admin.users.reviewsReceived")}
                     </h3>
                     <span style={{
                       padding: "3px 10px", borderRadius: 999,
@@ -556,10 +562,10 @@ export default function AdminUsers() {
                     </span>
                   </div>
                   {sheetLoading ? (
-                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>Chargement…</div>
+                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>{t("admin.loading")}</div>
                   ) : receivedReviews.length === 0 ? (
                     <div style={{ padding: "18px 16px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>
-                      Aucun avis reçu pour ce moment.
+                      {t("admin.users.noReviewsReceived")}
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -567,7 +573,7 @@ export default function AdminUsers() {
                         <ReviewCard
                           key={r.id}
                           review={r}
-                          labelLine={`Par ${r.profiles?.full_name || "Inconnu"} · ${r.listings?.title || ""}`}
+                          labelLine={t("admin.users.reviewByLine", { name: r.profiles?.full_name || t("admin.activity.unknown"), listing: r.listings?.title || "" })}
                         />
                       ))}
                     </div>
@@ -578,7 +584,7 @@ export default function AdminUsers() {
                 <section>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                      Avis laissés
+                      {t("admin.users.reviewsGiven")}
                     </h3>
                     <span style={{
                       padding: "3px 10px", borderRadius: 999,
@@ -589,10 +595,10 @@ export default function AdminUsers() {
                     </span>
                   </div>
                   {sheetLoading ? (
-                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>Chargement…</div>
+                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>{t("admin.loading")}</div>
                   ) : givenReviews.length === 0 ? (
                     <div style={{ padding: "18px 16px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>
-                      Aucun avis laissé pour ce moment.
+                      {t("admin.users.noReviewsGiven")}
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -600,7 +606,7 @@ export default function AdminUsers() {
                         <ReviewCard
                           key={r.id}
                           review={r}
-                          labelLine={`Sur l'annonce · ${r.listings?.title || "Annonce inconnue"}`}
+                          labelLine={t("admin.users.reviewOnLine", { listing: r.listings?.title || t("admin.users.unknownListing") })}
                         />
                       ))}
                     </div>

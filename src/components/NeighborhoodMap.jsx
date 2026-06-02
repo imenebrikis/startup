@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MapContainer, TileLayer, Circle, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Maximize2 } from "lucide-react";
@@ -23,6 +24,7 @@ const circleStyle = {
 };
 
 export default function NeighborhoodMap({ listing }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   let lat = Number(listing?.latitude);
@@ -85,7 +87,7 @@ export default function NeighborhoodMap({ listing }) {
         fontFamily: "'Inter', sans-serif", lineHeight: 1.5,
         margin: "10px 0 0 0",
       }}>
-        L'adresse exacte n'est pas communiquée pour protéger la vie privée.
+        {t("details.privacyNotice")}
       </p>
 
       {/* ── Full interactive dialog map ── */}
@@ -103,7 +105,7 @@ export default function NeighborhoodMap({ listing }) {
               borderRadius: "8px", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
             }}
           >
-            Carte du quartier
+            {t("details.neighborhoodMap")}
           </DialogTitle>
 
           <div style={{ height: "72vh" }}>

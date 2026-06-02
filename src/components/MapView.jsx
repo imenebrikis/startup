@@ -109,7 +109,7 @@ export default function MapView({ listings }) {
   })
 
   return (
-    <div style={{ height: 'calc(100vh - 122px)', width: '100%', position: 'relative' }}>
+    <div style={{ height: 'calc(100vh - 76px)', width: '100%', position: 'relative' }}>
       <MapContainer
         center={ALGERIA_CENTER}
         zoom={6}

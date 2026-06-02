@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import {
   Sheet,
@@ -95,6 +96,7 @@ function PropertyCard({ p, selected }) {
 
 // ── SwapSheet ─────────────────────────────────────────────────────────────────
 export default function SwapSheet({ listing, user, onSuccess }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [myListings, setMyListings] = useState([]);
   const [loadingListings, setLoadingListings] = useState(false);
@@ -195,7 +197,7 @@ export default function SwapSheet({ listing, user, onSuccess }) {
             transition: "background 0.18s",
           }}
         >
-          Demande d'échange
+          {t("details.requestExchange")}
         </button>
       </SheetTrigger>
 
