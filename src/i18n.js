@@ -471,7 +471,21 @@ const resources = {
         },
         transactions: {
           title: "Échanges & Ventes",
+          live: "En direct",
           subtitle: "Journal des interactions, échanges de logements et demandes d'achat entre utilisateurs.",
+          globalFeed: "Flux global",
+          swaps: "Échanges",
+          sales: "Ventes",
+          filterByUser: "Filtrer par utilisateur...",
+          allStatuses: "Tous les statuts",
+          headers: {
+            type: "TYPE",
+            applicant: "DEMANDEUR",
+            recipient: "RÉCEPTEUR",
+            property: "BIEN CONCERNÉ",
+            status: "STATUT",
+            when: "QUAND"
+          },
           unauthorized: "Accès non autorisé.",
           tabs: { all: "Flux global", exchanges: "Échanges", sales: "Ventes" },
           searchPlaceholder: "Filtrer par utilisateur…",
@@ -515,6 +529,55 @@ const resources = {
           requesterMessage: "Message du demandeur",
           dateFrom: "À partir du {{date}}",
           dateUntil: "Jusqu'au {{date}}",
+        },
+        moderation: {
+          tabs: {
+            all: "Tous",
+            en_attente: "En attente",
+            resolu: "Résolus",
+            rejete: "Rejetés"
+          },
+          status: {
+            en_attente: "En attente",
+            resolu: "Résolu",
+            rejete: "Rejeté"
+          },
+          toast: {
+            deleted: "Commentaire supprimé définitivement",
+            deleteError: "Erreur lors de la suppression",
+            resolved: "Signalement classé sans suite",
+            updateError: "Erreur lors de la mise à jour",
+            errorLoading: "Erreur lors du chargement des rapports"
+          },
+          loading: "Chargement…",
+          accessDenied: "Accès refusé",
+          title: "Rapports de commentaires",
+          subtitle: "Gérez les signalements d'avis soumis par les utilisateurs",
+          searchPlaceholder: "Rechercher par rapporteur, raison, commentaire…",
+          empty: {
+            title: "Aucun rapport",
+            pending: "Aucun signalement en attente.",
+            other: "Aucun rapport dans cette catégorie."
+          },
+          card: {
+            reportedBy: "Signalé par :",
+            unknownUser: "Utilisateur inconnu",
+            reason: "Raison :",
+            reportedReview: "Avis signalé",
+            unknownAuthor: "Auteur inconnu",
+            noComment: "Aucun commentaire rédigé",
+            reviewNotFound: "Avis introuvable — il a peut-être déjà été supprimé."
+          },
+          actions: {
+            deleteComment: "Supprimer le commentaire",
+            keepComment: "Conserver le commentaire"
+          },
+          time: {
+            justNow: "À l'instant",
+            minutesAgo: "Il y a {{count}} min",
+            hoursAgo: "Il y a {{count}} h",
+            daysAgo: "Il y a {{count}} j"
+          }
         },
       },
     },
@@ -981,8 +1044,22 @@ const resources = {
           errorToast: "Error during rejection",
         },
         transactions: {
-          title: "Exchanges & Sales",
-          subtitle: "Log of interactions, home exchanges and purchase requests between users.",
+          title: "Swaps & Sales",
+          live: "Live",
+          subtitle: "Log of interactions, property swaps, and purchase requests between users.",
+          globalFeed: "Global Feed",
+          swaps: "Swaps",
+          sales: "Sales",
+          filterByUser: "Filter by user...",
+          allStatuses: "All statuses",
+          headers: {
+            type: "TYPE",
+            applicant: "APPLICANT",
+            recipient: "RECIPIENT",
+            property: "PROPERTY",
+            status: "STATUS",
+            when: "WHEN"
+          },
           unauthorized: "Unauthorized access.",
           tabs: { all: "Global feed", exchanges: "Exchanges", sales: "Sales" },
           searchPlaceholder: "Filter by user…",
@@ -1026,6 +1103,55 @@ const resources = {
           requesterMessage: "Requester's message",
           dateFrom: "From {{date}}",
           dateUntil: "Until {{date}}",
+        },
+        moderation: {
+          tabs: {
+            all: "All",
+            en_attente: "Pending",
+            resolu: "Resolved",
+            rejete: "Rejected"
+          },
+          status: {
+            en_attente: "Pending",
+            resolu: "Resolved",
+            rejete: "Rejected"
+          },
+          toast: {
+            deleted: "Comment permanently deleted",
+            deleteError: "Error during deletion",
+            resolved: "Report closed without action",
+            updateError: "Error during update",
+            errorLoading: "Error loading reports"
+          },
+          loading: "Loading…",
+          accessDenied: "Access denied",
+          title: "Comment Reports",
+          subtitle: "Manage review reports submitted by users",
+          searchPlaceholder: "Search by reporter, reason, comment…",
+          empty: {
+            title: "No reports",
+            pending: "No pending reports.",
+            other: "No reports in this category."
+          },
+          card: {
+            reportedBy: "Reported by:",
+            unknownUser: "Unknown user",
+            reason: "Reason:",
+            reportedReview: "Reported review",
+            unknownAuthor: "Unknown author",
+            noComment: "No comment written",
+            reviewNotFound: "Review not found — it may have already been deleted."
+          },
+          actions: {
+            deleteComment: "Delete comment",
+            keepComment: "Keep comment"
+          },
+          time: {
+            justNow: "Just now",
+            minutesAgo: "{{count}} min ago",
+            hoursAgo: "{{count}} h ago",
+            daysAgo: "{{count}} d ago"
+          }
         },
       },
     },

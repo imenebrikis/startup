@@ -623,11 +623,11 @@ export default function AdminTransactions() {
           <nav style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#94A3B8" }}>
             <span style={{ color: "#64748B" }}>Admin</span>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <span style={{ color: "#0F172A", fontWeight: 600 }}>Échanges &amp; Ventes</span>
+            <span style={{ color: "#0F172A", fontWeight: 600 }}>{t('admin.transactions.title')}</span>
           </nav>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#15803D", padding: "4px 10px", borderRadius: 999, background: "#F0FDF4", border: "1px solid #BBF7D0", fontWeight: 600 }}>
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22C55E", animation: "pulse 1.8s infinite" }} />
-            En direct
+            {t('admin.transactions.live')}
           </div>
         </header>
 
@@ -636,10 +636,10 @@ export default function AdminTransactions() {
           {/* ── Page title ── */}
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#0F172A", letterSpacing: "-.02em", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              Échanges &amp; Ventes
+              {t('admin.transactions.title')}
             </h1>
             <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#64748B" }}>
-              Journal des interactions, échanges de logements et demandes d'achat entre utilisateurs.
+              {t('admin.transactions.subtitle')}
             </p>
           </div>
 
@@ -649,25 +649,25 @@ export default function AdminTransactions() {
             {/* Tabs */}
             <div style={{ display: "inline-flex", gap: 2, padding: 3, background: "#F1F5F9", borderRadius: 9, border: "1px solid #E2E8F0" }}>
               {[
-                { key: "all",     label: "Flux global", icon: "M4 6h16M4 12h16M4 18h10" },
-                { key: "echange", label: "Échanges",    Icon: ArrowLeftRight },
-                { key: "vente",   label: "Ventes",      Icon: Tag },
-              ].map(t => {
-                const on = tab === t.key;
+                { key: "all",     label: t('admin.transactions.globalFeed'), icon: "M4 6h16M4 12h16M4 18h10" },
+                { key: "echange", label: t('admin.transactions.swaps'),      Icon: ArrowLeftRight },
+                { key: "vente",   label: t('admin.transactions.sales'),      Icon: Tag },
+              ].map(tb => {
+                const on = tab === tb.key;
                 return (
-                  <button key={t.key} onClick={() => { setTab(t.key); setPage(1); }} style={{
+                  <button key={tb.key} onClick={() => { setTab(tb.key); setPage(1); }} style={{
                     display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 7,
                     fontSize: 13, color: on ? "#0F172A" : "#64748B", fontWeight: on ? 600 : 400,
                     background: on ? "#fff" : "transparent",
                     boxShadow: on ? "0 1px 3px rgba(15,23,42,.08), inset 0 0 0 1px #E2E8F0" : "none",
                     border: "none", cursor: "pointer", transition: "all .12s", fontFamily: "'Inter', sans-serif",
                   }}>
-                    {t.Icon
-                      ? <t.Icon width={12} height={12} strokeWidth={1.9} />
-                      : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d={t.icon}/></svg>}
-                    {t.label}
+                    {tb.Icon
+                      ? <tb.Icon width={12} height={12} strokeWidth={1.9} />
+                      : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d={tb.icon}/></svg>}
+                    {tb.label}
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: on ? "#F0FDF4" : "#F1F5F9", color: on ? "#15803D" : "#94A3B8", border: `1px solid ${on ? "#BBF7D0" : "#E2E8F0"}`, fontFamily: "monospace" }}>
-                      {counts[t.key]}
+                      {counts[tb.key]}
                     </span>
                   </button>
                 );
@@ -681,7 +681,7 @@ export default function AdminTransactions() {
                 <input
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="Filtrer par utilisateur…"
+                  placeholder={t('admin.transactions.filterByUser')}
                   style={{ flex: 1, border: 0, outline: 0, fontSize: 13, color: "#0F172A", background: "transparent", fontFamily: "'Inter', sans-serif" }}
                 />
               </label>
@@ -690,7 +690,7 @@ export default function AdminTransactions() {
                 onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
                 style={{ padding: "7px 10px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 9, fontSize: 13, color: "#0F172A", cursor: "pointer", minWidth: 150, fontFamily: "'Inter', sans-serif", outline: "none" }}
               >
-                <option value="all">Tous les statuts</option>
+                <option value="all">{t('admin.transactions.allStatuses')}</option>
                 <option value="pending">En attente</option>
                 <option value="accepted">Accepté</option>
                 <option value="rejected">Refusé</option>
@@ -703,12 +703,12 @@ export default function AdminTransactions() {
 
             {/* Column headers */}
             <div style={{ display: "grid", gridTemplateColumns: "96px 1fr 1fr 1.25fr 120px 100px 36px", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 600, color: "#94A3B8" }}>
-              <span>Type</span>
-              <span>Demandeur</span>
-              <span>Récepteur</span>
-              <span>Bien concerné</span>
-              <span>Statut</span>
-              <span style={{ textAlign: "right" }}>Quand</span>
+              <span>{t('admin.transactions.headers.type')}</span>
+              <span>{t('admin.transactions.headers.applicant')}</span>
+              <span>{t('admin.transactions.headers.recipient')}</span>
+              <span>{t('admin.transactions.headers.property')}</span>
+              <span>{t('admin.transactions.headers.status')}</span>
+              <span style={{ textAlign: "right" }}>{t('admin.transactions.headers.when')}</span>
               <span />
             </div>
 
