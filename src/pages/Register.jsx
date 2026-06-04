@@ -182,6 +182,7 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    await supabase.auth.signOut();
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) {
       setError(error.message);

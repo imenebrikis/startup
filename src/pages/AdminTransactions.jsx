@@ -139,7 +139,7 @@ function SectionLabel({ children }) {
 }
 
 // ─── Property card used inside sheets ────────────────────────────────────────
-function PropCard({ listing, label, ownerName, ownerRole }) {
+function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
   const navigate = useNavigate();
   if (!listing) return (
     <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F8FAFC", height: "100%" }}>
@@ -446,7 +446,7 @@ function EchangeSheet({ tx, onClose }) {
           <SectionLabel>Conditions</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 
-            {/* FENÊTRE PROPOSÉE */}
+            {/* PÉRIODE */}
             <div style={{ padding: "11px 14px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "flex-start", gap: 10 }}>
               <span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: "#F0FDF4", color: "#15803D", border: "1px solid #BBF7D0", flexShrink: 0, marginTop: 1 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>

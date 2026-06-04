@@ -309,8 +309,6 @@ export default function AdminListings() {
     const { error } = await supabase.from("listings").delete().in("id", ids);
     if (!error) {
       await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
-      // Removing the rows from local state auto-updates every derived counter
-      // (pending/approved/rejected tab counts + sidebar badge).
       setListings(prev => prev.filter(l => !ids.includes(l.id)));
       setSelected(new Set());
       setExitingIds(new Set());
@@ -406,6 +404,9 @@ export default function AdminListings() {
           backdropFilter: "blur(12px)", borderBottom: "1px solid #E5DFCE",
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
+            <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
+            </span>
             DarBelDar
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#006E6E", color: "#ADEBB3", fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />

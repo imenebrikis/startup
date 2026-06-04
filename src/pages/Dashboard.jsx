@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search, Repeat, Clock, LogOut } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import NotificationBell from "../components/NotificationBell";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
+  const [profileName, setProfileName] = useState(null);
   const [stats, setStats] = useState({ listings: 0, exchanges: 0, messages: 0 });
   const [activity, setActivity] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -13,6 +15,10 @@ export default function Dashboard() {
 
   const fetchDashboardData = async (userId) => {
     try {
+      const { data: profileData } = await supabase
+        .from("profiles").select("full_name").eq("id", userId).single();
+      setProfileName(profileData?.full_name || null);
+
       const { count: listingsCount } = await supabase
         .from("listings").select("*", { count: "exact", head: true }).eq("user_id", userId);
       const { count: exchangesCount } = await supabase
@@ -73,12 +79,12 @@ export default function Dashboard() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
-  const initials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(" ").map((n) => n[0]).join("").toUpperCase()
+  const initials = profileName
+    ? profileName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : user?.email?.[0].toUpperCase() || "?";
-  const displayName = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(" ")[0]
-    : user?.email?.split("@")[0];
+  const displayName = profileName
+    ? profileName.split(" ")[0]
+    : user?.email?.split("@")[0] || "Utilisateur";
 
   const actionCards = [
     { to: "/add-listing",   Icon: Plus,   title: "Publier une annonce", sub: "Listez votre propriété pour échange ou vente",    btn: "Commencer" },
@@ -100,6 +106,7 @@ export default function Dashboard() {
             <LogOut style={{ width: 14, height: 14 }} />
             Déconnexion
           </button>
+          <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
             {initials}
           </div>
@@ -137,7 +144,7 @@ export default function Dashboard() {
         </section>
 
         {/* Quick actions */}
-        
+      
         <section style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 24 }}>
           {actionCards.map(({ to, Icon, title, sub, btn }) => (
             <div key={to} style={{ borderRadius: 22, padding: "24px 26px", background: "#E4F6E6", border: "1px solid #D5E9D8", display: "flex", flexDirection: "column", gap: 14, minHeight: 200 }}>

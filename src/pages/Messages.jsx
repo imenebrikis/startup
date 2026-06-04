@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
+import NotificationBell from "../components/NotificationBell";
 
 const initFrom = (name) =>
   name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
@@ -238,6 +239,7 @@ export default function Messages() {
       .from("conversations")
       .update({ last_message_at: new Date().toISOString(), last_message_preview: previewText })
       .eq("id", activeConvId);
+
     fetchConversations();
     setSending(false);
   };
@@ -315,16 +317,7 @@ export default function Messages() {
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>Messages</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              aria-label="Notifications"
-              style={{ position: "relative", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#005B5B", cursor: "pointer" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                <path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/>
-                <path d="M10 21a2 2 0 0 0 4 0"/>
-              </svg>
-              <span style={{ position: "absolute", top: 8, right: 9, width: 8, height: 8, borderRadius: "50%", background: "#8FD89A", border: "2px solid #FFFFFF" }} />
-            </button>
+            <NotificationBell userId={user?.id} />
             <div
               style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}
               title={user?.user_metadata?.full_name || user?.email}

@@ -1,880 +1,432 @@
-import { useEffect, useState, useCallback } from "react";
-import { Skeleton } from "../components/ui/skeleton";
-import { useNavigate } from "react-router-dom";
-import {
-  Flag,
-  Trash2,
-  Check,
-  Star,
-  MessageSquareText,
-  AlertTriangle,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useState, useMemo } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Trash2, CheckCircle, ChevronDown, Search, ShieldCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Button } from "../components/ui/button";
+import { toast } from "sonner";
 
-const TONES = [
-  { bg: "#E0F2FE", color: "#0369A1" },
-  { bg: "#F3E8FF", color: "#7E22CE" },
-  { bg: "#DCFCE7", color: "#15803D" },
-  { bg: "#FEF9C3", color: "#92400E" },
-  { bg: "#FFE4E6", color: "#BE123C" },
-  { bg: "#F1F5F9", color: "#334155" },
+/**
+ * Status values in the `comment_reports` table:
+ *   - 'en_attente'  → pending admin review (default)
+ *   - 'resolu'      → admin chose to keep the comment
+ *   - 'rejete'      → admin removed the comment
+ */
+const TABS = [
+  { key: "all",        label: "Tous"       },
+  { key: "en_attente", label: "En attente" },
+  { key: "resolu",     label: "Résolus"    },
+  { key: "rejete",     label: "Rejetés"    },
 ];
 
-function ini(name) {
-  if (!name) return "?";
-  const p = name.trim().split(" ");
-  return (p[0][0] + (p[1]?.[0] || "")).toUpperCase();
+const STATUS_BADGE = {
+  en_attente: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A", dot: "#B45309", label: "En attente" },
+  resolu:     { bg: "#E4F6E6", color: "#006E6E", border: "#ADEBB3", dot: "#006E6E", label: "Résolu"     },
+  rejete:     { bg: "#F3F4F6", color: "#6E7B79", border: "#D1D5DB", dot: "#9CA3AF", label: "Rejeté"     },
+};
+
+// Normalize any legacy DB value back into one of the three known keys.
+function normalizeStatus(raw) {
+  if (raw === "resolu" || raw === "rejete" || raw === "en_attente") return raw;
+  return "en_attente";
 }
 
-function toneFor(name) {
-  if (!name) return TONES[0];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return TONES[h % TONES.length];
+function fmtDate(s) {
+  if (!s) return "—";
+  return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function Avatar({ name, size = 34 }) {
-  const t = toneFor(name);
+function timeAgo(s) {
+  if (!s) return "";
+  const sec = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
+  if (sec < 60) return "À l'instant";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `Il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Il y a ${h} h`;
+  return `Il y a ${Math.floor(h / 24)} j`;
+}
+
+function Stars({ rating }) {
   return (
-    <span
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        display: "grid",
-        placeItems: "center",
-        flexShrink: 0,
-        fontSize: size * 0.36,
-        fontWeight: 700,
-        background: t.bg,
-        color: t.color,
-        border: `1.5px solid ${t.color}22`,
-      }}
-    >
-      {ini(name)}
+    <span style={{ display: "inline-flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <svg key={i} width="12" height="12" viewBox="0 0 24 24"
+          fill={i <= rating ? "#F59E0B" : "none"}
+          stroke={i <= rating ? "#F59E0B" : "#D1D5DB"}
+          strokeWidth="1.5">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      ))}
     </span>
   );
 }
 
-function fmtDate(s) {
-  if (!s) return "";
-  return new Date(s).toLocaleString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function Stars({ value }) {
-  const v = value || 0;
+function StatusBadge({ status }) {
+  const s = STATUS_BADGE[normalizeStatus(status)];
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 2,
-        color: "#C77A1E",
-      }}
-    >
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star
-          key={n}
-          style={{ width: 14, height: 14 }}
-          fill={n <= v ? "#C77A1E" : "none"}
-          strokeWidth={1.6}
-        />
-      ))}
-      <span
-        style={{
-          marginLeft: 6,
-          fontSize: 12.5,
-          color: "#475569",
-          fontWeight: 600,
-        }}
-      >
-        {v}/5
-      </span>
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "3px 9px", borderRadius: 999,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+      {s.label}
     </span>
   );
 }
 
 export default function AdminReports() {
   const navigate = useNavigate();
+  const [loading, setLoading]           = useState(true);
+  const [authorized, setAuthorized]     = useState(false);
   const [adminProfile, setAdminProfile] = useState(null);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [reports, setReports]           = useState([]);
+  const [activeTab, setActiveTab]       = useState("all");
+  const [search, setSearch]             = useState("");
+  const [actioning, setActioning]       = useState({});
+  const [expanded, setExpanded]         = useState(null);
 
-  const [reports, setReports] = useState([]);
-  const [reportsLoading, setReportsLoading] = useState(true);
-  const [busyId, setBusyId] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  useEffect(() => { init(); }, []);
 
-  const fetchReports = useCallback(async () => {
-    setReportsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("comment_reports")
-        .select(
-          `
-          id, reason, status, created_at,
-          review:reviews!comment_id(
-            id, rating, comment, created_at,
-            reviewer:profiles!reviewer_id(id, full_name),
-            listing:listings!listing_id(
-              id, title, wilaya, user_id,
-              owner:profiles!listings_user_id_fkey(id, full_name)
-            )
-          ),
-          reporter:profiles!reporter_id(id, full_name)
-        `,
-        )
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
+  async function init() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { navigate("/"); return; }
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
+    setAdminProfile(profile);
+    setAuthorized(true);
+    await fetchReports();
+    setLoading(false);
+  }
 
-      if (error) {
-        toast.error("Erreur lors du chargement", {
-          description: error.message,
-        });
-        setReports([]);
-        return;
-      }
-      setReports(data || []);
-    } finally {
-      setReportsLoading(false);
-    }
-  }, []);
-
-  const fetchPending = useCallback(async () => {
-    const { count } = await supabase
-      .from("listings")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending");
-    setPendingCount(count || 0);
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/");
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-      if (!profile || profile.role !== "admin") {
-        navigate("/dashboard");
-        return;
-      }
-      setAdminProfile({ ...profile, email: user.email });
-      await Promise.all([fetchReports(), fetchPending()]);
-    })();
-  }, [navigate, fetchReports, fetchPending]);
-
-  const handleDismiss = async (report) => {
-    setBusyId(report.id);
-    const { error } = await supabase
+  async function fetchReports() {
+    const { data, error } = await supabase
       .from("comment_reports")
-      .update({ status: "dismissed" })
-      .eq("id", report.id);
-    setBusyId(null);
-    if (error) {
-      toast.error("Erreur", { description: error.message });
-      return;
-    }
-    setReports((prev) => prev.filter((r) => r.id !== report.id));
-    toast.success("Signalement ignoré", {
-      description: "L'avis reste publié sur le site.",
-    });
-  };
+      .select(`
+        *,
+        reporter:profiles!comment_reports_reporter_id_fkey(full_name),
+        review:reviews(
+          id, comment, rating, created_at,
+          listing:listings(id, title, wilaya),
+          reviewer:profiles!reviews_reviewer_id_fkey(full_name)
+        )
+      `)
+      .order("created_at", { ascending: false });
 
-  const handleDeleteReview = async (report) => {
-    if (!report.review?.id) {
+    if (error) { toast.error("Erreur lors du chargement des rapports"); return; }
+    setReports((data || []).map(r => ({ ...r, status: normalizeStatus(r.status) })));
+  }
+
+  const counts = useMemo(() => ({
+    all:        reports.length,
+    en_attente: reports.filter(r => r.status === "en_attente").length,
+    resolu:     reports.filter(r => r.status === "resolu").length,
+    rejete:     reports.filter(r => r.status === "rejete").length,
+  }), [reports]);
+
+  const filtered = useMemo(() => {
+    let list = reports;
+    if (activeTab === "en_attente") list = reports.filter(r => r.status === "en_attente");
+    else if (activeTab === "resolu") list = reports.filter(r => r.status === "resolu");
+    else if (activeTab === "rejete") list = reports.filter(r => r.status === "rejete");
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(r =>
+        r.reporter?.full_name?.toLowerCase().includes(q) ||
+        r.reason?.toLowerCase().includes(q) ||
+        r.review?.comment?.toLowerCase().includes(q) ||
+        r.review?.listing?.title?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [reports, activeTab, search]);
+
+  // "Supprimer le commentaire": delete the review row + mark report 'rejete'
+  async function handleRequestDelete(reportId, commentId) {
+    if (actioning[reportId]) return;
+    setActioning(a => ({ ...a, [reportId]: true }));
+
+    const prev = reports.find(r => r.id === reportId);
+    setReports(rs => rs.map(r => r.id === reportId ? { ...r, status: "rejete" } : r));
+    setExpanded(null);
+
+    try {
+      if (commentId) {
+        const { error: deleteErr } = await supabase.from("reviews").delete().eq("id", commentId);
+        if (deleteErr) throw deleteErr;
+      }
+      const { error: updateErr } = await supabase
+        .from("comment_reports")
+        .update({ status: "rejete" })
+        .eq("id", reportId);
+      if (updateErr) throw updateErr;
+
+      toast.success("Commentaire supprimé définitivement");
+    } catch {
+      setReports(rs => rs.map(r => r.id === reportId ? prev : r));
+      toast.error("Erreur lors de la suppression");
+    } finally {
+      setActioning(a => ({ ...a, [reportId]: false }));
+    }
+  }
+
+  // "Conserver le commentaire": mark report 'resolu', leave the review intact
+  async function handleKeepComment(reportId) {
+    if (actioning[reportId]) return;
+    setActioning(a => ({ ...a, [reportId]: true }));
+
+    const prev = reports.find(r => r.id === reportId);
+    setReports(rs => rs.map(r => r.id === reportId ? { ...r, status: "resolu" } : r));
+    setExpanded(null);
+
+    try {
       const { error } = await supabase
         .from("comment_reports")
-        .update({ status: "resolved" })
-        .eq("id", report.id);
-      setConfirmDelete(null);
-      if (error) {
-        toast.error("Erreur", { description: error.message });
-        return;
-      }
-      setReports((prev) => prev.filter((r) => r.id !== report.id));
-      toast.success("Signalement résolu");
-      return;
-    }
+        .update({ status: "resolu" })
+        .eq("id", reportId);
+      if (error) throw error;
 
-    setBusyId(report.id);
-    const reviewId = report.review.id;
-
-    const { error: upErr } = await supabase
-      .from("comment_reports")
-      .update({ status: "resolved" })
-      .eq("comment_id", reviewId)
-      .eq("status", "pending");
-    if (upErr) {
-      setBusyId(null);
-      setConfirmDelete(null);
-      toast.error("Erreur", { description: upErr.message });
-      return;
+      toast.success("Signalement classé sans suite");
+    } catch {
+      setReports(rs => rs.map(r => r.id === reportId ? prev : r));
+      toast.error("Erreur lors de la mise à jour");
+    } finally {
+      setActioning(a => ({ ...a, [reportId]: false }));
     }
+  }
 
-    const { error: delErr } = await supabase
-      .from("reviews")
-      .delete()
-      .eq("id", reviewId);
-    setBusyId(null);
-    setConfirmDelete(null);
-    if (delErr) {
-      toast.error("Erreur lors de la suppression", {
-        description: delErr.message,
-      });
-      return;
-    }
-    setReports((prev) => prev.filter((r) => r.review?.id !== reviewId));
-    toast.success("Avis supprimé", {
-      description: "Tous les signalements liés ont été résolus.",
-    });
-  };
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+        <span style={{ color: "#6E7B79", fontSize: 14 }}>Chargement…</span>
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+        <span style={{ color: "#C13C26", fontSize: 14 }}>Accès refusé</span>
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#F8FAFC",
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      <AdminSidebar
-        active="reports"
-        pendingCount={pendingCount}
-        adminProfile={adminProfile}
-      />
+    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+      <AdminSidebar active="reports" pendingCount={counts.en_attente} adminProfile={adminProfile} />
 
-      <main
-        style={{
-          flex: 1,
-          padding: "32px 40px 56px",
-          maxWidth: 1280,
-          width: "100%",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 16,
-            marginBottom: 28,
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 26,
-                fontWeight: 700,
-                color: "#0F172A",
-                letterSpacing: "-0.02em",
-                fontFamily: "'Bricolage Grotesque', sans-serif",
-              }}
-            >
-              Modération des Avis{" "}
-              <span
-                style={{
-                  display: "inline-block",
-                  transform: "translateY(-1px)",
-                }}
-              >🚩</span>
-            </h1>
-            <p
-              style={{
-                margin: "6px 0 0",
-                fontSize: 13.5,
-                color: "#64748B",
-                lineHeight: 1.55,
-              }}
-            >
-              Examinez les avis signalés par les utilisateurs et décidez de leur
-              sort.
-            </p>
-          </div>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              borderRadius: 999,
-              background: reports.length > 0 ? "#FEF2F2" : "#F0FDF4",
-              color: reports.length > 0 ? "#B91C1C" : "#15803D",
-              border: `1px solid ${reports.length > 0 ? "#FECACA" : "#BBF7D0"}`,
-              fontSize: 12.5,
-              fontWeight: 700,
-              letterSpacing: ".02em",
-            }}
-          >
-            <Flag style={{ width: 13, height: 13 }} />
-            {reports.length} en attente
-          </span>
+      <main style={{ padding: "32px 40px 56px", minWidth: 0 }}>
+        {/* Page header */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F2A2A", letterSpacing: "-0.02em", margin: 0 }}>
+            Rapports de commentaires
+          </h1>
+          <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
+            Gérez les signalements d'avis soumis par les utilisateurs
+          </p>
         </div>
 
-        {/* Empty state / skeleton / feed */}
-        {reportsLoading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="border border-gray-100 rounded-lg p-5 space-y-4 shadow-sm bg-white"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-9 w-9 rounded-full" />
-                    <div className="space-y-1.5">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                </div>
-                <div className="space-y-2 pt-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-[85%]" />
-                </div>
-                <div className="flex justify-end gap-3 pt-3 border-t border-gray-50">
-                  <Skeleton className="h-9 w-28 rounded-md" />
-                  <Skeleton className="h-9 w-28 rounded-md" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : reports.length === 0 ? (
-          <div
-            style={{
-              background: "#FFFFFF",
-              border: "1px solid #E2E8F0",
-              borderRadius: 18,
-              padding: "60px 40px",
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 18,
-                background: "#F0FDF4",
-                display: "grid",
-                placeItems: "center",
-                margin: "0 auto 16px",
-                border: "1px solid #BBF7D0",
-              }}
-            >
-              <Check style={{ width: 28, height: 28, color: "#15803D" }} />
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#0F172A",
-                marginBottom: 6,
-              }}
-            >
-              Aucun signalement en attente
-            </div>
-            <div style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.6 }}>
-              Vous serez notifié dès qu'un utilisateur signalera un avis.
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {reports.map((report) => {
-              const review = report.review;
-              const author = review?.reviewer;
-              const target = review?.listing?.owner || report.reporter;
-              const reporter = report.reporter;
-              const orphan = !review;
-
+        {/* Toolbar — tabs + search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+          {/* Segmented tabs */}
+          <div style={{ display: "flex", gap: 4, background: "#E8E2D2", padding: 4, borderRadius: 12 }}>
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.key;
+              const count = counts[tab.key];
               return (
-                <article
-                  key={report.id}
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
                   style={{
-                    background: "#FFFFFF",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    boxShadow: "0 1px 2px rgba(15,23,42,.04)",
+                    padding: "6px 14px", borderRadius: 9, border: "none", cursor: "pointer",
+                    background: isActive ? "#FFFFFF" : "transparent",
+                    color: isActive ? "#0F2A2A" : "#6E7B79",
+                    fontWeight: isActive ? 600 : 500, fontSize: 13,
+                    boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                    transition: "all .15s",
+                    display: "flex", alignItems: "center", gap: 6,
                   }}
                 >
-                  {/* Top strip */}
+                  {tab.label}
+                  {count > 0 && (
+                    <span style={{
+                      background: isActive && tab.key === "en_attente" ? "#FFFBEB" : isActive ? "#E4F6E6" : "#D4CEC0",
+                      color:      isActive && tab.key === "en_attente" ? "#B45309" : isActive ? "#006E6E" : "#6E7B79",
+                      border:     isActive && tab.key === "en_attente" ? "1px solid #FDE68A" : isActive ? "1px solid #ADEBB3" : "none",
+                      fontSize: 10.5, fontWeight: 700, padding: "1px 6px", borderRadius: 999,
+                    }}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: 220, position: "relative" }}>
+            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#6E7B79" }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher par rapporteur, raison, commentaire…"
+              style={{
+                width: "100%", padding: "8px 12px 8px 32px",
+                border: "1px solid #E5DFCE", borderRadius: 10,
+                background: "#FFFFFF", fontSize: 13, color: "#0F2A2A",
+                outline: "none",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Report list */}
+        {filtered.length === 0 ? (
+          <div style={{ borderRadius: 16, background: "#FFFFFF", border: "1px solid #E5DFCE", padding: "56px 24px", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              <ShieldCheck size={36} style={{ color: "#ADEBB3" }} />
+            </div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#0F2A2A", margin: "0 0 6px" }}>Aucun rapport</p>
+            <p style={{ fontSize: 13, color: "#6E7B79", margin: 0 }}>
+              {activeTab === "en_attente" ? "Aucun signalement en attente." : "Aucun rapport dans cette catégorie."}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {filtered.map(report => {
+              const review     = report.review;
+              const listing    = review?.listing;
+              const reporter   = report.reporter;
+              const reviewer   = review?.reviewer;
+              const isExpanded = expanded === report.id;
+              const isPending  = report.status === "en_attente";
+
+              return (
+                <div
+                  key={report.id}
+                  style={{
+                    borderRadius: 16, background: "#FFFFFF", overflow: "hidden",
+                    border: `1px solid ${isPending ? "#FDE68A" : "#E5DFCE"}`,
+                    boxShadow: isPending ? "0 0 0 3px rgba(180,121,30,0.07)" : "none",
+                    transition: "box-shadow .2s, border-color .2s",
+                  }}
+                >
+                  {/* Card header — click anywhere to expand */}
                   <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      padding: "11px 20px",
-                      background: "#FEF2F2",
-                      borderBottom: "1px solid #FECACA",
-                    }}
+                    style={{ padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 14, cursor: "pointer" }}
+                    onClick={() => setExpanded(isExpanded ? null : report.id)}
                   >
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        color: "#B91C1C",
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                      }}
-                    >
-                      <Flag style={{ width: 13, height: 13 }} />
-                      Signalé le {fmtDate(report.created_at)}
-                    </div>
-                    {review?.listing?.title && (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "#7F1D1D",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Annonce : {review.listing.title}
-                        {review.listing.wilaya
-                          ? ` · ${review.listing.wilaya}`
-                          : ""}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ padding: "20px 24px 22px" }}>
-                    {/* People row */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 18,
-                        marginBottom: 18,
-                      }}
-                    >
-                      <div
-                        style={{
-                          background: "#F8FAFC",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 12,
-                          padding: "12px 14px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10.5,
-                            textTransform: "uppercase",
-                            letterSpacing: ".1em",
-                            color: "#94A3B8",
-                            fontWeight: 700,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Cible
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <Avatar name={target?.full_name} size={36} />
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 600,
-                                color: "#0F172A",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {target?.full_name || "Utilisateur"}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 11.5,
-                                color: "#64748B",
-                                marginTop: 1,
-                              }}
-                            >
-                              A reçu l'avis
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          background: "#F8FAFC",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 12,
-                          padding: "12px 14px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10.5,
-                            textTransform: "uppercase",
-                            letterSpacing: ".1em",
-                            color: "#94A3B8",
-                            fontWeight: 700,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Auteur
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <Avatar name={author?.full_name} size={36} />
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 600,
-                                color: "#0F172A",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {author?.full_name ||
-                                (orphan ? "Avis supprimé" : "Utilisateur")}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 11.5,
-                                color: "#64748B",
-                                marginTop: 1,
-                              }}
-                            >
-                              A écrit l'avis
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                    {/* Icon */}
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                      background: isPending ? "#FFFBEB" : "#F9FAFB",
+                      border: `1px solid ${isPending ? "#FDE68A" : "#E5DFCE"}`,
+                      display: "grid", placeItems: "center",
+                    }}>
+                      <AlertTriangle size={16} style={{ color: isPending ? "#B45309" : "#9CA3AF" }} />
                     </div>
 
-                    {/* Review content */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <MessageSquareText
-                          style={{ width: 14, height: 14, color: "#64748B" }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            textTransform: "uppercase",
-                            letterSpacing: ".1em",
-                            color: "#64748B",
-                            fontWeight: 700,
-                          }}
-                        >
-                          Contenu de l'avis
-                        </span>
-                      </div>
-                      {orphan ? (
-                        <div
-                          style={{
-                            background: "#FFFBEB",
-                            border: "1px solid #FDE68A",
-                            borderRadius: 12,
-                            padding: "12px 14px",
-                            fontSize: 13,
-                            color: "#92400E",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          <AlertTriangle style={{ width: 14, height: 14 }} />
-                          L'avis original a déjà été supprimé.
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            background: "#FFFFFF",
-                            border: "1px solid #E2E8F0",
-                            borderRadius: 12,
-                            padding: "14px 16px",
-                          }}
-                        >
-                          <div
-                            style={{ marginBottom: review?.comment ? 8 : 0 }}
+                    {/* Meta */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                        <StatusBadge status={report.status} />
+                        {listing && (
+                          <Link
+                            to={`/listing/${listing.id}`}
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: 12.5, color: "#006E6E", fontWeight: 500, textDecoration: "none" }}
                           >
-                            <Stars value={review?.rating} />
-                          </div>
-                          {review?.comment ? (
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: 14,
-                                color: "#0F172A",
-                                lineHeight: 1.6,
-                                whiteSpace: "pre-wrap",
-                              }}
-                            >
-                              {review.comment}
-                            </p>
-                          ) : (
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: 13,
-                                color: "#94A3B8",
-                                fontStyle: "italic",
-                              }}
-                            >
-                              (Aucun texte — uniquement une note)
-                            </p>
-                          )}
+                            {listing.title}
+                          </Link>
+                        )}
+                        {listing?.wilaya && (
+                          <span style={{ fontSize: 12, color: "#98A3A0" }}>— {listing.wilaya}</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#0F2A2A", marginBottom: 3 }}>
+                        <span style={{ fontWeight: 600 }}>Signalé par :</span>{" "}
+                        {reporter?.full_name || "Utilisateur inconnu"}
+                        <span style={{ color: "#98A3A0", marginLeft: 8 }}>{timeAgo(report.created_at)}</span>
+                      </div>
+                      {report.reason && (
+                        <div style={{ fontSize: 12.5, color: "#6E7B79" }}>
+                          <span style={{ fontWeight: 500 }}>Raison :</span> {report.reason}
                         </div>
                       )}
                     </div>
 
-                    {/* Reason */}
-                    <div style={{ marginBottom: 18 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <Flag
-                          style={{ width: 14, height: 14, color: "#B91C1C" }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            textTransform: "uppercase",
-                            letterSpacing: ".1em",
-                            color: "#B91C1C",
-                            fontWeight: 700,
-                          }}
-                        >
-                          Raison du signalement
-                        </span>
-                        {reporter?.full_name && (
-                          <span style={{ fontSize: 11.5, color: "#94A3B8" }}>
-                            · par {reporter.full_name}
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          background: "#FEF2F2",
-                          border: "1px solid #FECACA",
-                          borderRadius: 12,
-                          padding: "12px 14px",
-                          fontSize: 13.5,
-                          color: "#7F1D1D",
-                          lineHeight: 1.55,
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        {report.reason?.trim() ? (
-                          report.reason
-                        ) : (
-                          <span
-                            style={{ fontStyle: "italic", color: "#B91C1C" }}
-                          >
-                            Aucune raison précisée par l'utilisateur.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div
+                    <ChevronDown
+                      size={16}
                       style={{
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        gap: 10,
+                        flexShrink: 0, color: "#9CA3AF",
+                        transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform .2s",
                       }}
-                    >
-                      <button
-                        onClick={() => handleDismiss(report)}
-                        disabled={busyId === report.id}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 7,
-                          padding: "10px 16px",
-                          borderRadius: 10,
-                          background: "#F1F5F9",
-                          color: "#334155",
-                          border: "1px solid #E2E8F0",
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          cursor:
-                            busyId === report.id ? "not-allowed" : "pointer",
-                          opacity: busyId === report.id ? 0.6 : 1,
-                        }}
-                      >
-                        <Check style={{ width: 14, height: 14 }} />
-                        Ignorer
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(report)}
-                        disabled={busyId === report.id || orphan}
-                        title={orphan ? "L'avis a déjà été supprimé" : ""}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 7,
-                          padding: "10px 16px",
-                          borderRadius: 10,
-                          background: orphan ? "#FCA5A5" : "#DC2626",
-                          color: "#FFFFFF",
-                          border: "none",
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          cursor:
-                            busyId === report.id || orphan
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity: busyId === report.id ? 0.6 : 1,
-                        }}
-                      >
-                        <Trash2 style={{ width: 14, height: 14 }} />
-                        Supprimer l'avis
-                      </button>
-                    </div>
+                    />
                   </div>
-                </article>
+
+                  {/* Expanded panel */}
+                  {isExpanded && (
+                    <div style={{ borderTop: "1px solid #F0EAD8", padding: "16px 20px", background: "#FAFAF5" }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".07em", color: "#98A3A0", marginBottom: 8 }}>
+                        Avis signalé
+                      </div>
+
+                      {review ? (
+                        <div style={{
+                          borderRadius: 12, background: "#FFFFFF", border: "1px solid #E5DFCE",
+                          padding: "14px 16px",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#0F2A2A" }}>
+                              {reviewer?.full_name || "Auteur inconnu"}
+                            </span>
+                            <Stars rating={review.rating} />
+                            <span style={{ fontSize: 11.5, color: "#98A3A0" }}>{fmtDate(review.created_at)}</span>
+                          </div>
+                          <p style={{ fontSize: 13.5, color: "#374151", margin: 0, lineHeight: 1.55 }}>
+                            {review.comment || <em style={{ color: "#98A3A0" }}>Aucun commentaire rédigé</em>}
+                          </p>
+
+                          {/* Action buttons — shown only while the report is pending */}
+                          {isPending && (
+                            <div className="flex gap-3 mt-4 justify-end">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                disabled={!!actioning[report.id]}
+                                onClick={() => handleRequestDelete(report.id, report.comment_id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Supprimer le commentaire
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!!actioning[report.id]}
+                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => handleKeepComment(report.id)}
+                              >
+                                <CheckCircle className="mr-2 h-4 w-4 text-emerald-500" />
+                                Conserver le commentaire
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: 13, color: "#98A3A0", margin: 0 }}>
+                          Avis introuvable — il a peut-être déjà été supprimé.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
       </main>
-
-      {/* Confirm delete */}
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDelete(null);
-        }}
-      >
-        <AlertDialogContent
-          style={{
-            borderRadius: 16,
-            padding: 24,
-            background: "#fff",
-            border: "1px solid #E2E8F0",
-            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
-            maxWidth: 420,
-            margin: "auto",
-          }}
-        >
-          <AlertDialogHeader style={{ marginBottom: 18 }}>
-            <AlertDialogTitle
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#0F172A",
-                marginBottom: 8,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <Trash2 style={{ width: 18, height: 18, color: "#DC2626" }} />
-              Supprimer cet avis ?
-            </AlertDialogTitle>
-            <AlertDialogDescription
-              style={{ fontSize: 14, color: "#64748B", lineHeight: 1.55 }}
-            >
-              Cette action est définitive. L'avis sera retiré du site et tous
-              les signalements liés seront marqués comme résolus.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter
-            style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}
-          >
-            <AlertDialogCancel asChild>
-              <button
-                style={{
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  background: "#fff",
-                  color: "#0F172A",
-                  border: "1px solid #E2E8F0",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  margin: 0,
-                }}
-              >
-                Annuler
-              </button>
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <button
-                onClick={() =>
-                  confirmDelete && handleDeleteReview(confirmDelete)
-                }
-                style={{
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  background: "#DC2626",
-                  color: "#FFFFFF",
-                  border: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  margin: 0,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Trash2 style={{ width: 14, height: 14 }} />
-                Supprimer
-              </button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
