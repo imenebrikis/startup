@@ -309,9 +309,9 @@ const resources = {
             noResult: "Aucune wilaya trouvée", wilayasHint: "Sélectionnez une ou plusieurs wilayas où vous souhaitez échanger.",
           },
           s9: {
-            heading: "Photos du logement", hint: "Minimum 3 photos",
+            heading: "Photos du logement", hint: "",
             dropLabel: "Glissez-déposez ou cliquez pour parcourir",
-            dropHint: "PNG, JPG jusqu'à 10 MB — 5 photos max",
+            dropHint: "PNG, JPG jusqu'à 10 MB — 20 photos max",
             tour360Label: "Photos 360° (optionnel, max 10)",
             tour360Hint: "Cliquez pour ajouter des photos équirectangulaires 360°",
           },
@@ -721,6 +721,46 @@ const resources = {
           }
         },
       },
+      home: {
+        nav: {
+          home: "Accueil",
+          howItWorks: "Comment ça marche",
+          login: "Connexion",
+          signUp: "S'inscrire",
+        },
+        hero: {
+          headlineParts: ["Vendez, échangez,", "explorez - chaque", "coin d'Algérie est", "chez vous."],
+          description: "Que vous souhaitiez vendre votre maison ou la troquer contre une nouvelle aventure, DarBelDar vous connecte avec des propriétaires à travers les 58 wilayas.",
+          cta: "Découvrir nos lieux",
+          imgAlt: "Maisons contemporaines lumineuses en Algérie",
+        },
+        howItWorks: {
+          headlineParts: ["Loyers trop chers ?", "Essayez l'échange", "à la place."],
+          steps: [
+            { title: "Publiez ce que vous avez.", desc: "Créez un profil et listez votre maison gratuitement. Quelques photos et détails, c'est tout ce qu'il faut." },
+            { title: "Trouvez ce que vous cherchez.", desc: "Explorez des centaines de maisons vérifiées à travers les 58 wilayas et trouvez votre coup de cœur." },
+            { title: "Puis voyagez gratuitement.", desc: "Contactez le propriétaire, convenez des détails, échangez les clés, et partez sans payer pour l'hébergement." },
+          ],
+          mapAlt: "Illustration d'une carte papier",
+          travelerAlt: "Illustration d'une voyageuse avec ses bagages",
+          cta: "Rejoindre",
+        },
+        footer: {
+          tagline: "Découvrez l'Algérie, une maison à la fois.",
+          quickLinks: "Liens Rapides",
+          support: "Support",
+          links: {
+            home: "Accueil",
+            howItWorks: "Comment ça marche",
+            browse: "Parcourir",
+            faq: "FAQ",
+            contact: "Nous contacter",
+          },
+          copyright: "© 2026 DarBelDar. Tous droits réservés.",
+          terms: "Conditions",
+          privacy: "Confidentialité",
+        },
+      },
     },
   },
   en: {
@@ -1024,9 +1064,9 @@ const resources = {
             noResult: "No wilaya found", wilayasHint: "Select one or more wilayas where you want to exchange.",
           },
           s9: {
-            heading: "Property photos", hint: "Minimum 3 photos",
+            heading: "Property photos", hint: "",
             dropLabel: "Drag & drop or click to browse",
-            dropHint: "PNG, JPG up to 10 MB — 5 photos max",
+            dropHint: "PNG, JPG up to 10 MB — 20 photos max",
             tour360Label: "360° photos (optional, max 10)",
             tour360Hint: "Click to add equirectangular 360° photos",
           },
@@ -1434,6 +1474,46 @@ const resources = {
             hoursAgo: "{{count}} h ago",
             daysAgo: "{{count}} d ago"
           }
+        },
+      },
+      home: {
+        nav: {
+          home: "Home",
+          howItWorks: "How it works",
+          login: "Login",
+          signUp: "Sign Up",
+        },
+        hero: {
+          headlineParts: ["Sell, swap,", "explore — every", "corner of Algeria", "is home."],
+          description: "Whether you want to sell your home or swap it for a new adventure, DarBelDar connects you with homeowners across all 58 wilayas.",
+          cta: "Explore listings",
+          imgAlt: "Contemporary bright homes in Algeria",
+        },
+        howItWorks: {
+          headlineParts: ["Rent too expensive?", "Try swapping", "instead."],
+          steps: [
+            { title: "List what you have.", desc: "Create a profile and list your home for free. A few photos and details — that's all it takes." },
+            { title: "Find what you're looking for.", desc: "Browse hundreds of verified homes across all 58 wilayas and find your perfect match." },
+            { title: "Then travel for free.", desc: "Contact the owner, agree on the details, swap keys, and travel without paying for accommodation." },
+          ],
+          mapAlt: "Paper map illustration",
+          travelerAlt: "Illustration of a traveller with luggage",
+          cta: "Join for free",
+        },
+        footer: {
+          tagline: "Discover Algeria, one home at a time.",
+          quickLinks: "Quick Links",
+          support: "Support",
+          links: {
+            home: "Home",
+            howItWorks: "How it works",
+            browse: "Browse",
+            faq: "FAQ",
+            contact: "Contact us",
+          },
+          copyright: "© 2026 DarBelDar. All rights reserved.",
+          terms: "Terms",
+          privacy: "Privacy",
         },
       },
     },

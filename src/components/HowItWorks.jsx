@@ -1,40 +1,24 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import MotionButton from "./MotionButton";
 import tripSvg from "../assets/Trip-cuate.svg";
 import paperMapSvg from "../assets/PaperMap-cuate.svg";
 
 const HEADING_FONT = "'Bricolage Grotesque', sans-serif";
-const BODY_FONT = "'Satoshi', sans-serif"; // fontshare, Bold (700)
-
-const BRAND_TEAL = "#005B5B"; // primary text
-
-const STEPS = [
-  {
-    number: "01",
-    title: "Publiez ce que vous avez.",
-    desc: "Créez un profil et listez votre maison gratuitement. Quelques photos et détails, c'est tout ce qu'il faut.",
-  },
-  {
-    number: "02",
-    title: "Trouvez ce que vous cherchez.",
-    desc: "Explorez des centaines de maisons vérifiées à travers les 58 wilayas et trouvez votre coup de cœur.",
-  },
-  {
-    number: "03",
-    title: "Puis voyagez gratuitement.",
-    desc: "Contactez le propriétaire, convenez des détails, échangez les clés, et partez sans payer pour l'hébergement.",
-  },
-];
+const BODY_FONT = "'Satoshi', sans-serif";
+const BRAND_TEAL = "#005B5B";
 
 export default function HowItWorks() {
+  const { t } = useTranslation();
+
+  const headlineParts = t("home.howItWorks.headlineParts", { returnObjects: true });
+  const steps = t("home.howItWorks.steps", { returnObjects: true });
+
   return (
     <section
       id="how-it-works"
       style={{
         position: "relative",
-        // Above the scroll plane (which lives in the App.jsx wrapper at a lower
-        // z-index); background is transparent so the cream comes from that
-        // wrapper and the plane shows through on the left behind this content.
         zIndex: 2,
         width: "100%",
         minHeight: "100vh",
@@ -47,10 +31,10 @@ export default function HowItWorks() {
         boxSizing: "border-box",
       }}
     >
-      {/* ── Top-left corner asset: mirrors the bottom-right one, same size ── */}
+      {/* Top-left corner asset */}
       <img
         src={paperMapSvg}
-        alt="Illustration d'une carte papier"
+        alt={t("home.howItWorks.mapAlt")}
         style={{
           position: "absolute",
           top: 0,
@@ -64,15 +48,15 @@ export default function HowItWorks() {
         }}
       />
 
-      {/* ── Corner asset: absolute overlay, sits behind the content stack ── */}
+      {/* Bottom-right corner asset */}
       <img
         src={tripSvg}
-        alt="Illustration d'une voyageuse avec ses bagages"
+        alt={t("home.howItWorks.travelerAlt")}
         style={{
           position: "absolute",
           bottom: 0,
           right: 0,
-          width: "clamp(176px, 22vw, 307px)", // ~20% smaller so the CTA leads
+          width: "clamp(176px, 22vw, 307px)",
           objectFit: "contain",
           objectPosition: "bottom right",
           zIndex: 0,
@@ -81,7 +65,7 @@ export default function HowItWorks() {
         }}
       />
 
-      {/* ── Centered vertical content stack ───────────────────────────────── */}
+      {/* Centered content stack */}
       <div
         style={{
           position: "relative",
@@ -97,7 +81,7 @@ export default function HowItWorks() {
         {/* Title */}
         <h2
           style={{
-            fontFamily: "'Satoshi', sans-serif", // match the Hero hook
+            fontFamily: "'Satoshi', sans-serif",
             fontWeight: 900,
             fontSize: "clamp(2rem, 5vw, 3.25rem)",
             lineHeight: 1.1,
@@ -107,11 +91,14 @@ export default function HowItWorks() {
             margin: "0 0 96px 0",
           }}
         >
-          Loyers trop chers ?
-          <br />
-          Essayez l&apos;échange
-          <br />
-          à la place.
+          {Array.isArray(headlineParts)
+            ? headlineParts.map((part, i) => (
+                <span key={i}>
+                  {part}
+                  {i < headlineParts.length - 1 && <br />}
+                </span>
+              ))
+            : headlineParts}
         </h2>
 
         {/* 3-step horizontal row */}
@@ -124,9 +111,9 @@ export default function HowItWorks() {
             marginBottom: "80px",
           }}
         >
-          {STEPS.map((step) => (
+          {(Array.isArray(steps) ? steps : []).map((step, i) => (
             <div
-              key={step.number}
+              key={i}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -134,7 +121,6 @@ export default function HowItWorks() {
                 textAlign: "left",
               }}
             >
-              {/* Soft hand-drawn serif badge (Going.com style) */}
               <span
                 style={{
                   display: "flex",
@@ -153,10 +139,9 @@ export default function HowItWorks() {
                   marginBottom: "16px",
                 }}
               >
-                {step.number}
+                {String(i + 1).padStart(2, "0")}
               </span>
 
-              {/* Step title */}
               <h3
                 style={{
                   fontFamily: HEADING_FONT,
@@ -170,7 +155,6 @@ export default function HowItWorks() {
                 {step.title}
               </h3>
 
-              {/* Step description */}
               <p
                 style={{
                   fontFamily: BODY_FONT,
@@ -188,12 +172,10 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        {/* Centered CTA — same brand MotionButton the Hero uses */}
-        <div
-          style={{ display: "flex", justifyContent: "center", width: "100%" }}
-        >
+        {/* CTA */}
+        <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
           <Link to="/register" style={{ display: "inline-block" }}>
-            <MotionButton label="Join for free" fillClassName="bg-[#adebb3]" />
+            <MotionButton label={t("home.howItWorks.cta")} fillClassName="bg-[#adebb3]" />
           </Link>
         </div>
       </div>

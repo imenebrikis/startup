@@ -201,7 +201,7 @@ export default function AddListing() {
   }, [id]);
 
   const handleFiles = (files) => {
-    const slots = 5 - existingImages.length - photos.length;
+    const slots = 20 - existingImages.length - photos.length;
     const accepted = Array.from(files).slice(0, slots);
     if (accepted.length === 0) return;
     const newPhotos = [...photos, ...accepted];
@@ -332,7 +332,6 @@ export default function AddListing() {
         if (!anyWilaya && destinationWilayas.length === 0) return t("addListing.errors.destinationRequired");
         break;
       case 9:
-        if (existingImages.length + photos.length < 3) return t("addListing.errors.photosRequired");
         break;
       default:
         break;
@@ -797,8 +796,8 @@ export default function AddListing() {
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s9.heading")}</h2>
-                  <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s9.hint")}</span>
                 </div>
+                {existingImages.length + photos.length < 20 && (
                 <label
                   htmlFor="photoUpload"
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -809,7 +808,6 @@ export default function AddListing() {
                     borderRadius: 16, background: dragOver ? "#F4FBF1" : "#FFFFFF",
                     padding: "28px 20px", textAlign: "center", display: "flex",
                     flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer",
-                    opacity: existingImages.length + photos.length >= 5 ? 0.5 : 1,
                   }}
                 >
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#E4F6E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#005B5B" }}>
@@ -819,25 +817,23 @@ export default function AddListing() {
                   <div style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s9.dropHint")}</div>
                   <input id="photoUpload" ref={fileInputRef} type="file" multiple accept="image/png,image/jpeg,image/jpg" style={{ display: "none" }} onChange={(e) => handleFiles(e.target.files)} />
                 </label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                )}
+                {[...existingImages, ...previews].length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                   {[...existingImages, ...previews].map((src, i) => (
-                    <div key={i} style={{ position: "relative", aspectRatio: 1, borderRadius: 14, overflow: "hidden", background: "#E5DFCE", border: "1px solid #D5E9D8" }}>
+                    <div key={i} style={{ position: "relative", aspectRatio: 1, borderRadius: 12, overflow: "hidden", background: "#E5DFCE", border: "1px solid #D5E9D8" }}>
                       <img src={src} alt={`Photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       <button
                         type="button"
                         onClick={() => removePhoto(i)}
-                        style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "#C0392B", color: "#fff", border: "2px solid #FFFFFF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                        style={{ position: "absolute", top: 5, right: 5, width: 20, height: 20, borderRadius: "50%", background: "#C0392B", color: "#fff", border: "2px solid #FFFFFF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                       >
                         <X style={{ width: 10, height: 10 }} />
                       </button>
                     </div>
                   ))}
-                  {Array.from({ length: Math.max(0, 3 - (existingImages.length + previews.length)) }).map((_, i) => (
-                    <div key={`empty-${i}`} style={{ aspectRatio: 1, borderRadius: 14, background: "#E4F6E6", border: "1px solid #D5E9D8", display: "flex", alignItems: "center", justifyContent: "center", color: "#8FD89A" }}>
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 5v14M5 12h14" /></svg>
-                    </div>
-                  ))}
                 </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s9.tour360Label")}</label>

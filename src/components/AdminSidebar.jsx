@@ -267,14 +267,6 @@ export default function AdminSidebar({
                   textTransform: "uppercase",
                 }}
               >
-                <span
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: "50%",
-                    background: "#ADEBB3",
-                  }}
-                />
                 Admin
               </span>
             </div>
