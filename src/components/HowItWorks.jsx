@@ -193,7 +193,7 @@ export default function HowItWorks() {
           style={{ display: "flex", justifyContent: "center", width: "100%" }}
         >
           <Link to="/register" style={{ display: "inline-block" }}>
-            <MotionButton label="Join for free" />
+            <MotionButton label="Join for free" fillClassName="bg-[#adebb3]" />
           </Link>
         </div>
       </div>

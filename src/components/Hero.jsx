@@ -8,10 +8,9 @@ import Logo from "./Logo";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
-
   { label: "How it works", to: "/#how-it-works" },
-
-  { label: "Parcourir", to: "/browse" },
+  { label: "Login", to: "/login" },
+  { label: "Sign Up", to: "/register" },
 ];
 
 export default function Hero() {
@@ -38,70 +37,40 @@ export default function Hero() {
 
     // corner illustrations leak over the navbar while scrolling.
 
-    <div className="w-full relative z-50 bg-[#ADEBB3]">
+    <div className="w-full relative z-50 bg-[#F3EEE0]">
       {/* ── Dynamic Navbar (Going.com layout): logo left, links + auth grouped
 
           on the right. Transparent at the top, deep teal once scrolled. ─── */}
 
       <nav
-        className={`fixed top-0 left-0 w-full z-[100] h-[62px] flex items-center transition-colors duration-300 ${
+        className={`fixed top-0 left-0 w-full z-[100] h-[84px] flex items-end pb-4 transition-colors duration-300 ${
           scrolled ? "bg-[#004949] shadow-md" : "bg-transparent"
         }`}
       >
-        {/* Split layout mirroring the Hero body below: 55% logo / 45% links,
-            so the nav aligns column-for-column with the headline and photo. */}
         <div className="w-full h-full flex flex-row">
-          {/* Left Nav Section (55%) — logo sits above the headline. */}
-          <div className="w-[55%] flex items-center justify-center">
-            <div className="w-full max-w-2xl px-8 lg:px-12">
-              <span className="inline-block">
-                <Logo to="/" size={24} color={scrolled ? "#ffffff" : "#0A3D3D"} />
-              </span>
-            </div>
+          {/* Left 55% — logo stays pinned above the headline */}
+          <div
+            className="w-[55%] flex items-center"
+            style={{ paddingLeft: "100px" }}
+          >
+            <Logo to="/" size={24} color={scrolled ? "#ffffff" : "#0A3D3D"} />
           </div>
 
-          {/* Right Nav Section (45%) — links align above the right-column photo.
-              Inline paddingRight matches the photo's right inset (reset kills pr-*). */}
-          <div
-            className="w-[45%] flex items-center justify-end pr-4 md:pr-8"
-            style={{ paddingRight: 16 }}
-          >
-            <div className="flex items-center gap-8 lg:gap-10">
-              <div className="hidden md:flex items-center gap-7 lg:gap-9">
-                {NAV_LINKS.map(({ label, to }) => (
-                  <Link
-                    key={label}
-                    to={to}
-                    className={`font-satoshi font-bold uppercase tracking-wide text-sm transition-colors duration-300 ${
-                      scrolled
-                        ? "text-white/90 hover:text-white"
-                        : "text-[#0A3D3D] hover:text-[#0A3D3D]"
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                ))}
-
-                <Link
-                  to="/login"
-                  className={`font-satoshi font-bold uppercase tracking-wide text-sm transition-colors duration-300 ${
-                    scrolled
-                      ? "text-white/90 hover:text-white"
-                      : "text-[#0A3D3D] hover:text-[#0A3D3D]"
-                  }`}
-                >
-                  Login
-                </Link>
-              </div>
-
-              {/* Auth button — left as-is per request (you'll style these later) */}
+          {/* Right 45% — links centered over the photo */}
+          <div className="w-[45%] flex items-center justify-evenly pr-6">
+            {NAV_LINKS.map(({ label, to }) => (
               <Link
-                to="/register"
-                className="bg-[#adebb3] text-[#005B5B] px-6 py-2.5 rounded-full font-bold hover:brightness-95 transition"
+                key={label}
+                to={to}
+                className={`font-satoshi font-bold uppercase tracking-wide text-sm transition-colors duration-300 ${
+                  scrolled
+                    ? "text-white/90 hover:text-white"
+                    : "text-[#0A3D3D] hover:text-[#0A3D3D]"
+                }`}
               >
-                Sign Up
+                {label}
               </Link>
-            </div>
+            ))}
           </div>
         </div>
       </nav>
