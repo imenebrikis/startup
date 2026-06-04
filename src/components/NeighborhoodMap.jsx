@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { MapContainer, TileLayer, Circle, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Circle, ZoomControl, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Maximize2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { WILAYA_COORDS } from "../data/wilaya-coords";
+
+const ALGERIA_BOUNDS = [
+  [18.9, -8.7],
+  [39.5, 12.0],
+];
+
+const OSM_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 function InvalidateOnMount() {
   const map = useMap();
@@ -24,7 +32,6 @@ const circleStyle = {
 };
 
 export default function NeighborhoodMap({ listing }) {
-  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   let lat = Number(listing?.latitude);
@@ -61,12 +68,11 @@ export default function NeighborhoodMap({ listing }) {
           dragging={false}
           keyboard={false}
           attributionControl={false}
+          maxBounds={ALGERIA_BOUNDS}
+          maxBoundsViscosity={1.0}
           style={{ height: "100%", width: "100%", pointerEvents: "none" }}
         >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-          />
+          <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
           <Circle center={center} radius={400} pathOptions={circleStyle} />
         </MapContainer>
 
@@ -87,7 +93,7 @@ export default function NeighborhoodMap({ listing }) {
         fontFamily: "'Inter', sans-serif", lineHeight: 1.5,
         margin: "10px 0 0 0",
       }}>
-        {t("details.privacyNotice")}
+        L'adresse exacte n'est pas communiquée pour protéger la vie privée.
       </p>
 
       {/* ── Full interactive dialog map ── */}
@@ -105,7 +111,7 @@ export default function NeighborhoodMap({ listing }) {
               borderRadius: "8px", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
             }}
           >
-            {t("details.neighborhoodMap")}
+            Carte du quartier
           </DialogTitle>
 
           <div style={{ height: "72vh" }}>
@@ -116,12 +122,13 @@ export default function NeighborhoodMap({ listing }) {
                 zoom={15}
                 scrollWheelZoom
                 dragging
+                zoomControl={false}
+                maxBounds={ALGERIA_BOUNDS}
+                maxBoundsViscosity={1.0}
                 style={{ height: "100%", width: "100%" }}
               >
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                  subdomains="abcd"
-                />
+                <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
+                <ZoomControl position="bottomright" />
                 <Circle center={center} radius={400} pathOptions={circleStyle} />
                 <InvalidateOnMount />
               </MapContainer>

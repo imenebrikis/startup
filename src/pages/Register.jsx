@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import Logo from "../components/Logo";
 
 
@@ -175,22 +176,75 @@ if (!document.head.querySelector("#dbd-styles")) {
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session) navigate("/profile", { replace: true });
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        navigate("/profile", { replace: true });
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  const isStrongPassword = (pwd) =>
+    pwd.length >= 8 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd);
+
   const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
-    await supabase.auth.signOut();
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      navigate("/dashboard");
+    setSuccess(null);
+
+    if (!isStrongPassword(password)) {
+      setError("Le mot de passe doit contenir au moins 8 caractères, une majuscule et un chiffre.");
+      return;
     }
+    if (password !== confirmPassword) {
+      setError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    setLoading(true);
+    await supabase.auth.signOut();
+    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setLoading(false);
+      return;
+    }
+
+    const user = data?.user;
+    const session = data?.session;
+
+    if (user && !session) {
+      setSuccess("Inscription réussie ! Veuillez vérifier votre boîte mail pour confirmer votre compte.");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+      setLoading(false);
+      return;
+    }
+
+    // Auto-confirm path: session exists, onAuthStateChange fires SIGNED_IN and the effect navigates.
   };
 
   const handleGoogle = async () => {
@@ -218,19 +272,8 @@ export default function Register() {
         }}
       >
         {/* Logo */}
-        <div
-          style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontSize: "30px",
-            fontWeight: "800",
-            color: "#0A3D3D",
-            letterSpacing: "-0.8px",
-            textAlign: "center",
-            marginBottom: "6px",
-            lineHeight: 1.1,
-          }}
-        >
-          <Logo size={30} color="#0A3D3D" />
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
+          <Logo size={38} accent="#ADEBB3" />
         </div>
 
         {/* Subtitle */}
@@ -272,18 +315,42 @@ export default function Register() {
           <div style={{ flex: 1, height: "1px", background: "#D6DDD6" }} />
         </div>
 
+        {/* Success */}
+        {success && (
+          <div
+            role="status"
+            style={{
+              background: "#E8F8EC",
+              border: "1.5px solid #6FCB7E",
+              borderRadius: "10px",
+              padding: "12px 16px",
+              fontSize: "13.5px",
+              color: "#0F6B2B",
+              marginBottom: "14px",
+              fontFamily: "'Inter', sans-serif",
+              lineHeight: 1.5,
+              fontWeight: 500,
+            }}
+          >
+            {success}
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div
+            role="alert"
             style={{
               background: "#FFF0F0",
-              border: "1px solid #FFCCCC",
+              border: "1.5px solid #E5484D",
               borderRadius: "10px",
-              padding: "10px 14px",
-              fontSize: "13px",
-              color: "#CC0000",
+              padding: "12px 16px",
+              fontSize: "13.5px",
+              color: "#B5001E",
               marginBottom: "14px",
               fontFamily: "'Inter', sans-serif",
+              lineHeight: 1.5,
+              fontWeight: 500,
             }}
           >
             {error}
@@ -314,16 +381,81 @@ export default function Register() {
             <input
               className="dbd-input"
               id="register-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder=" "
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="new-password"
+              style={{ paddingRight: 46 }}
             />
             <label className="dbd-label" htmlFor="register-password">
               Password
             </label>
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              tabIndex={-1}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#6A8A78",
+                borderRadius: 8,
+              }}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
+          {/* Confirm password field */}
+          <div className="dbd-field">
+            <input
+              className="dbd-input"
+              id="register-confirm-password"
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder=" "
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              style={{ paddingRight: 46 }}
+            />
+            <label className="dbd-label" htmlFor="register-confirm-password">
+              Confirmer le mot de passe
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((v) => !v)}
+              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              tabIndex={-1}
+              style={{
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#6A8A78",
+                borderRadius: 8,
+              }}
+            >
+              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
 
           {/* Continue button */}
@@ -334,7 +466,7 @@ export default function Register() {
             disabled={loading}
           >
             {loading && <span className="dbd-spinner" />}
-            {loading ? "Creating account…" : "Continue"}
+            {loading ? "Création..." : "Continue"}
           </button>
         </form>
 
