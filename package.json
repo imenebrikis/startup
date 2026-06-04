@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
+    "@photo-sphere-viewer/core": "^5.14.1",
     "@playwright/test": "^1.60.0",
     "@supabase/supabase-js": "^2.103.3",
     "@tailwindcss/vite": "^4.2.4",
@@ -31,6 +32,7 @@
     "react-i18next": "^17.0.8",
     "react-leaflet": "^5.0.0",
     "react-leaflet-cluster": "^4.1.3",
+    "react-photo-sphere-viewer": "^6.2.3",
     "react-router-dom": "^7.14.1",
     "shadcn": "^4.7.0",
     "sonner": "^2.0.7",

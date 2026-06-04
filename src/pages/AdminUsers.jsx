@@ -1,15 +1,19 @@
 import { useEffect, useState, useMemo } from "react";
+import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate, Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import Logo from "../components/Logo";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "../components/ui/sheet";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../components/ui/table";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 
 const PAGE_SIZE = 10;
 
@@ -40,8 +44,6 @@ function Stars({ rating }) {
 }
 
 function ReviewCard({ review, labelLine }) {
-  const { t, i18n } = useTranslation();
-  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   return (
     <div style={{
       padding: "12px 14px", borderRadius: 12,
@@ -50,11 +52,11 @@ function ReviewCard({ review, labelLine }) {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
         <Stars rating={review.rating} />
         <span style={{ fontSize: 11, color: "#98A3A0", fontFamily: "monospace", whiteSpace: "nowrap" }}>
-          {new Date(review.created_at).toLocaleDateString(dateLocale)}
+          {new Date(review.created_at).toLocaleDateString("fr-FR")}
         </span>
       </div>
       <p style={{ margin: "0 0 5px", fontSize: 13, color: "#0F2A2A", lineHeight: 1.5 }}>
-        {review.comment || <em style={{ color: "#98A3A0" }}>{t("admin.users.noComment")}</em>}
+        {review.comment || <em style={{ color: "#98A3A0" }}>Aucun commentaire</em>}
       </p>
       <p style={{ margin: 0, fontSize: 11.5, color: "#6E7B79" }}>{labelLine}</p>
     </div>
@@ -62,18 +64,18 @@ function ReviewCard({ review, labelLine }) {
 }
 
 export default function AdminUsers() {
-  const { t, i18n } = useTranslation();
-  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   const [users, setUsers] = useState([]);        // merged profile + email rows
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("tous");
   const [page, setPage] = useState(1);
+
+  const [togglingId, setTogglingId] = useState(null);
 
   // Sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -86,33 +88,35 @@ export default function AdminUsers() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/login"); return; }
+    if (!user) { navigate("/"); return; }
 
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    if (!profile || profile.role !== "admin") { setLoading(false); return; }
-
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
     setAdminProfile({ ...profile, email: user.email });
-    setAuthorized(true);
     await fetchData();
-    setLoading(false);
   }
 
   async function fetchData() {
-    const [
-      { data: profiles },
-      { data: emailRows },
-      { count: pending },
-    ] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.rpc("get_admin_users_email"),
-      supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    ]);
+    setDataLoading(true);
+    try {
+      const [
+        { data: profiles },
+        { data: emailRows },
+        { count: pending },
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.rpc("get_admin_users_email"),
+        supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      ]);
 
-    const emailMap = {};
-    emailRows?.forEach(r => { emailMap[r.id] = r.email; });
+      const emailMap = {};
+      emailRows?.forEach(r => { emailMap[r.id] = r.email; });
 
-    setUsers((profiles || []).map(p => ({ ...p, email: emailMap[p.id] || "—" })));
-    setPendingCount(pending || 0);
+      setUsers((profiles || []).map(p => ({ ...p, email: emailMap[p.id] || "—" })));
+      setPendingCount(pending || 0);
+    } finally {
+      setDataLoading(false);
+    }
   }
 
   async function openUserSheet(user) {
@@ -147,16 +151,51 @@ export default function AdminUsers() {
     setSheetLoading(false);
   }
 
+  async function toggleBan(user) {
+    const newBanned = !user.is_banned;
+    setTogglingId(user.id);
+
+    // Optimistic update
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: newBanned } : u));
+    setSelectedUser(s => s?.id === user.id ? { ...s, is_banned: newBanned } : s);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_banned: newBanned })
+      .eq("id", user.id);
+
+    setTogglingId(null);
+
+    if (error) {
+      // Rollback
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: user.is_banned } : u));
+      setSelectedUser(s => s?.id === user.id ? { ...s, is_banned: user.is_banned } : s);
+      toast.error("Échec de la mise à jour du statut.");
+    } else {
+      toast.success(newBanned ? "Compte suspendu avec succès." : "Compte réactivé avec succès.");
+    }
+  }
+
+  // Tab counts always derived from the full unfiltered list
+  const counts = useMemo(() => ({
+    tous: users.length,
+    actifs: users.filter(u => !u.is_banned).length,
+    suspendus: users.filter(u => u.is_banned).length,
+  }), [users]);
+
   // Filtered + paginated
   const filtered = useMemo(() => {
+    let result = users;
+    if (activeTab === "actifs") result = result.filter(u => !u.is_banned);
+    else if (activeTab === "suspendus") result = result.filter(u => u.is_banned);
     const q = searchQuery.toLowerCase();
-    if (!q) return users;
-    return users.filter(u =>
+    if (q) result = result.filter(u =>
       (u.full_name || "").toLowerCase().includes(q) ||
       (u.email || "").toLowerCase().includes(q) ||
       (u.wilaya || "").toLowerCase().includes(q)
     );
-  }, [users, searchQuery]);
+    return result;
+  }, [users, searchQuery, activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageUsers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -166,27 +205,9 @@ export default function AdminUsers() {
     setPage(1);
   }
 
-  // ---- Loading
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        {t("admin.loading")}
-      </div>
-    );
-  }
-
-  // ---- Unauthorized
-  if (!authorized) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>{t("admin.unauthorized.title")}</h2>
-        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>{t("admin.unauthorized.desc")}</p>
-        <button onClick={() => navigate("/dashboard")} style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#006E6E", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-          {t("admin.unauthorized.back")}
-        </button>
-      </div>
-    );
+  function handleTab(tab) {
+    setActiveTab(tab);
+    setPage(1);
   }
 
   return (
@@ -205,22 +226,19 @@ export default function AdminUsers() {
           backdropFilter: "blur(12px)", borderBottom: "1px solid #E5DFCE",
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
-            <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#006E6E", color: "#ADEBB3" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
-            </span>
-            <Logo size={14} color="#0F2A2A" />
+            DarBelDar
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",
               borderRadius: 999, background: "#006E6E", color: "#ADEBB3",
               fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
             }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-              {t("admin.badge")}
+              Admin
             </span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <Link to="/admin" style={{ color: "#6E7B79", textDecoration: "none" }}>{t("admin.dashboard")}</Link>
+            <Link to="/admin" style={{ color: "#6E7B79", textDecoration: "none" }}>Tableau de bord</Link>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.sidebar.users")}</b>
+            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Utilisateurs</b>
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{
@@ -228,7 +246,7 @@ export default function AdminUsers() {
               padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-              {t("admin.live")}
+              En direct
             </span>
           </div>
         </header>
@@ -237,9 +255,9 @@ export default function AdminUsers() {
 
           {/* Title */}
           <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>{t("admin.users.title")}</h1>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>Gestion des utilisateurs</h1>
             <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-              {t("admin.users.accountsCount", { count: users.length })}
+              {users.length} compte{users.length !== 1 ? "s" : ""} enregistré{users.length !== 1 ? "s" : ""} sur la plateforme
             </p>
           </div>
 
@@ -250,39 +268,97 @@ export default function AdminUsers() {
           }}>
 
             {/* Toolbar */}
-            <div style={{
-              padding: "16px 20px", display: "flex", alignItems: "center",
-              justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap",
-            }}>
-              <label style={{
-                display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px",
-                background: "#FAF7EC", border: "1px solid #E5DFCE", borderRadius: 12,
-                color: "#6E7B79", fontSize: 13.5, minWidth: 280,
+            <div style={{ borderBottom: "1px solid #E5DFCE" }}>
+
+              {/* Tab strip row */}
+              <div style={{ padding: "14px 20px 0", display: "flex", alignItems: "center", gap: 2 }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 2,
+                  padding: 3, borderRadius: 11, background: "#F3EEE0", border: "1px solid #E5DFCE",
+                }}>
+                  {[
+                    { key: "tous",      label: "Tous",      count: counts.tous },
+                    { key: "actifs",    label: "Actifs",    count: counts.actifs },
+                    { key: "suspendus", label: "Suspendus", count: counts.suspendus },
+                  ].map(({ key, label, count }) => {
+                    const isActive = activeTab === key;
+                    const isSuspendus = key === "suspendus";
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleTab(key)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 7,
+                          padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                          background: isActive ? "#FFFFFF" : "transparent",
+                          boxShadow: isActive
+                            ? "0 1px 4px rgba(15,42,42,.09), 0 1px 0 rgba(255,255,255,.9) inset"
+                            : "none",
+                          color: isActive ? "#0F2A2A" : "#6E7B79",
+                          fontSize: 13, fontWeight: isActive ? 600 : 500,
+                          transition: "all .15s",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
+                          background: isActive
+                            ? isSuspendus ? "#FDECEA" : "#E4F6E6"
+                            : "#E5DFCE",
+                          border: isActive
+                            ? isSuspendus ? "1px solid #F5C6C2" : "1px solid #C9E8CD"
+                            : "1px solid transparent",
+                          color: isActive
+                            ? isSuspendus ? "#C0392B" : "#006E6E"
+                            : "#98A3A0",
+                          fontSize: 10.5, fontWeight: 700, lineHeight: 1,
+                          transition: "all .15s",
+                        }}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Search + count row */}
+              <div style={{
+                padding: "12px 20px", display: "flex", alignItems: "center",
+                justifyContent: "space-between", gap: 12, flexWrap: "wrap",
               }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                <input
-                  value={searchQuery}
-                  onChange={e => handleSearch(e.target.value)}
-                  placeholder={t("admin.users.searchByNameEmail")}
-                  style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13.5 }}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => handleSearch("")}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#98A3A0", lineHeight: 1, padding: 0 }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                  </button>
-                )}
-              </label>
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
-                borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
-                color: "#006E6E", fontSize: 12.5, fontWeight: 600,
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#006E6E" }} />
-                {t("admin.users.countChip", { count: filtered.length })}
-              </span>
+                <label style={{
+                  display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px",
+                  background: "#FAF7EC", border: "1px solid #E5DFCE", borderRadius: 12,
+                  color: "#6E7B79", fontSize: 13.5, minWidth: 280,
+                }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  <input
+                    value={searchQuery}
+                    onChange={e => handleSearch(e.target.value)}
+                    placeholder="Rechercher par nom, email ou wilaya…"
+                    style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13.5 }}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => handleSearch("")}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#98A3A0", lineHeight: 1, padding: 0 }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                  )}
+                </label>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+                  borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
+                  color: "#006E6E", fontSize: 12.5, fontWeight: 600,
+                }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#006E6E" }} />
+                  {filtered.length} utilisateur{filtered.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
 
             {/* Table */}
@@ -290,30 +366,53 @@ export default function AdminUsers() {
               <TableHeader>
                 <TableRow>
                   <TableHead style={{ paddingLeft: 24, paddingRight: 16, color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    {t("admin.users.cols.user")}
+                    Utilisateur
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    {t("admin.users.cols.email")}
+                    Email
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    {t("admin.users.cols.phone")}
+                    Wilaya
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    {t("admin.users.cols.wilaya")}
-                  </TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500 }}>
-                    {t("admin.users.cols.registeredOn")}
+                    Inscrit le
                   </TableHead>
                   <TableHead style={{ color: "#98A3A0", fontSize: 11.5, letterSpacing: ".06em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 24 }}>
-                    {t("admin.users.cols.actions")}
+                    Actions
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageUsers.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell style={{ paddingLeft: 24, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                          <div className="flex flex-col gap-1.5">
+                            <Skeleton className="h-4 w-[120px]" />
+                            <Skeleton className="h-3.5 w-[80px]" />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-4 w-[180px]" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
+                        <Skeleton className="h-4 w-[80px]" />
+                      </TableCell>
+                      <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 24, textAlign: "right" }}>
+                        <Skeleton className="h-8 w-20 rounded-full ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : pageUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "40px 24px", color: "#6E7B79", fontSize: 14 }}>
-                      {searchQuery ? t("admin.users.emptySearch") : t("admin.users.emptyNoResults")}
+                      {searchQuery ? "Aucun utilisateur correspond à cette recherche." : "Aucun utilisateur trouvé."}
                     </TableCell>
                   </TableRow>
                 ) : pageUsers.map((user, i) => {
@@ -336,13 +435,28 @@ export default function AdminUsers() {
                             <div style={{ fontWeight: 600, color: "#0F2A2A", fontSize: 13.5, letterSpacing: "-.003em" }}>
                               {user.full_name || "—"}
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                              {isAdmin && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
+                              {isAdmin ? (
                                 <span style={{
                                   display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px",
                                   borderRadius: 999, background: "#006E6E", color: "#ADEBB3",
                                   fontSize: 10, fontWeight: 700, letterSpacing: ".05em",
-                                }}>{t("admin.role.admin")}</span>
+                                }}>Admin</span>
+                              ) : (
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px",
+                                  borderRadius: 999,
+                                  background: user.is_banned ? "#FDECEA" : "#E4F6E6",
+                                  border: `1px solid ${user.is_banned ? "#F5C6C2" : "#C9E8CD"}`,
+                                  color: user.is_banned ? "#C0392B" : "#006E6E",
+                                  fontSize: 10, fontWeight: 700, letterSpacing: ".05em",
+                                }}>
+                                  <span style={{
+                                    width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+                                    background: user.is_banned ? "#C0392B" : "#006E6E",
+                                  }} />
+                                  {user.is_banned ? "Suspendu" : "Actif"}
+                                </span>
                               )}
                               <span style={{ fontSize: 11, color: "#98A3A0", fontFamily: "monospace" }}>#{user.id.slice(0, 8)}</span>
                             </div>
@@ -353,11 +467,6 @@ export default function AdminUsers() {
                       {/* Email */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79" }}>
                         {user.email}
-                      </TableCell>
-
-                      {/* Téléphone */}
-                      <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79" }}>
-                        {user.phone || <span style={{ color: "#D8D0B8" }}>—</span>}
                       </TableCell>
 
                       {/* Wilaya */}
@@ -376,25 +485,62 @@ export default function AdminUsers() {
 
                       {/* Inscrit le */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, fontSize: 13, color: "#6E7B79", fontFamily: "monospace" }}>
-                        {user.created_at ? new Date(user.created_at).toLocaleDateString(dateLocale) : "—"}
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString("fr-FR") : "—"}
                       </TableCell>
 
                       {/* Actions */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 24, textAlign: "right" }}>
-                        <button
-                          onClick={() => openUserSheet(user)}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 7, padding: "7px 14px",
-                            borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
-                            color: "#006E6E", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                            transition: "background .15s",
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#ADEBB3"}
-                          onMouseLeave={e => e.currentTarget.style.background = "#E4F6E6"}
-                        >
-                          {t("admin.users.viewProfile")}
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px",
+                                borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
+                                color: "#006E6E", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                              }}
+                            >
+                              Actions
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" style={{ minWidth: 180 }}>
+                            <DropdownMenuItem onSelect={() => openUserSheet(user)} style={{ cursor: "pointer" }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                              Voir profil
+                            </DropdownMenuItem>
+                            {!isAdmin && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() => toggleBan(user)}
+                                  disabled={togglingId === user.id}
+                                  style={{
+                                    cursor: togglingId === user.id ? "not-allowed" : "pointer",
+                                    color: user.is_banned ? "#006E6E" : "#C0392B",
+                                    opacity: togglingId === user.id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {togglingId === user.id ? (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 8, animation: "spin .7s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                                      Mise à jour…
+                                    </>
+                                  ) : user.is_banned ? (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z"/><path d="M8 12l3 3 5-5"/></svg>
+                                      Réactiver le compte
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ marginRight: 8 }}><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+                                      Suspendre le compte
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
@@ -409,7 +555,7 @@ export default function AdminUsers() {
               fontSize: 12.5, color: "#6E7B79",
             }}>
               <span>
-                {t("admin.users.pageFooter", { count: filtered.length, range: filtered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}` })}
+                {filtered.length === 0 ? "0" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}`} sur <b style={{ color: "#0F2A2A" }}>{filtered.length}</b> utilisateur{filtered.length !== 1 ? "s" : ""}
               </span>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <button
@@ -489,7 +635,7 @@ export default function AdminUsers() {
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <SheetTitle style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700, margin: 0 }}>
-                      {selectedUser.full_name || t("admin.activity.userFallback")}
+                      {selectedUser.full_name || "Utilisateur"}
                     </SheetTitle>
                     <SheetDescription style={{ color: "rgba(173,235,179,.85)", margin: "4px 0 0", fontSize: 13 }}>
                       {selectedUser.email}
@@ -501,7 +647,7 @@ export default function AdminUsers() {
                         background: "rgba(173,235,179,.2)", border: "1px solid rgba(173,235,179,.35)",
                         color: "#ADEBB3", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em",
                       }}>
-                        ✦ {t("admin.users.administrator")}
+                        ✦ Administrateur
                       </span>
                     )}
                   </div>
@@ -513,14 +659,13 @@ export default function AdminUsers() {
                 {/* Basic Info Grid */}
                 <section>
                   <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                    {t("admin.users.information")}
+                    Informations
                   </h3>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {[
-                      { label: t("admin.users.cols.wilaya"), value: selectedUser.wilaya || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg> },
-                      { label: t("admin.users.cols.phone"), value: selectedUser.phone || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 5.5 5.5l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> },
-                      { label: t("admin.users.cols.registeredOn"), value: selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }) : "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
-                      { label: t("admin.users.neighborhood"), value: selectedUser.quartier || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg> },
+                      { label: "Wilaya", value: selectedUser.wilaya || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg> },
+                      { label: "Inscrit le", value: selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
+                      { label: "Quartier", value: selectedUser.quartier || "—", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg> },
                     ].map(({ label, value, icon }) => (
                       <div key={label} style={{ padding: "12px 14px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#6E7B79", marginBottom: 5, fontSize: 11.5, fontWeight: 500 }}>
@@ -543,7 +688,7 @@ export default function AdminUsers() {
                     }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    {t("admin.users.viewPublicProfile")}
+                    Voir profil public
                   </Link>
                 </section>
 
@@ -551,7 +696,7 @@ export default function AdminUsers() {
                 <section>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                      {t("admin.users.reviewsReceived")}
+                      Avis reçus
                     </h3>
                     <span style={{
                       padding: "3px 10px", borderRadius: 999,
@@ -562,10 +707,10 @@ export default function AdminUsers() {
                     </span>
                   </div>
                   {sheetLoading ? (
-                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>{t("admin.loading")}</div>
+                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>Chargement…</div>
                   ) : receivedReviews.length === 0 ? (
                     <div style={{ padding: "18px 16px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>
-                      {t("admin.users.noReviewsReceived")}
+                      Aucun avis reçu pour ce moment.
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -573,7 +718,7 @@ export default function AdminUsers() {
                         <ReviewCard
                           key={r.id}
                           review={r}
-                          labelLine={t("admin.users.reviewByLine", { name: r.profiles?.full_name || t("admin.activity.unknown"), listing: r.listings?.title || "" })}
+                          labelLine={`Par ${r.profiles?.full_name || "Inconnu"} · ${r.listings?.title || ""}`}
                         />
                       ))}
                     </div>
@@ -584,7 +729,7 @@ export default function AdminUsers() {
                 <section>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#98A3A0" }}>
-                      {t("admin.users.reviewsGiven")}
+                      Avis laissés
                     </h3>
                     <span style={{
                       padding: "3px 10px", borderRadius: 999,
@@ -595,10 +740,10 @@ export default function AdminUsers() {
                     </span>
                   </div>
                   {sheetLoading ? (
-                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>{t("admin.loading")}</div>
+                    <div style={{ padding: "20px 0", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>Chargement…</div>
                   ) : givenReviews.length === 0 ? (
                     <div style={{ padding: "18px 16px", borderRadius: 12, background: "#FAF7EC", border: "1px solid #E5DFCE", textAlign: "center", color: "#98A3A0", fontSize: 13 }}>
-                      {t("admin.users.noReviewsGiven")}
+                      Aucun avis laissé pour ce moment.
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -606,7 +751,7 @@ export default function AdminUsers() {
                         <ReviewCard
                           key={r.id}
                           review={r}
-                          labelLine={t("admin.users.reviewOnLine", { listing: r.listings?.title || t("admin.users.unknownListing") })}
+                          labelLine={`Sur l'annonce · ${r.listings?.title || "Annonce inconnue"}`}
                         />
                       ))}
                     </div>
@@ -619,7 +764,7 @@ export default function AdminUsers() {
         </SheetContent>
       </Sheet>
 
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
 import { Sheet, SheetContent } from "../components/ui/sheet";
@@ -13,46 +12,44 @@ function initials(name) {
   return (p[0][0] + (p[1]?.[0] || "")).toUpperCase();
 }
 
-// Date/price helpers take the active locale (and `t` for word-based labels) so
-// timestamps and ranges follow the current language.
-function fmtDate(s, locale = "fr-FR") {
+function fmtDate(s) {
   if (!s) return "—";
-  return new Date(s).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+  return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function fmtRelative(s, t, locale = "fr-FR") {
+function fmtRelative(s) {
   if (!s) return "—";
   const diff = Date.now() - new Date(s).getTime();
   const min = Math.floor(diff / 60000);
-  if (min < 1) return t("admin.time.now");
-  if (min < 60) return t("admin.time.minutesAgo", { count: min });
+  if (min < 1) return "À l'instant";
+  if (min < 60) return `Il y a ${min} min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return t("admin.time.hoursAgo", { count: h });
-  if (Math.floor(h / 24) === 1) return t("admin.time.yesterday");
-  return fmtDate(s, locale);
+  if (h < 24) return `Il y a ${h} h`;
+  if (Math.floor(h / 24) === 1) return "Hier";
+  return fmtDate(s);
 }
 
-function fmtDateRange(from, to, t, locale = "fr-FR") {
+function fmtDateRange(from, to) {
   if (!from && !to) return null;
   const parse = s => new Date(s + "T00:00:00");
-  const dayFmt   = d => d.getDate();
-  const monthStr = d => d.toLocaleDateString(locale, { month: "long" });
-  const yearFmt  = d => d.getFullYear();
+  const dayFmt  = d => d.getDate();
+  const monthFr = d => d.toLocaleDateString("fr-FR", { month: "long" });
+  const yearFmt = d => d.getFullYear();
   if (from && to) {
     const dFrom = parse(from);
     const dTo   = parse(to);
     if (dFrom.getMonth() === dTo.getMonth() && dFrom.getFullYear() === dTo.getFullYear()) {
-      return `${dayFmt(dFrom)} – ${dayFmt(dTo)} ${monthStr(dTo)} ${yearFmt(dTo)}`;
+      return `${dayFmt(dFrom)} – ${dayFmt(dTo)} ${monthFr(dTo)} ${yearFmt(dTo)}`;
     }
-    return `${dayFmt(dFrom)} ${monthStr(dFrom)} – ${dayFmt(dTo)} ${monthStr(dTo)} ${yearFmt(dTo)}`;
+    return `${dayFmt(dFrom)} ${monthFr(dFrom)} – ${dayFmt(dTo)} ${monthFr(dTo)} ${yearFmt(dTo)}`;
   }
-  if (from) return t("admin.transactions.dateFrom", { date: `${dayFmt(parse(from))} ${monthStr(parse(from))} ${yearFmt(parse(from))}` });
-  return t("admin.transactions.dateUntil", { date: `${dayFmt(parse(to))} ${monthStr(parse(to))} ${yearFmt(parse(to))}` });
+  if (from) return `À partir du ${dayFmt(parse(from))} ${monthFr(parse(from))} ${yearFmt(parse(from))}`;
+  return `Jusqu'au ${dayFmt(parse(to))} ${monthFr(parse(to))} ${yearFmt(parse(to))}`;
 }
 
-function fmtPrice(p, locale = "fr-DZ") {
+function fmtPrice(p) {
   if (!p) return null;
-  return new Intl.NumberFormat(locale === "en-US" ? "en-US" : "fr-DZ").format(p) + " DA";
+  return new Intl.NumberFormat("fr-DZ").format(p) + " DA";
 }
 
 const TONES = [
@@ -71,9 +68,9 @@ function toneFor(name) {
 }
 
 const STATUS = {
-  pending:  { labelKey: "admin.transactions.status.pending",  bg: "#FFFBEB", color: "#92400E", border: "#FDE68A", dot: "#F59E0B" },
-  accepted: { labelKey: "admin.transactions.status.accepted", bg: "#F0FDF4", color: "#166534", border: "#BBF7D0", dot: "#22C55E" },
-  rejected: { labelKey: "admin.transactions.status.rejected", bg: "#FFF1F2", color: "#9F1239", border: "#FECDD3", dot: "#F43F5E" },
+  pending:  { label: "En attente", bg: "#FFFBEB", color: "#92400E", border: "#FDE68A", dot: "#F59E0B" },
+  accepted: { label: "Accepté",    bg: "#F0FDF4", color: "#166534", border: "#BBF7D0", dot: "#22C55E" },
+  rejected: { label: "Refusé",     bg: "#FFF1F2", color: "#9F1239", border: "#FECDD3", dot: "#F43F5E" },
 };
 
 const PAGE_SIZE = 12;
@@ -98,20 +95,18 @@ function PinSvg({ size = 9 }) {
 }
 
 function TypePill({ type }) {
-  const { t } = useTranslation();
   const isE = type === "echange";
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, border: "1px solid", background: isE ? "#F5F3FF" : "#F0FDF4", color: isE ? "#6D28D9" : "#15803D", borderColor: isE ? "#DDD6FE" : "#BBF7D0" }}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
         {isE ? <><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></> : <><path d="M6 4h11l3 4v12H5V8z"/><path d="M4 8h16"/></>}
       </svg>
-      {isE ? t("admin.transactions.exchange") : t("admin.transactions.sale")}
+      {isE ? "Échange" : "Vente"}
     </span>
   );
 }
 
 function StatusPill({ status, pulse }) {
-  const { t } = useTranslation();
   const s = STATUS[status] || STATUS.pending;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
@@ -120,7 +115,7 @@ function StatusPill({ status, pulse }) {
         : status === "accepted"
         ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
         : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>}
-      {t(s.labelKey)}
+      {s.label}
     </span>
   );
 }
@@ -144,30 +139,38 @@ function SectionLabel({ children }) {
 }
 
 // ─── Property card used inside sheets ────────────────────────────────────────
-function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
-  const { t, i18n } = useTranslation();
-  const priceLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-DZ";
+function PropCard({ listing, label, ownerName, ownerRole }) {
+  const navigate = useNavigate();
   if (!listing) return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F8FAFC" }}>
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F8FAFC", height: "100%" }}>
       <div style={{ height: 110, display: "grid", placeItems: "center", color: "#94A3B8" }}>
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg>
       </div>
       <div style={{ padding: "10px 12px" }}>
-        <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>{t("admin.transactions.listingUnavailable")}</div>
+        <div style={{ fontSize: 12, color: "#94A3B8", fontStyle: "italic" }}>Annonce non disponible</div>
       </div>
     </div>
   );
 
   return (
-    <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
-      {/* Image */}
+    <div
+      role="button"
+      tabIndex={0}
+      title="Voir l'annonce"
+      onClick={() => navigate(`/listing/${listing.id}`)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/listing/${listing.id}`); } }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#006E6E"; e.currentTarget.style.boxShadow = "0 6px 18px -12px rgba(0,110,110,.45)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }}
+      style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff", height: "100%", cursor: "pointer", transition: "border-color .12s, box-shadow .12s", outline: "none" }}
+    >
+      {/* Image — fixed height keeps both cards' aspect ratio identical */}
       <div style={{ height: 120, background: "#F1F5F9", position: "relative", overflow: "hidden", flexShrink: 0 }}>
         {listing.images?.[0]
           ? <img src={listing.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg></div>}
         {label && (
           <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "rgba(255,255,255,.95)", color: "#0F172A", border: "1px solid #E2E8F0", letterSpacing: ".03em" }}>
-            {labelEmoji} {label}
+            {label}
           </span>
         )}
       </div>
@@ -183,8 +186,8 @@ function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
         <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", alignItems: "center", gap: 4 }}>
           <PinSvg /> {listing.wilaya}{listing.rooms ? ` · ${listing.rooms} ch.` : ""}
         </div>
-        {listing.price && (
-          <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtPrice(listing.price, priceLocale)}</div>
+        {listing.price > 0 && (
+          <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{fmtPrice(listing.price)}</div>
         )}
       </div>
     </div>
@@ -193,9 +196,7 @@ function PropCard({ listing, label, labelEmoji, ownerName, ownerRole }) {
 
 // ─── Sheet for a VENTE row ────────────────────────────────────────────────────
 function VenteSheet({ tx, onClose }) {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
-  const priceLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-DZ";
+  const navigate = useNavigate();
   // undefined = loading, null = no message found, object = first message row
   const [firstMsg, setFirstMsg] = useState(undefined);
 
@@ -226,13 +227,13 @@ function VenteSheet({ tx, onClose }) {
     <>
       <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <span style={{ fontSize: 10.5, color: "#64748B", textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 600 }}>{t("admin.transactions.purchaseRequest")}</span>
+          <span style={{ fontSize: 10.5, color: "#64748B", textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 600 }}>Demande d'achat</span>
           <h3 style={{ margin: "5px 0 0", fontSize: 17, fontWeight: 700, color: "#0F172A", fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1.2 }}>
             {tx.listing?.title || "—"}
           </h3>
           <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
             <StatusPill status={tx.status} pulse />
-            <span style={{ fontSize: 11.5, color: "#94A3B8", fontFamily: "monospace" }}>{fmtDate(tx.created_at, locale)}</span>
+            <span style={{ fontSize: 11.5, color: "#94A3B8", fontFamily: "monospace" }}>{fmtDate(tx.created_at)}</span>
           </div>
         </div>
         <CloseBtn onClick={onClose} />
@@ -251,34 +252,46 @@ function VenteSheet({ tx, onClose }) {
           </span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-              {tx.status === "pending" ? t("admin.transactions.vente.pending") : tx.status === "accepted" ? t("admin.transactions.vente.accepted") : t("admin.transactions.vente.rejected")}
+              {tx.status === "pending" ? "En attente de réponse du vendeur" : tx.status === "accepted" ? "Demande acceptée" : "Demande refusée"}
             </div>
-            <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 1 }}>{fmtRelative(tx.created_at, t, locale)}</div>
+            <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 1 }}>{fmtRelative(tx.created_at)}</div>
           </div>
         </div>
 
         {/* Target property */}
         <div>
-          <SectionLabel>{t("admin.transactions.targetProperty")}</SectionLabel>
-          <div style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+          <SectionLabel>Bien visé</SectionLabel>
+          <div
+            role={tx.listing?.id ? "button" : undefined}
+            tabIndex={tx.listing?.id ? 0 : undefined}
+            title={tx.listing?.id ? "Voir l'annonce" : undefined}
+            onClick={tx.listing?.id ? () => navigate(`/listing/${tx.listing.id}`) : undefined}
+            onKeyDown={tx.listing?.id ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/listing/${tx.listing.id}`); } }) : undefined}
+            onMouseEnter={tx.listing?.id ? (e => { e.currentTarget.style.borderColor = "#006E6E"; e.currentTarget.style.boxShadow = "0 6px 18px -12px rgba(0,110,110,.45)"; }) : undefined}
+            onMouseLeave={tx.listing?.id ? (e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }) : undefined}
+            style={{ border: "1px solid #E2E8F0", borderRadius: 14, overflow: "hidden", background: "#fff", cursor: tx.listing?.id ? "pointer" : "default", transition: "border-color .12s, box-shadow .12s", outline: "none" }}
+          >
             <div style={{ height: 180, background: "#F1F5F9", position: "relative", overflow: "hidden" }}>
               {tx.listing?.images?.[0]
                 ? <img src={tx.listing.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 : <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4"><path d="M4 11l8-7 8 7v9H4z"/></svg></div>}
               {tx.listing?.is_verified && (
-                <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>{t("admin.transactions.verified")}</span>
+                <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="m5 12 5 5 9-11"/></svg>
+                  Vérifié
+                </span>
               )}
             </div>
             <div style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>{tx.listing?.title || "—"}</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12.5, color: "#475569" }}>
                 {tx.listing?.wilaya && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><PinSvg size={11} />{tx.listing.wilaya}</span>}
-                {tx.listing?.rooms && <span>{t("admin.transactions.bedrooms", { count: tx.listing.rooms })}</span>}
-                {tx.listing?.size && <span>{tx.listing.size} m²</span>}
+                {tx.listing?.rooms > 0 && <span>{tx.listing.rooms} chambre{tx.listing.rooms > 1 ? "s" : ""}</span>}
+                {tx.listing?.size > 0 && <span>{tx.listing.size} m²</span>}
               </div>
-              {tx.listing?.price && (
+              {tx.listing?.price > 0 && (
                 <div style={{ marginTop: 10, fontSize: 18, fontWeight: 800, color: "#0F172A", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-                  {fmtPrice(tx.listing.price, priceLocale)}
+                  {fmtPrice(tx.listing.price)}
                 </div>
               )}
             </div>
@@ -287,13 +300,13 @@ function VenteSheet({ tx, onClose }) {
 
         {/* Buyer info */}
         <div>
-          <SectionLabel>{t("admin.transactions.buyer")}</SectionLabel>
+          <SectionLabel>Acheteur</SectionLabel>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
             <Avatar name={tx.requester?.full_name} size={42} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{tx.requester?.full_name || "—"}</div>
               <div style={{ fontSize: 12, color: "#64748B", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-                <PinSvg size={10} /> {tx.requester?.wilaya || t("admin.transactions.wilayaNotProvided")}
+                <PinSvg size={10} /> {tx.requester?.wilaya || "Wilaya non renseignée"}
               </div>
             </div>
           </div>
@@ -301,13 +314,13 @@ function VenteSheet({ tx, onClose }) {
 
         {/* Seller / Récepteur */}
         <div>
-          <SectionLabel>{t("admin.transactions.sellerReceiver")}</SectionLabel>
+          <SectionLabel>Vendeur (Récepteur)</SectionLabel>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
             <Avatar name={tx.receiver?.full_name} size={42} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>{tx.receiver?.full_name || "—"}</div>
               <div style={{ fontSize: 12, color: "#64748B", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-                <PinSvg size={10} /> {tx.receiver?.wilaya || t("admin.transactions.wilayaNotProvided")}
+                <PinSvg size={10} /> {tx.receiver?.wilaya || "Wilaya non renseignée"}
               </div>
             </div>
           </div>
@@ -315,18 +328,18 @@ function VenteSheet({ tx, onClose }) {
 
         {/* First message from chat */}
         <div>
-          <SectionLabel>{t("admin.transactions.initialMessage")}</SectionLabel>
+          <SectionLabel>Message initial</SectionLabel>
           <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
             {firstMsg === undefined ? (
-              <span style={{ fontSize: 13, color: "#CBD5E1" }}>{t("admin.loading")}</span>
+              <span style={{ fontSize: 13, color: "#CBD5E1" }}>Chargement…</span>
             ) : firstMsg === null ? (
-              <span style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>{t("admin.transactions.noMessageYet")}</span>
+              <span style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>Aucun message envoyé pour l'instant.</span>
             ) : (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <Avatar name={tx.requester?.full_name} size={24} />
                   <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>{tx.requester?.full_name}</span>
-                  <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: "auto", fontFamily: "monospace" }}>{fmtDate(firstMsg.created_at, locale)}</span>
+                  <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: "auto", fontFamily: "monospace" }}>{fmtDate(firstMsg.created_at)}</span>
                 </div>
                 <p style={{ margin: 0, fontSize: 13, color: "#334155", lineHeight: 1.6 }}>{firstMsg.content}</p>
               </>
@@ -340,12 +353,11 @@ function VenteSheet({ tx, onClose }) {
 
 // ─── Sheet for an ÉCHANGE row ─────────────────────────────────────────────────
 function EchangeSheet({ tx, onClose }) {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const [msgCount, setMsgCount] = useState(null);
 
   const st = STATUS[tx.status] || STATUS.pending;
-  const dateRange = fmtDateRange(tx.start_date, tx.end_date, t, locale);
+  // Show the availability window the receiver chose for the requested house.
+  const dateRange = fmtDateRange(tx.listing?.available_from, tx.listing?.available_to);
 
   // Derive itinerary from profile wilaya, fall back to the listing's wilaya
   const fromWilaya = tx.requester?.wilaya || tx.offered_house?.wilaya;
@@ -374,13 +386,13 @@ function EchangeSheet({ tx, onClose }) {
     <>
       <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <span style={{ fontSize: 10.5, color: "#64748B", textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 600 }}>{t("admin.transactions.exchangeRequest")}</span>
+          <span style={{ fontSize: 10.5, color: "#64748B", textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 600 }}>Demande d'échange</span>
           <h3 style={{ margin: "5px 0 0", fontSize: 17, fontWeight: 700, color: "#0F172A", fontFamily: "'Bricolage Grotesque', sans-serif", lineHeight: 1.2 }}>
             {tx.requester?.full_name || "—"} → {tx.receiver?.full_name || "—"}
           </h3>
           <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
             <StatusPill status={tx.status} pulse />
-            <span style={{ fontSize: 11.5, color: "#94A3B8", fontFamily: "monospace" }}>{fmtDate(tx.created_at, locale)}</span>
+            <span style={{ fontSize: 11.5, color: "#94A3B8", fontFamily: "monospace" }}>{fmtDate(tx.created_at)}</span>
           </div>
         </div>
         <CloseBtn onClick={onClose} />
@@ -399,41 +411,39 @@ function EchangeSheet({ tx, onClose }) {
           </span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-              {tx.status === "pending" ? t("admin.transactions.echange.pending") : tx.status === "accepted" ? t("admin.transactions.echange.accepted") : t("admin.transactions.echange.rejected")}
+              {tx.status === "pending" ? "En attente de réponse" : tx.status === "accepted" ? "Échange accepté" : "Échange refusé"}
             </div>
-            <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 1 }}>{fmtRelative(tx.created_at, t, locale)}</div>
+            <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 1 }}>{fmtRelative(tx.created_at)}</div>
           </div>
         </div>
 
         {/* Two properties side by side */}
         <div>
-          <SectionLabel>{t("admin.transactions.propertiesInvolved")}</SectionLabel>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center" }}>
+          <SectionLabel>Logements concernés</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "stretch" }}>
             <PropCard
               listing={tx.offered_house}
-              label={t("admin.transactions.proposedListing")}
-              labelEmoji="🔄"
+              label="Logement Proposé"
               ownerName={tx.requester?.full_name}
-              ownerRole={t("admin.transactions.requester")}
+              ownerRole="Demandeur"
             />
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <span style={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", background: "#ADEBB3", color: "#006E6E", border: "1px solid #86EFAC", boxShadow: "0 2px 8px -4px rgba(0,110,110,.35)" }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>
               </span>
             </div>
             <PropCard
               listing={tx.listing}
-              label={t("admin.transactions.desiredListing")}
-              labelEmoji="🏡"
+              label="Logement Souhaité"
               ownerName={tx.receiver?.full_name}
-              ownerRole={t("admin.transactions.receiver")}
+              ownerRole="Récepteur"
             />
           </div>
         </div>
 
         {/* CONDITIONS grid — matches screenshot layout */}
         <div>
-          <SectionLabel>{t("admin.transactions.conditions")}</SectionLabel>
+          <SectionLabel>Conditions</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 
             {/* FENÊTRE PROPOSÉE */}
@@ -442,9 +452,9 @@ function EchangeSheet({ tx, onClose }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
               </span>
               <div>
-                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>{t("admin.transactions.proposedWindow")}</div>
+                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>Période</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", lineHeight: 1.3 }}>
-                  {dateRange || t("admin.transactions.notSpecified")}
+                  {dateRange || "Dates flexibles"}
                 </div>
               </div>
             </div>
@@ -455,11 +465,11 @@ function EchangeSheet({ tx, onClose }) {
                 <PinSvg size={13} />
               </span>
               <div>
-                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>{t("admin.transactions.itinerary")}</div>
+                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>Itinéraire</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", lineHeight: 1.3 }}>
                   {fromWilaya && toWilaya
                     ? <>{fromWilaya} <span style={{ color: "#94A3B8", fontWeight: 400, margin: "0 2px" }}>—</span> {toWilaya}</>
-                    : fromWilaya || toWilaya || t("admin.transactions.notProvided")}
+                    : fromWilaya || toWilaya || "Non renseigné"}
                 </div>
               </div>
             </div>
@@ -470,11 +480,11 @@ function EchangeSheet({ tx, onClose }) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </span>
               <div>
-                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>{t("admin.transactions.messages")}</div>
+                <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 700, marginBottom: 3 }}>Messages</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
                   {msgCount === null
                     ? <span style={{ color: "#CBD5E1" }}>—</span>
-                    : t("admin.transactions.exchangedCount", { count: msgCount })}
+                    : `${msgCount} échangé${msgCount !== 1 ? "s" : ""}`}
                 </div>
               </div>
             </div>
@@ -484,15 +494,15 @@ function EchangeSheet({ tx, onClose }) {
 
         {/* Participants */}
         <div>
-          <SectionLabel>{t("admin.transactions.participants")}</SectionLabel>
+          <SectionLabel>Participants</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[{ profile: tx.requester, role: t("admin.transactions.requester") }, { profile: tx.receiver, role: t("admin.transactions.receiver") }].map(({ profile, role }) => (
+            {[{ profile: tx.requester, role: "Demandeur" }, { profile: tx.receiver, role: "Récepteur" }].map(({ profile, role }) => (
               <div key={role} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
                 <Avatar name={profile?.full_name} size={38} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A" }}>{profile?.full_name || "—"}</div>
                   <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
-                    {role} · {profile?.wilaya || t("admin.transactions.wilayaNotProvided")}
+                    {role} · {profile?.wilaya || "Wilaya non renseignée"}
                   </div>
                 </div>
               </div>
@@ -503,12 +513,12 @@ function EchangeSheet({ tx, onClose }) {
         {/* Message */}
         {tx.message && (
           <div>
-            <SectionLabel>{t("admin.transactions.requesterMessage")}</SectionLabel>
+            <SectionLabel>Message du demandeur</SectionLabel>
             <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <Avatar name={tx.requester?.full_name} size={24} />
                 <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>{tx.requester?.full_name}</span>
-                <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: "auto", fontFamily: "monospace" }}>{fmtDate(tx.created_at, locale)}</span>
+                <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: "auto", fontFamily: "monospace" }}>{fmtDate(tx.created_at)}</span>
               </div>
               <p style={{ margin: 0, fontSize: 13, color: "#334155", lineHeight: 1.6 }}>{tx.message}</p>
             </div>
@@ -521,8 +531,6 @@ function EchangeSheet({ tx, onClose }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function AdminTransactions() {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -541,7 +549,7 @@ export default function AdminTransactions() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/login"); return; }
+    if (!user) { navigate("/"); return; }
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!profile || profile.role !== "admin") { setLoading(false); return; }
     setAdminProfile({ ...profile, email: user.email });
@@ -558,7 +566,7 @@ export default function AdminTransactions() {
           *,
           requester:profiles!exchanges_requester_id_fkey(id, full_name, wilaya, created_at, avatar_url, is_premium),
           receiver:profiles!exchanges_receiver_id_fkey(id, full_name, wilaya, created_at, avatar_url, is_premium),
-          listing:listings!exchanges_listing_id_fkey(id, title, wilaya, city, quartier, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price),
+          listing:listings!exchanges_listing_id_fkey(id, title, wilaya, city, quartier, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price, available_from, available_to),
           offered_house:listings!exchanges_offered_house_id_fkey(id, title, wilaya, rooms, size, images, is_for_sale, is_for_exchange, is_verified, price)
         `)
         .order("created_at", { ascending: false }),
@@ -623,11 +631,11 @@ export default function AdminTransactions() {
           <nav style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#94A3B8" }}>
             <span style={{ color: "#64748B" }}>Admin</span>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <span style={{ color: "#0F172A", fontWeight: 600 }}>{t('admin.transactions.title')}</span>
+            <span style={{ color: "#0F172A", fontWeight: 600 }}>Échanges &amp; Ventes</span>
           </nav>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#15803D", padding: "4px 10px", borderRadius: 999, background: "#F0FDF4", border: "1px solid #BBF7D0", fontWeight: 600 }}>
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22C55E", animation: "pulse 1.8s infinite" }} />
-            {t('admin.transactions.live')}
+            En direct
           </div>
         </header>
 
@@ -636,10 +644,10 @@ export default function AdminTransactions() {
           {/* ── Page title ── */}
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#0F172A", letterSpacing: "-.02em", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              {t('admin.transactions.title')}
+              Échanges &amp; Ventes
             </h1>
             <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#64748B" }}>
-              {t('admin.transactions.subtitle')}
+              Journal des interactions, échanges de logements et demandes d'achat entre utilisateurs.
             </p>
           </div>
 
@@ -649,25 +657,25 @@ export default function AdminTransactions() {
             {/* Tabs */}
             <div style={{ display: "inline-flex", gap: 2, padding: 3, background: "#F1F5F9", borderRadius: 9, border: "1px solid #E2E8F0" }}>
               {[
-                { key: "all",     label: t('admin.transactions.globalFeed'), icon: "M4 6h16M4 12h16M4 18h10" },
-                { key: "echange", label: t('admin.transactions.swaps'),      Icon: ArrowLeftRight },
-                { key: "vente",   label: t('admin.transactions.sales'),      Icon: Tag },
-              ].map(tb => {
-                const on = tab === tb.key;
+                { key: "all",     label: "Flux global", icon: "M4 6h16M4 12h16M4 18h10" },
+                { key: "echange", label: "Échanges",    Icon: ArrowLeftRight },
+                { key: "vente",   label: "Ventes",      Icon: Tag },
+              ].map(t => {
+                const on = tab === t.key;
                 return (
-                  <button key={tb.key} onClick={() => { setTab(tb.key); setPage(1); }} style={{
+                  <button key={t.key} onClick={() => { setTab(t.key); setPage(1); }} style={{
                     display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 7,
                     fontSize: 13, color: on ? "#0F172A" : "#64748B", fontWeight: on ? 600 : 400,
                     background: on ? "#fff" : "transparent",
                     boxShadow: on ? "0 1px 3px rgba(15,23,42,.08), inset 0 0 0 1px #E2E8F0" : "none",
                     border: "none", cursor: "pointer", transition: "all .12s", fontFamily: "'Inter', sans-serif",
                   }}>
-                    {tb.Icon
-                      ? <tb.Icon width={12} height={12} strokeWidth={1.9} />
-                      : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d={tb.icon}/></svg>}
-                    {tb.label}
+                    {t.Icon
+                      ? <t.Icon width={12} height={12} strokeWidth={1.9} />
+                      : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d={t.icon}/></svg>}
+                    {t.label}
                     <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: on ? "#F0FDF4" : "#F1F5F9", color: on ? "#15803D" : "#94A3B8", border: `1px solid ${on ? "#BBF7D0" : "#E2E8F0"}`, fontFamily: "monospace" }}>
-                      {counts[tb.key]}
+                      {counts[t.key]}
                     </span>
                   </button>
                 );
@@ -681,7 +689,7 @@ export default function AdminTransactions() {
                 <input
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  placeholder={t('admin.transactions.filterByUser')}
+                  placeholder="Filtrer par utilisateur…"
                   style={{ flex: 1, border: 0, outline: 0, fontSize: 13, color: "#0F172A", background: "transparent", fontFamily: "'Inter', sans-serif" }}
                 />
               </label>
@@ -690,7 +698,7 @@ export default function AdminTransactions() {
                 onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
                 style={{ padding: "7px 10px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 9, fontSize: 13, color: "#0F172A", cursor: "pointer", minWidth: 150, fontFamily: "'Inter', sans-serif", outline: "none" }}
               >
-                <option value="all">{t('admin.transactions.allStatuses')}</option>
+                <option value="all">Tous les statuts</option>
                 <option value="pending">En attente</option>
                 <option value="accepted">Accepté</option>
                 <option value="rejected">Refusé</option>
@@ -703,18 +711,20 @@ export default function AdminTransactions() {
 
             {/* Column headers */}
             <div style={{ display: "grid", gridTemplateColumns: "96px 1fr 1fr 1.25fr 120px 100px 36px", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".09em", fontWeight: 600, color: "#94A3B8" }}>
-              <span>{t('admin.transactions.headers.type')}</span>
-              <span>{t('admin.transactions.headers.applicant')}</span>
-              <span>{t('admin.transactions.headers.recipient')}</span>
-              <span>{t('admin.transactions.headers.property')}</span>
-              <span>{t('admin.transactions.headers.status')}</span>
-              <span style={{ textAlign: "right" }}>{t('admin.transactions.headers.when')}</span>
+              <span>Type</span>
+              <span>Demandeur</span>
+              <span>Récepteur</span>
+              <span>Bien concerné</span>
+              <span>Statut</span>
+              <span style={{ textAlign: "right" }}>Quand</span>
               <span />
             </div>
 
             {paginated.length === 0 ? (
               <div style={{ padding: "52px 24px", textAlign: "center" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🔎</div>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, color: "#CBD5E1" }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                </div>
                 <div style={{ fontSize: 14, color: "#0F172A", fontWeight: 600 }}>Aucune activité ne correspond</div>
                 <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 3 }}>Essayez d'élargir vos filtres.</div>
               </div>

@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
+import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate, Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
-import Logo from "../components/Logo";
 
 const DOT_COLORS = {
   purple: { bg: "#7A55C9", ring: "#EFE7FB" },
@@ -23,14 +21,14 @@ const AVATAR_TONES = [
   { bg: "#E4EFFA", color: "#2F6FB5", border: "#C9DCF1" },
 ];
 
-function timeAgo(date, t) {
+function timeAgo(date) {
   const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (s < 60) return t("admin.time.now");
+  if (s < 60) return "À l'instant";
   const m = Math.floor(s / 60);
-  if (m < 60) return t("admin.time.minutesAgo", { count: m });
+  if (m < 60) return `Il y a ${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return t("admin.time.hoursAgo", { count: h });
-  return t("admin.time.daysAgo", { count: Math.floor(h / 24) });
+  if (h < 24) return `Il y a ${h} h`;
+  return `Il y a ${Math.floor(h / 24)} j`;
 }
 
 function initials(name) {
@@ -40,11 +38,8 @@ function initials(name) {
 }
 
 export default function AdminDashboard() {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language?.startsWith("en") ? "en-US" : "fr-FR";
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionLoading, setActionLoading] = useState({});
@@ -58,18 +53,18 @@ export default function AdminDashboard() {
 
   async function initAdmin() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/login"); return; }
+    if (!user) { navigate("/"); return; }
 
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    if (!profile || profile.role !== "admin") { setLoading(false); return; }
+    if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
 
     setAdminProfile({ ...profile, email: user.email });
-    setAuthorized(true);
     await fetchAll();
-    setLoading(false);
   }
 
   async function fetchAll() {
+    setDataLoading(true);
+    try {
     const [
       { count: totalUsers },
       { count: totalListings },
@@ -111,14 +106,11 @@ export default function AdminDashboard() {
     setPendingListings(pending || []);
     setAllUsers(users || []);
 
-    // Store translation keys (not resolved strings) so the feed re-localizes
-    // instantly when the language switcher is toggled.
     const items = [];
     recentProfiles?.forEach(p => items.push({
       color: "purple",
-      titleKey: "admin.activity.newUser",
-      who: p.full_name || null,
-      whoKey: "admin.activity.userFallback",
+      title: "Nouvel utilisateur inscrit",
+      who: p.full_name || "Utilisateur",
       sub: p.wilaya || "",
       time: new Date(p.created_at),
     }));
@@ -127,23 +119,24 @@ export default function AdminDashboard() {
       const isRejected = l.status === "rejected";
       items.push({
         color: isApproved ? "green" : isRejected ? "danger" : "blue",
-        titleKey: isApproved ? "admin.activity.listingApproved" : isRejected ? "admin.activity.listingRejected" : "admin.activity.listingSubmitted",
-        who: l.profiles?.full_name || null,
-        whoKey: "admin.activity.unknown",
+        title: isApproved ? "Annonce approuvée" : isRejected ? "Annonce rejetée" : "Nouvelle annonce soumise",
+        who: l.profiles?.full_name || "Inconnu",
         sub: l.title,
         time: new Date(l.created_at),
       });
     });
     recentExchanges?.forEach(e => items.push({
       color: e.status === "accepted" ? "green" : "teal",
-      titleKey: e.status === "accepted" ? "admin.activity.exchangeConfirmed" : "admin.activity.exchangeRequest",
-      who: e.profiles?.full_name || null,
-      whoKey: "admin.activity.unknown",
+      title: e.status === "accepted" ? "Échange confirmé" : "Demande d'échange",
+      who: e.profiles?.full_name || "Inconnu",
       sub: e.listings?.title || "",
       time: new Date(e.created_at),
     }));
     items.sort((a, b) => b.time - a.time);
     setActivity(items.slice(0, 6));
+    } finally {
+      setDataLoading(false);
+    }
   }
 
   async function handleApprove(id) {
@@ -172,58 +165,34 @@ export default function AdminDashboard() {
     (u.wilaya || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", fontFamily: "Inter, sans-serif", color: "#0F2A2A", fontSize: 15 }}>
-        {t("admin.loading")}
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#F3EEE0", gap: 16, fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ margin: 0, color: "#0F2A2A", fontSize: 22, fontWeight: 700 }}>{t("admin.unauthorized.title")}</h2>
-        <p style={{ margin: 0, color: "#6E7B79", fontSize: 14 }}>{t("admin.unauthorized.desc")}</p>
-        <button
-          onClick={() => navigate("/dashboard")}
-          style={{ marginTop: 8, padding: "10px 24px", borderRadius: 10, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
-        >
-          {t("admin.unauthorized.back")}
-        </button>
-      </div>
-    );
-  }
-
   const KPI_CARDS = [
     {
-      label: t("admin.kpi.users"), value: stats.totalUsers,
+      label: "Utilisateurs", value: stats.totalUsers,
       iconBg: "#EFE7FB", iconColor: "#7A55C9", iconBorder: "#DCCEF5",
       ghost: "rgba(122,85,201,.10)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c1.2-3 3.8-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/><circle cx="17" cy="7" r="2.6"/><path d="M14.5 14.5c1.5-.7 3-.9 4.5-.5 1.4.4 2.5 1.3 3 2.5"/></svg>,
-      delta: t("admin.kpi.usersDelta"), warn: false,
+      delta: "Total inscrits", warn: false,
     },
     {
-      label: t("admin.kpi.listings"), value: stats.totalListings,
+      label: "Annonces totales", value: stats.totalListings,
       iconBg: "#E4EFFA", iconColor: "#2F6FB5", iconBorder: "#C9DCF1",
       ghost: "rgba(47,111,181,.10)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>,
-      delta: t("admin.kpi.listingsDelta"), warn: false,
+      delta: "Toutes statuts", warn: false,
     },
     {
-      label: t("admin.kpi.pending"), value: stats.pendingCount,
+      label: "En vérification", value: stats.pendingCount,
       iconBg: "#FBEED1", iconColor: "#B4791E", iconBorder: "#ECD6A1",
       ghost: "rgba(180,121,30,.12)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3 2"/></svg>,
-      delta: t("admin.kpi.pendingDelta"), warn: true,
+      delta: "Action requise", warn: true,
     },
     {
-      label: t("admin.kpi.exchanges"), value: stats.completedExchanges,
+      label: "Échanges réalisés", value: stats.completedExchanges,
       iconBg: "#E4F6E6", iconColor: "#005B5B", iconBorder: "#C9E8CD",
       ghost: "rgba(173,235,179,.40)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>,
-      delta: t("admin.kpi.exchangesDelta"), warn: false,
+      delta: "Échanges acceptés", warn: false,
     },
   ];
 
@@ -244,46 +213,30 @@ export default function AdminDashboard() {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
-              <span style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, background: "#005B5B", color: "#ADEBB3" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 11l8-7 8 7v9H4z"/><path d="M9 14h7m-2-2 2 2-2 2" strokeWidth="1.6"/></svg>
-              </span>
-              <Logo size={14} color="#0F2A2A" />
+              DarBelDar
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",
                 borderRadius: 999, background: "#005B5B", color: "#ADEBB3",
                 fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
               }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-                {t("admin.badge")}
+                Admin
               </span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-              <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.dashboard")}</b>
+              <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Tableau de bord</b>
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LanguageSelector />
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79",
               padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#8FD89A", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-              {t("admin.live")}
+              En direct
             </span>
             <Link
-              to="/"
-              title={t("admin.homeTitle")}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7, height: 36, padding: "0 14px",
-                borderRadius: 10, border: "1px solid #E5DFCE", background: "#FFFFFF",
-                color: "#0F2A2A", textDecoration: "none", fontSize: 12.5, fontWeight: 600,
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H4a1 1 0 0 1-1-1z"/></svg>
-              {t("admin.home")}
-            </Link>
-            <Link
               to="/dashboard"
-              title={t("admin.backToApp")}
+              title="Retour app"
               style={{
                 width: 36, height: 36, borderRadius: 10, display: "grid", placeItems: "center",
                 border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#0F2A2A", textDecoration: "none",
@@ -300,10 +253,10 @@ export default function AdminDashboard() {
           {/* Title Row */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14, margin: "-4px 0 -6px" }}>
             <div>
-              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>{t("admin.title")}</h1>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>Tableau de bord Admin</h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-                {t("admin.overview")} · <span style={{ fontFamily: "monospace" }}>
-                  {new Date().toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
+                Vue d'ensemble · <span style={{ fontFamily: "monospace" }}>
+                  {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
                 </span>
               </p>
             </div>
@@ -311,7 +264,18 @@ export default function AdminDashboard() {
 
           {/* KPI Cards */}
           <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            {KPI_CARDS.map(({ label, value, iconBg, iconColor, iconBorder, ghost, icon, delta, warn }) => (
+            {dataLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <article key={i} style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, padding: "18px 18px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-9 w-9 shrink-0 rounded-[11px]" />
+                  </div>
+                  <Skeleton className="h-9 w-20" />
+                  <Skeleton className="h-4 w-28" />
+                </article>
+              ))
+            ) : KPI_CARDS.map(({ label, value, iconBg, iconColor, iconBorder, ghost, icon, delta, warn }) => (
               <article key={label} style={{
                 background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18,
                 boxShadow: "0 1px 0 rgba(255,255,255,.6) inset, 0 6px 18px -14px rgba(15,42,42,.18)",
@@ -331,7 +295,7 @@ export default function AdminDashboard() {
                   }}>{icon}</span>
                 </div>
                 <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.02em", lineHeight: 1, color: "#0F2A2A", fontFamily: "monospace" }}>
-                  {value.toLocaleString(locale)}
+                  {value.toLocaleString("fr-FR")}
                 </div>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: warn ? "#B4791E" : "#2F8A3E" }}>
                   {warn
@@ -354,8 +318,8 @@ export default function AdminDashboard() {
             }}>
               <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE" }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.pending.title")}</h2>
-                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.pending.subtitle")}</p>
+                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Annonces en attente d'approbation</h2>
+                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Vérifiez chaque logement avant publication.</p>
                 </div>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px",
@@ -363,14 +327,29 @@ export default function AdminDashboard() {
                   fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
-                  {t("admin.pending.badge", { count: stats.pendingCount })}
+                  {stats.pendingCount} en attente
                 </span>
               </div>
 
               <div style={{ padding: "6px 8px" }}>
-                {pendingListings.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 14, alignItems: "center", padding: 12, borderTop: i > 0 ? "1px solid #E5DFCE" : "none" }}>
+                      <Skeleton className="h-16 w-16 rounded-xl shrink-0" />
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-[160px]" />
+                        <Skeleton className="h-3.5 w-[100px]" />
+                        <Skeleton className="h-3 w-[120px]" />
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <Skeleton className="h-[34px] w-[34px] rounded-[10px]" />
+                        <Skeleton className="h-[34px] w-[34px] rounded-[10px]" />
+                      </div>
+                    </div>
+                  ))
+                ) : pendingListings.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                    {t("admin.pending.empty")}
+                    ✓ Aucune annonce en attente
                   </div>
                 ) : pendingListings.map((listing, i) => {
                   const imgSrc = listing.images?.[0];
@@ -410,17 +389,17 @@ export default function AdminDashboard() {
                         <p style={{ margin: 0, fontSize: 12.5, color: "#6E7B79", display: "flex", alignItems: "center", gap: 6 }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
                           {listing.wilaya}
-                          {listing.rooms && <><span style={{ opacity: .5 }}>•</span>{t("admin.pending.rooms", { count: listing.rooms })}</>}
+                          {listing.rooms && <><span style={{ opacity: .5 }}>•</span>{listing.rooms} ch.</>}
                         </p>
                         <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "#98A3A0" }}>
-                          {t("admin.pending.by")} <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{listing.profiles?.full_name || t("admin.activity.unknown")}</b>
+                          Par <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{listing.profiles?.full_name || "Inconnu"}</b>
                         </p>
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <button
                           onClick={() => handleApprove(listing.id)}
                           disabled={busy}
-                          aria-label={t("admin.actions.approve")}
+                          aria-label="Approuver"
                           style={{
                             width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center",
                             background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A",
@@ -432,7 +411,7 @@ export default function AdminDashboard() {
                         <button
                           onClick={() => handleReject(listing.id)}
                           disabled={busy}
-                          aria-label={t("admin.actions.reject")}
+                          aria-label="Refuser"
                           style={{
                             width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center",
                             background: "#FFFFFF", color: "#C13C26", border: "1px solid #F2C5BC",
@@ -452,7 +431,7 @@ export default function AdminDashboard() {
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 fontSize: 12.5, color: "#6E7B79",
               }}>
-                <span>{t("admin.pending.shownOf", { shown: pendingListings.length, total: stats.pendingCount })}</span>
+                <span>{pendingListings.length} affichées sur <b style={{ color: "#0F2A2A" }}>{stats.pendingCount}</b></span>
               </div>
             </article>
 
@@ -463,8 +442,8 @@ export default function AdminDashboard() {
             }}>
               <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE" }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.activity.title")}</h2>
-                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.activity.subtitle")}</p>
+                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Activité récente</h2>
+                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Flux des dernières actions sur la plateforme.</p>
                 </div>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px",
@@ -472,14 +451,25 @@ export default function AdminDashboard() {
                   fontSize: 11.5, fontWeight: 600, flexShrink: 0,
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3.5"/><path d="M3 12a9 9 0 0 1 18 0M21 12a9 9 0 0 1-18 0"/></svg>
-                  {t("admin.activity.realtime")}
+                  En temps réel
                 </span>
               </div>
 
               <div style={{ padding: "14px 8px 6px" }}>
-                {activity.length === 0 ? (
+                {dataLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 10, padding: "10px 12px", alignItems: "flex-start" }}>
+                      <Skeleton className="h-2.5 w-2.5 rounded-full mt-1.5" />
+                      <div className="flex flex-col gap-1.5">
+                        <Skeleton className="h-4 w-[140px]" />
+                        <Skeleton className="h-3.5 w-[100px]" />
+                      </div>
+                      <Skeleton className="h-3.5 w-14" />
+                    </div>
+                  ))
+                ) : activity.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                    {t("admin.activity.empty")}
+                    Aucune activité récente
                   </div>
                 ) : activity.map((item, i) => {
                   const dc = DOT_COLORS[item.color] || DOT_COLORS.teal;
@@ -492,14 +482,14 @@ export default function AdminDashboard() {
                         <span style={{ width: 10, height: 10, borderRadius: "50%", background: dc.bg, boxShadow: `0 0 0 4px ${dc.ring}`, display: "block" }} />
                       </div>
                       <div>
-                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0F2A2A", letterSpacing: "-.003em" }}>{t(item.titleKey)}</p>
+                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0F2A2A", letterSpacing: "-.003em" }}>{item.title}</p>
                         <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#6E7B79" }}>
-                          <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{item.who || t(item.whoKey)}</b>
+                          <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{item.who}</b>
                           {item.sub ? ` — ${item.sub.length > 30 ? item.sub.slice(0, 30) + "…" : item.sub}` : ""}
                         </p>
                       </div>
                       <span style={{ fontSize: 11.5, color: "#98A3A0", whiteSpace: "nowrap", paddingTop: 2, fontFamily: "monospace" }}>
-                        {timeAgo(item.time, t)}
+                        {timeAgo(item.time)}
                       </span>
                     </div>
                   );
@@ -507,7 +497,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ borderTop: "1px solid #E5DFCE", padding: "12px 20px", fontSize: 12.5, color: "#6E7B79" }}>
-                {t("admin.activity.footer", { count: activity.length })}
+                {activity.length} événements affichés
               </div>
             </article>
 
@@ -523,8 +513,8 @@ export default function AdminDashboard() {
               justifyContent: "space-between", gap: 14, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap",
             }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.users.title")}</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.users.subtitle")}</p>
+                <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Gestion des utilisateurs</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Tous les comptes actifs sur la plateforme.</p>
               </div>
               <label style={{
                 display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px",
@@ -535,7 +525,7 @@ export default function AdminDashboard() {
                 <input
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={t("admin.users.searchPlaceholder")}
+                  placeholder="Rechercher un utilisateur..."
                   style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13 }}
                 />
               </label>
@@ -545,9 +535,9 @@ export default function AdminDashboard() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13.5 }}>
                 <thead>
                   <tr>
-                    {[t("admin.users.cols.user"), t("admin.users.cols.wilaya"), t("admin.users.cols.phone"), t("admin.users.cols.registeredOn"), t("admin.users.cols.role"), t("admin.users.cols.actions")].map((h, i) => (
+                    {["Utilisateur", "Wilaya", "Inscrit le", "Rôle", "Actions"].map((h, i) => (
                       <th key={h} style={{
-                        textAlign: i === 5 ? "right" : "left", fontWeight: 500, fontSize: 11.5,
+                        textAlign: i === 4 ? "right" : "left", fontWeight: 500, fontSize: 11.5,
                         textTransform: "uppercase", letterSpacing: ".06em", color: "#98A3A0",
                         padding: "14px 22px", borderBottom: "1px solid #E5DFCE",
                       }}>{h}</th>
@@ -555,7 +545,33 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user, i) => {
+                  {dataLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+                            <Skeleton className="h-[34px] w-[34px] shrink-0 rounded-full" />
+                            <div className="flex flex-col gap-1.5">
+                              <Skeleton className="h-4 w-[120px]" />
+                              <Skeleton className="h-3 w-[80px]" />
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-6 w-20 rounded-full" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-4 w-[80px]" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
+                          <Skeleton className="h-6 w-20 rounded-full" />
+                        </td>
+                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", textAlign: "right" }}>
+                          <Skeleton className="h-8 w-24 rounded-full ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : filteredUsers.map((user, i) => {
                     const tone = AVATAR_TONES[i % AVATAR_TONES.length];
                     const isAdmin = user.role === "admin";
                     return (
@@ -584,11 +600,8 @@ export default function AdminDashboard() {
                             </span>
                           ) : <span style={{ color: "#98A3A0" }}>—</span>}
                         </td>
-                        <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", color: "#6E7B79" }}>
-                          {user.phone || "—"}
-                        </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", color: "#6E7B79", fontFamily: "monospace" }}>
-                          {user.created_at ? new Date(user.created_at).toLocaleDateString(locale) : "—"}
+                          {user.created_at ? new Date(user.created_at).toLocaleDateString("fr-FR") : "—"}
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
                           <span style={{
@@ -600,7 +613,7 @@ export default function AdminDashboard() {
                             fontSize: 11.5, fontWeight: 600,
                           }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />
-                            {isAdmin ? t("admin.role.admin") : t("admin.role.user")}
+                            {isAdmin ? "Admin" : "Utilisateur"}
                           </span>
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", textAlign: "right" }}>
@@ -612,17 +625,17 @@ export default function AdminDashboard() {
                               color: "#005B5B", fontSize: 12.5, fontWeight: 600, textDecoration: "none",
                             }}
                           >
-                            {t("admin.users.viewProfile")}
+                            Voir profil
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                           </Link>
                         </td>
                       </tr>
                     );
                   })}
-                  {filteredUsers.length === 0 && (
+                  {!dataLoading && filteredUsers.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                        {t("admin.users.empty")}
+                        Aucun utilisateur trouvé
                       </td>
                     </tr>
                   )}
@@ -635,7 +648,7 @@ export default function AdminDashboard() {
               justifyContent: "space-between", gap: 12,
               borderTop: "1px solid #E5DFCE", fontSize: 12.5, color: "#6E7B79",
             }}>
-              <span>{t("admin.users.footer", { count: filteredUsers.length, total: allUsers.length })}</span>
+              <span>{filteredUsers.length} sur <b style={{ color: "#0F2A2A" }}>{allUsers.length}</b> utilisateurs</span>
             </div>
           </section>
 

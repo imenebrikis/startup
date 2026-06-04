@@ -17,6 +17,8 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminListings from "./pages/AdminListings";
 import AdminTransactions from "./pages/AdminTransactions";
 import AdminReports from "./pages/AdminReports";
+import AdminMessages from "./pages/AdminMessages";
+import RequireAuth from "./components/RequireAuth";
 function App() {
   return (
     <BrowserRouter>
@@ -35,11 +37,14 @@ function App() {
         <Route path="/messages" element={<Messages />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/listings" element={<AdminListings />} />
-        <Route path="/admin/transactions" element={<AdminTransactions />} />
-        <Route path="/admin/reports" element={<AdminReports />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/listings" element={<AdminListings />} />
+          <Route path="/admin/transactions" element={<AdminTransactions />} />
+          <Route path="/admin/messages" element={<AdminMessages />} />
+          <Route path="/admin/reports" element={<AdminReports />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

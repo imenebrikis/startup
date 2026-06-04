@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Trash2, CheckCircle, ChevronDown, Search, ShieldCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
@@ -27,7 +26,6 @@ const STATUS_BADGE = {
 };
 
 // Normalize any legacy DB value back into one of the three known keys.
-// Anything we don't recognise (null/legacy 'pending', 'resolved', 'dismissed') becomes 'en_attente'.
 function normalizeStatus(raw) {
   if (raw === "resolu" || raw === "rejete" || raw === "en_attente") return raw;
   return "en_attente";
@@ -38,15 +36,15 @@ function fmtDate(s) {
   return new Date(s).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function timeAgo(s, t) {
+function timeAgo(s) {
   if (!s) return "";
   const sec = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
-  if (sec < 60) return t("admin.moderation.time.justNow");
+  if (sec < 60) return "À l'instant";
   const m = Math.floor(sec / 60);
-  if (m < 60) return t("admin.moderation.time.minutesAgo", { count: m });
+  if (m < 60) return `Il y a ${m} min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return t("admin.moderation.time.hoursAgo", { count: h });
-  return t("admin.moderation.time.daysAgo", { count: Math.floor(h / 24) });
+  if (h < 24) return `Il y a ${h} h`;
+  return `Il y a ${Math.floor(h / 24)} j`;
 }
 
 function Stars({ rating }) {
@@ -65,7 +63,6 @@ function Stars({ rating }) {
 }
 
 function StatusBadge({ status }) {
-  const { t } = useTranslation();
   const s = STATUS_BADGE[normalizeStatus(status)];
   return (
     <span style={{
@@ -75,13 +72,12 @@ function StatusBadge({ status }) {
       fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
-      {t(`admin.moderation.status.${normalizeStatus(status)}`)}
+      {s.label}
     </span>
   );
 }
 
 export default function AdminReports() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading]           = useState(true);
   const [authorized, setAuthorized]     = useState(false);
@@ -96,7 +92,7 @@ export default function AdminReports() {
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/login"); return; }
+    if (!user) { navigate("/"); return; }
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     if (!profile || profile.role !== "admin") { navigate("/dashboard"); return; }
     setAdminProfile(profile);
@@ -119,7 +115,7 @@ export default function AdminReports() {
       `)
       .order("created_at", { ascending: false });
 
-    if (error) { toast.error(t("admin.moderation.toast.errorLoading")); return; }
+    if (error) { toast.error("Erreur lors du chargement des rapports"); return; }
     setReports((data || []).map(r => ({ ...r, status: normalizeStatus(r.status) })));
   }
 
@@ -130,7 +126,6 @@ export default function AdminReports() {
     rejete:     reports.filter(r => r.status === "rejete").length,
   }), [reports]);
 
-  // Strict tab filter — each tab shows ONLY its matching status
   const filtered = useMemo(() => {
     let list = reports;
     if (activeTab === "en_attente") list = reports.filter(r => r.status === "en_attente");
@@ -169,10 +164,10 @@ export default function AdminReports() {
         .eq("id", reportId);
       if (updateErr) throw updateErr;
 
-      toast.success(t("admin.moderation.toast.deleted"));
+      toast.success("Commentaire supprimé définitivement");
     } catch {
       setReports(rs => rs.map(r => r.id === reportId ? prev : r));
-      toast.error(t("admin.moderation.toast.deleteError"));
+      toast.error("Erreur lors de la suppression");
     } finally {
       setActioning(a => ({ ...a, [reportId]: false }));
     }
@@ -194,10 +189,10 @@ export default function AdminReports() {
         .eq("id", reportId);
       if (error) throw error;
 
-      toast.success(t("admin.moderation.toast.resolved"));
+      toast.success("Signalement classé sans suite");
     } catch {
       setReports(rs => rs.map(r => r.id === reportId ? prev : r));
-      toast.error(t("admin.moderation.toast.updateError"));
+      toast.error("Erreur lors de la mise à jour");
     } finally {
       setActioning(a => ({ ...a, [reportId]: false }));
     }
@@ -206,7 +201,7 @@ export default function AdminReports() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
-        <span style={{ color: "#6E7B79", fontSize: 14 }}>{t("admin.moderation.loading")}</span>
+        <span style={{ color: "#6E7B79", fontSize: 14 }}>Chargement…</span>
       </div>
     );
   }
@@ -214,7 +209,7 @@ export default function AdminReports() {
   if (!authorized) {
     return (
       <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
-        <span style={{ color: "#C13C26", fontSize: 14 }}>{t("admin.moderation.accessDenied")}</span>
+        <span style={{ color: "#C13C26", fontSize: 14 }}>Accès refusé</span>
       </div>
     );
   }
@@ -227,10 +222,10 @@ export default function AdminReports() {
         {/* Page header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F2A2A", letterSpacing: "-0.02em", margin: 0 }}>
-            {t("admin.moderation.title")}
+            Rapports de commentaires
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-            {t("admin.moderation.subtitle")}
+            Gérez les signalements d'avis soumis par les utilisateurs
           </p>
         </div>
 
@@ -255,7 +250,7 @@ export default function AdminReports() {
                     display: "flex", alignItems: "center", gap: 6,
                   }}
                 >
-                  {t(`admin.moderation.tabs.${tab.key}`)}
+                  {tab.label}
                   {count > 0 && (
                     <span style={{
                       background: isActive && tab.key === "en_attente" ? "#FFFBEB" : isActive ? "#E4F6E6" : "#D4CEC0",
@@ -275,7 +270,7 @@ export default function AdminReports() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={t("admin.moderation.searchPlaceholder")}
+              placeholder="Rechercher par rapporteur, raison, commentaire…"
               style={{
                 width: "100%", padding: "8px 12px 8px 32px",
                 border: "1px solid #E5DFCE", borderRadius: 10,
@@ -292,9 +287,9 @@ export default function AdminReports() {
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
               <ShieldCheck size={36} style={{ color: "#ADEBB3" }} />
             </div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "#0F2A2A", margin: "0 0 6px" }}>{t("admin.moderation.empty.title")}</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#0F2A2A", margin: "0 0 6px" }}>Aucun rapport</p>
             <p style={{ fontSize: 13, color: "#6E7B79", margin: 0 }}>
-              {activeTab === "en_attente" ? t("admin.moderation.empty.pending") : t("admin.moderation.empty.other")}
+              {activeTab === "en_attente" ? "Aucun signalement en attente." : "Aucun rapport dans cette catégorie."}
             </p>
           </div>
         ) : (
@@ -350,13 +345,13 @@ export default function AdminReports() {
                         )}
                       </div>
                       <div style={{ fontSize: 13, color: "#0F2A2A", marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600 }}>{t("admin.moderation.card.reportedBy")}</span>{" "}
-                        {reporter?.full_name || t("admin.moderation.card.unknownUser")}
-                        <span style={{ color: "#98A3A0", marginLeft: 8 }}>{timeAgo(report.created_at, t)}</span>
+                        <span style={{ fontWeight: 600 }}>Signalé par :</span>{" "}
+                        {reporter?.full_name || "Utilisateur inconnu"}
+                        <span style={{ color: "#98A3A0", marginLeft: 8 }}>{timeAgo(report.created_at)}</span>
                       </div>
                       {report.reason && (
                         <div style={{ fontSize: 12.5, color: "#6E7B79" }}>
-                          <span style={{ fontWeight: 500 }}>{t("admin.moderation.card.reason")}</span> {report.reason}
+                          <span style={{ fontWeight: 500 }}>Raison :</span> {report.reason}
                         </div>
                       )}
                     </div>
@@ -375,7 +370,7 @@ export default function AdminReports() {
                   {isExpanded && (
                     <div style={{ borderTop: "1px solid #F0EAD8", padding: "16px 20px", background: "#FAFAF5" }}>
                       <div style={{ fontSize: 11.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".07em", color: "#98A3A0", marginBottom: 8 }}>
-                        {t("admin.moderation.card.reportedReview")}
+                        Avis signalé
                       </div>
 
                       {review ? (
@@ -385,13 +380,13 @@ export default function AdminReports() {
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <span style={{ fontSize: 13, fontWeight: 600, color: "#0F2A2A" }}>
-                              {reviewer?.full_name || t("admin.moderation.card.unknownAuthor")}
+                              {reviewer?.full_name || "Auteur inconnu"}
                             </span>
                             <Stars rating={review.rating} />
                             <span style={{ fontSize: 11.5, color: "#98A3A0" }}>{fmtDate(review.created_at)}</span>
                           </div>
                           <p style={{ fontSize: 13.5, color: "#374151", margin: 0, lineHeight: 1.55 }}>
-                            {review.comment || <em style={{ color: "#98A3A0" }}>{t("admin.moderation.card.noComment")}</em>}
+                            {review.comment || <em style={{ color: "#98A3A0" }}>Aucun commentaire rédigé</em>}
                           </p>
 
                           {/* Action buttons — shown only while the report is pending */}
@@ -404,7 +399,7 @@ export default function AdminReports() {
                                 onClick={() => handleRequestDelete(report.id, report.comment_id)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                {t("admin.moderation.actions.deleteComment")}
+                                Supprimer le commentaire
                               </Button>
                               <Button
                                 variant="outline"
@@ -414,14 +409,14 @@ export default function AdminReports() {
                                 onClick={() => handleKeepComment(report.id)}
                               >
                                 <CheckCircle className="mr-2 h-4 w-4 text-emerald-500" />
-                                {t("admin.moderation.actions.keepComment")}
+                                Conserver le commentaire
                               </Button>
                             </div>
                           )}
                         </div>
                       ) : (
                         <p style={{ fontSize: 13, color: "#98A3A0", margin: 0 }}>
-                          {t("admin.moderation.card.reviewNotFound")}
+                          Avis introuvable — il a peut-être déjà été supprimé.
                         </p>
                       )}
                     </div>
@@ -432,7 +427,6 @@ export default function AdminReports() {
           </div>
         )}
       </main>
-
     </div>
   );
 }
