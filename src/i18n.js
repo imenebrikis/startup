@@ -159,6 +159,7 @@ const resources = {
         photoMain: "photo principale",
         thumbnail: "miniature {{n}}",
         fullscreen: "plein écran",
+        tour360: "Visite 360°",
       },
       exchanges: {
         title: "Mes échanges",
@@ -311,6 +312,8 @@ const resources = {
             heading: "Photos du logement", hint: "Minimum 3 photos",
             dropLabel: "Glissez-déposez ou cliquez pour parcourir",
             dropHint: "PNG, JPG jusqu'à 10 MB — 5 photos max",
+            tour360Label: "Photos 360° (optionnel, max 10)",
+            tour360Hint: "Cliquez pour ajouter des photos équirectangulaires 360°",
           },
         },
       },
@@ -871,6 +874,7 @@ const resources = {
         photoMain: "main photo",
         thumbnail: "thumbnail {{n}}",
         fullscreen: "fullscreen",
+        tour360: "360° Tour",
       },
       exchanges: {
         title: "My exchanges",
@@ -1023,6 +1027,8 @@ const resources = {
             heading: "Property photos", hint: "Minimum 3 photos",
             dropLabel: "Drag & drop or click to browse",
             dropHint: "PNG, JPG up to 10 MB — 5 photos max",
+            tour360Label: "360° photos (optional, max 10)",
+            tour360Hint: "Click to add equirectangular 360° photos",
           },
         },
       },

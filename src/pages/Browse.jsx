@@ -435,7 +435,7 @@ export default function Browse() {
       }}>
 
         {/* Logo */}
-        <Link to="/dashboard" style={{
+        <Link to="/" style={{
           fontSize: '18px', fontWeight: '700', color: '#ffffff',
           textDecoration: 'none', fontFamily: "'Bricolage Grotesque', sans-serif",
           flexShrink: 0, marginRight: '8px',

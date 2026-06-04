@@ -38,7 +38,7 @@ export default function Sidebar({ active }) {
         minHeight: 32,
       }}>
         {isSidebarExpanded && (
-          <Logo to="/dashboard" size={24} color="#0A3D3D" style={{ padding: "6px 10px 4px" }} />
+          <Logo to="/" size={24} color="#0A3D3D" style={{ padding: "6px 10px 4px" }} />
         )}
         <button
           onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}

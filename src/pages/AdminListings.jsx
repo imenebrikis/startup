@@ -174,7 +174,8 @@ export default function AdminListings() {
   const [sheetOpen, setSheetOpen]       = useState(false);
   const [sheetListing, setSheetListing] = useState(null);
   const [sheetPhotoIdx, setSheetPhotoIdx] = useState(0);
-  const [tour360Open, setTour360Open]     = useState(false); // 360° preview collapsible
+  const [tour360Open, setTour360Open]         = useState(false); // 360° preview collapsible
+  const [tour360SelectedUrl, setTour360SelectedUrl] = useState(null);
 
   // Rejection dialog
   const [rejectOpen, setRejectOpen]       = useState(false);
@@ -738,7 +739,7 @@ export default function AdminListings() {
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
                           {listing.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
-                          {listing.tour_360_url && <Tour360Badge />}
+                          {listing.tour_360_urls?.length > 0 && <Tour360Badge />}
                         </div>
                       </TableCell>
 
@@ -913,7 +914,7 @@ export default function AdminListings() {
                           <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Vente</span>
                         )}
                         {s.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
-                        {s.tour_360_url && <Tour360Badge />}
+                        {s.tour_360_urls?.length > 0 && <Tour360Badge />}
                       </div>
                     </div>
 
@@ -972,11 +973,15 @@ export default function AdminListings() {
                     )}
 
                     {/* ── 360° Virtual Tour ── */}
-                    {s.tour_360_url && (
+                    {s.tour_360_urls?.length > 0 && (
                       <div>
                         <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Visite virtuelle</p>
                         <button
-                          onClick={() => setTour360Open(o => !o)}
+                          onClick={() => {
+                            const opening = !tour360Open;
+                            setTour360Open(opening);
+                            if (opening && !tour360SelectedUrl) setTour360SelectedUrl(s.tour_360_urls[0]);
+                          }}
                           aria-expanded={tour360Open}
                           style={{
                             width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
@@ -991,7 +996,7 @@ export default function AdminListings() {
                         >
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                             <Globe2 style={{ width: 17, height: 17, flexShrink: 0 }} />
-                            Inspecter la visite 360°
+                            Inspecter la visite 360° ({s.tour_360_urls.length})
                           </span>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                             style={{ transform: tour360Open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>
@@ -1000,19 +1005,45 @@ export default function AdminListings() {
                         </button>
 
                         {tour360Open && (
-                          <div style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", border: "1px solid #E5DFCE", background: "#0F2A2A" }}>
-                            <Suspense fallback={
-                              <div style={{ height: 400, display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: 13 }}>
-                                Chargement de la visite 360°…
+                          <div style={{ marginTop: 12 }}>
+                            {s.tour_360_urls.length > 1 && (
+                              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                                {s.tour_360_urls.map((url, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setTour360SelectedUrl(url)}
+                                    style={{
+                                      width: 56, height: 56, borderRadius: 10, overflow: "hidden", padding: 0,
+                                      border: `2.5px solid ${tour360SelectedUrl === url ? "#006E6E" : "#E5DFCE"}`,
+                                      cursor: "pointer", background: "#0F2A2A", flexShrink: 0, position: "relative",
+                                    }}
+                                  >
+                                    <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.75 }} />
+                                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ADEBB3" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" strokeLinecap="round"/></svg>
+                                    </div>
+                                  </button>
+                                ))}
                               </div>
-                            }>
-                              <ReactPhotoSphereViewer
-                                src={s.tour_360_url}
-                                width="100%"
-                                height="400px"
-                                autorotate={false}
-                              />
-                            </Suspense>
+                            )}
+                            {tour360SelectedUrl && (
+                              <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #E5DFCE", background: "#0F2A2A" }}>
+                                <Suspense fallback={
+                                  <div style={{ height: 400, display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: 13 }}>
+                                    Chargement de la visite 360°…
+                                  </div>
+                                }>
+                                  <ReactPhotoSphereViewer
+                                    key={tour360SelectedUrl}
+                                    src={tour360SelectedUrl}
+                                    width="100%"
+                                    height="400px"
+                                    autorotate={false}
+                                  />
+                                </Suspense>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

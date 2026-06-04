@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 
-const NeighborhoodMap = lazy(() => import('../components/NeighborhoodMap'))
+const NeighborhoodMap = lazy(() => import('../components/NeighborhoodMap'));
+const ReactPhotoSphereViewer = lazy(() =>
+  import("react-photo-sphere-viewer").then((m) => ({ default: m.ReactPhotoSphereViewer }))
+);
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Logo from "../components/Logo";
@@ -151,6 +154,7 @@ export default function ListingDetail() {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactSaleLoading, setContactSaleLoading] = useState(false);
   const [saleSent, setSaleSent] = useState(false);
+  const [tour360ViewerUrl, setTour360ViewerUrl] = useState(null);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -484,6 +488,37 @@ export default function ListingDetail() {
                         <span style={{ fontSize: "11px", color: "#fff", fontWeight: "600", fontFamily: "'Inter', sans-serif" }}>{t("details.viewAll")}</span>
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* 360° thumbnail strip */}
+                {Array.isArray(listing.tour_360_urls) && listing.tour_360_urls.length > 0 && (
+                  <div>
+                    <p style={{ ...sectionLabel, marginBottom: "8px" }}>{t("details.tour360")}</p>
+                    <div style={{ display: "flex", gap: "10px", height: "88px" }}>
+                      {listing.tour_360_urls.map((url, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setTour360ViewerUrl(url)}
+                          style={{
+                            flex: "0 0 auto", width: "88px", height: "88px",
+                            borderRadius: "12px", overflow: "hidden", padding: 0,
+                            border: "2.5px solid transparent", cursor: "pointer",
+                            background: "#0F2A2A", position: "relative",
+                          }}
+                        >
+                          <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.72 }} />
+                          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3px" }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ADEBB3" strokeWidth="1.8">
+                              <circle cx="12" cy="12" r="10"/>
+                              <path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" strokeLinecap="round"/>
+                            </svg>
+                            <span style={{ fontSize: "10px", color: "#ADEBB3", fontWeight: "700", fontFamily: "'Inter', sans-serif" }}>360°</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -869,6 +904,41 @@ export default function ListingDetail() {
           </>
         )}
       </div>
+
+      {/* ── 360 viewer modal ── */}
+      {tour360ViewerUrl && (
+        <div
+          onClick={() => setTour360ViewerUrl(null)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)",
+            zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "900px", borderRadius: "16px", overflow: "hidden", background: "#0F2A2A", position: "relative" }}
+          >
+            <button
+              onClick={() => setTour360ViewerUrl(null)}
+              style={{
+                position: "absolute", top: "12px", right: "12px", zIndex: 1,
+                width: "32px", height: "32px", borderRadius: "50%",
+                background: "rgba(0,0,0,0.5)", color: "#fff", border: "none",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              }}
+            >
+              <X style={{ width: "15px", height: "15px" }} />
+            </button>
+            <Suspense fallback={
+              <div style={{ height: "460px", display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: "13px", fontFamily: "'Inter', sans-serif" }}>
+                {t("details.loading")}
+              </div>
+            }>
+              <ReactPhotoSphereViewer src={tour360ViewerUrl} width="100%" height="460px" autorotate={false} />
+            </Suspense>
+          </div>
+        </div>
+      )}
 
       {/* ── Fullscreen modal ── */}
       {isFullscreen && (

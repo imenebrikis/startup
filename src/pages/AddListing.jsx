@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Logo from "../components/Logo";
@@ -13,6 +13,10 @@ import {
 } from "../components/ui/dropdown-menu";
 import { supabase } from "../lib/supabase";
 import LocationPicker from "../components/LocationPicker";
+
+const ReactPhotoSphereViewer = lazy(() =>
+  import("react-photo-sphere-viewer").then((m) => ({ default: m.ReactPhotoSphereViewer }))
+);
 
 const WILAYAS = [
   "Adrar","Chlef","Laghouat","Oum El Bouaghi","Batna","Béjaïa","Biskra","Béchar",
@@ -119,6 +123,10 @@ export default function AddListing() {
   const [photos, setPhotos] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
+  const [tour360Files, setTour360Files] = useState([]);
+  const [tour360Previews, setTour360Previews] = useState([]);
+  const [existing360Urls, setExisting360Urls] = useState([]);
+  const [tour360ViewerUrl, setTour360ViewerUrl] = useState(null);
   const [amenities, setAmenities] = useState([]);
   const [mapPin, setMapPin] = useState(null);
   const [latitude, setLatitude] = useState(null);
@@ -178,6 +186,7 @@ export default function AddListing() {
       setAvailableFrom(data.available_from || "");
       setAvailableTo(data.available_to || "");
       setExistingImages(data.images || []);
+      setExisting360Urls(Array.isArray(data.tour_360_urls) ? data.tour_360_urls : []);
       setPropertyType(data.property_type || "");
       if (data.latitude != null) setLatitude(Number(data.latitude));
       if (data.longitude != null) setLongitude(Number(data.longitude));
@@ -234,6 +243,16 @@ export default function AddListing() {
         imageUrls.push(urlData.publicUrl);
       }
 
+      const new360Urls = [];
+      for (const file360 of tour360Files) {
+        const ext360 = file360.name.split(".").pop();
+        const path360 = `${currentUser.id}/360_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext360}`;
+        const { error: uploadError360 } = await supabase.storage.from("listings").upload(path360, file360, { contentType: file360.type });
+        if (uploadError360) throw uploadError360;
+        const { data: urlData360 } = supabase.storage.from("listings").getPublicUrl(path360);
+        new360Urls.push(urlData360.publicUrl);
+      }
+
       const allRules = [...selectedRules, ...(houseRules ? [houseRules] : [])].join("\n") || null;
       const payload = {
         title, description, wilaya, city, quartier,
@@ -253,6 +272,7 @@ export default function AddListing() {
         longitude: longitude ?? null,
         destination_wilayas: anyWilaya ? [] : destinationWilayas,
         any_wilaya: anyWilaya,
+        tour_360_urls: [...existing360Urls, ...new360Urls],
         is_verified: false,
       };
 
@@ -818,6 +838,110 @@ export default function AddListing() {
                     </div>
                   ))}
                 </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s9.tour360Label")}</label>
+                    <span style={{ fontSize: 12, color: "#6E7B79" }}>{existing360Urls.length + tour360Files.length}/10</span>
+                  </div>
+                  {existing360Urls.length + tour360Files.length < 10 && (
+                    <label
+                      htmlFor="tour360Upload"
+                      style={{
+                        border: "1.5px dashed #005B5B", borderRadius: 14, background: "#FFFFFF",
+                        padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#E4F6E6", display: "flex", alignItems: "center", justifyContent: "center", color: "#005B5B", flexShrink: 0 }}>
+                        <Upload style={{ width: 16, height: 16 }} />
+                      </div>
+                      <span style={{ fontSize: 13, color: "#6E7B79" }}>{t("addListing.steps.s9.tour360Hint")}</span>
+                      <input
+                        id="tour360Upload"
+                        type="file"
+                        multiple
+                        accept="image/png,image/jpeg,image/jpg"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const picked = Array.from(e.target.files);
+                          const slots = 10 - existing360Urls.length - tour360Files.length;
+                          const accepted = picked.slice(0, slots);
+                          if (!accepted.length) return;
+                          const next = [...tour360Files, ...accepted];
+                          setTour360Files(next);
+                          setTour360Previews(next.map((f) => URL.createObjectURL(f)));
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                  {(existing360Urls.length > 0 || tour360Files.length > 0) && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                      {existing360Urls.map((url, i) => (
+                        <div
+                          key={`ex360-${i}`}
+                          onClick={() => setTour360ViewerUrl(url)}
+                          style={{ position: "relative", aspectRatio: 1, borderRadius: 10, overflow: "hidden", background: "#0F2A2A", border: "1px solid #E5DFCE", cursor: "pointer" }}
+                        >
+                          <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.72 }} />
+                          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ADEBB3" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" strokeLinecap="round"/></svg>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setExisting360Urls((p) => p.filter((_, j) => j !== i)); }}
+                            style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: "50%", background: "#C0392B", color: "#fff", border: "2px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                          >
+                            <X style={{ width: 8, height: 8 }} />
+                          </button>
+                        </div>
+                      ))}
+                      {tour360Previews.map((src, i) => (
+                        <div
+                          key={`new360-${i}`}
+                          onClick={() => setTour360ViewerUrl(src)}
+                          style={{ position: "relative", aspectRatio: 1, borderRadius: 10, overflow: "hidden", background: "#0F2A2A", border: "1px solid #E5DFCE", cursor: "pointer" }}
+                        >
+                          <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.72 }} />
+                          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ADEBB3" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" strokeLinecap="round"/></svg>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const next = tour360Files.filter((_, j) => j !== i);
+                              setTour360Files(next);
+                              setTour360Previews(next.map((f) => URL.createObjectURL(f)));
+                            }}
+                            style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: "50%", background: "#C0392B", color: "#fff", border: "2px solid #fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                          >
+                            <X style={{ width: 8, height: 8 }} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {tour360ViewerUrl && (
+                  <div
+                    onClick={() => setTour360ViewerUrl(null)}
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+                  >
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 860, borderRadius: 16, overflow: "hidden", background: "#0F2A2A", position: "relative" }}>
+                      <button
+                        type="button"
+                        onClick={() => setTour360ViewerUrl(null)}
+                        style={{ position: "absolute", top: 10, right: 10, zIndex: 1, width: 30, height: 30, borderRadius: "50%", background: "rgba(0,0,0,0.5)", color: "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                      >
+                        <X style={{ width: 14, height: 14 }} />
+                      </button>
+                      <Suspense fallback={<div style={{ height: 400, display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: 13 }}>Chargement…</div>}>
+                        <ReactPhotoSphereViewer src={tour360ViewerUrl} width="100%" height="400px" autorotate={false} />
+                      </Suspense>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
