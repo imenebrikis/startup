@@ -1,14 +1,16 @@
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import "@photo-sphere-viewer/core/index.css";
 import AdminSidebar from "../components/AdminSidebar";
+import LanguageSelector from "../components/LanguageSelector";
 import { Checkbox } from "../components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../components/ui/table";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+  Sheet, SheetContent,
 } from "../components/ui/sheet";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -33,16 +35,12 @@ import {
 import { Skeleton } from "../components/ui/skeleton";
 import { toast } from "sonner";
 
-// Lazily loaded so the heavy photo-sphere library is only fetched when an
-// admin actually opens a 360° tour.
 const ReactPhotoSphereViewer = lazy(() =>
   import("react-photo-sphere-viewer").then(m => ({ default: m.ReactPhotoSphereViewer }))
 );
 
 const PAGE_SIZE = 15;
 
-// Clean lucide-react SVG icons — mirrors the mapping used on the public
-// listing detail page so amenities render consistently across the app.
 const AMENITY_ICONS = {
   Climatisation: Wind,
   Chauffage: Thermometer,
@@ -58,7 +56,6 @@ const AMENITY_ICONS = {
   Ascenseur: ArrowUpDown,
 };
 
-// ─── Badge config ────────────────────────────────────────────────────────────
 const BADGE_STYLES = {
   mod:  { bg: "#FAF5FF", color: "#a855f7", border: "#E9D5FF" },
   warn: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
@@ -66,7 +63,8 @@ const BADGE_STYLES = {
   ok:   { bg: "#E4F6E6", color: "#006E6E", border: "#ADEBB3" },
 };
 
-function QualityBadge({ label, type }) {
+function QualityBadge({ labelKey, type }) {
+  const { t } = useTranslation();
   const s = BADGE_STYLES[type] || BADGE_STYLES.warn;
   return (
     <span style={{
@@ -76,44 +74,39 @@ function QualityBadge({ label, type }) {
       fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", lineHeight: 1.4,
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-      {label}
+      {t("admin.quality." + labelKey)}
     </span>
   );
 }
 
-// Pink indicator shown when a listing has a 360° virtual tour.
 function Tour360Badge() {
+  const { t } = useTranslation();
   return (
     <span className="bg-pink-100 text-pink-800 border border-pink-300 rounded-full px-[9px] py-[3px] text-[11.5px] font-semibold inline-flex items-center gap-[7px] whitespace-nowrap leading-[1.4]">
       <span className="w-[5px] h-[5px] rounded-full bg-pink-800 shrink-0" />
-      Visite 360°
+      {t("admin.listings.tour360")}
     </span>
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 function daysInQueue(createdAt) {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000);
 }
 
 function getQualityBadges(listing, totalListings) {
   const result = [];
-
-  // Modification badge — must appear first
   if (listing.has_been_approved === true && listing.is_verified === false) {
-    result.push({ label: "Modification", type: "mod" });
+    result.push({ labelKey: "modification", type: "mod" });
   }
-
   const warnings = [];
-  if ((listing.images || []).length <= 1)                                       warnings.push({ label: "Photos insuffisantes",     type: "warn" });
-  if (!(listing.amenities || []).length)                                         warnings.push({ label: "Équipements ignorés",      type: "warn" });
-  if (!listing.rooms || listing.rooms === 0)                                     warnings.push({ label: "Capacité non renseignée", type: "warn" });
+  if ((listing.images || []).length <= 1)                                       warnings.push({ labelKey: "fewPhotos",          type: "warn" });
+  if (!(listing.amenities || []).length)                                         warnings.push({ labelKey: "noAmenities",        type: "warn" });
+  if (!listing.rooms || listing.rooms === 0)                                     warnings.push({ labelKey: "noCapacity",         type: "warn" });
   if ((!listing.quartier || !listing.quartier.trim()) && (!listing.latitude || !listing.longitude))
-                                                                                 warnings.push({ label: "Adresse incomplète",       type: "warn" });
-
+                                                                                 warnings.push({ labelKey: "incompleteAddress",  type: "warn" });
   result.push(...warnings);
-  if (totalListings === 1) result.push({ label: "Premier logement", type: "info" });
-  if (warnings.length === 0 && !result.some(b => b.type === "mod")) result.push({ label: "Qualité OK", type: "ok" });
+  if (totalListings === 1) result.push({ labelKey: "firstListing", type: "info" });
+  if (warnings.length === 0 && !result.some(b => b.type === "mod")) result.push({ labelKey: "ok", type: "ok" });
   return result;
 }
 
@@ -150,10 +143,9 @@ function PlaceholderThumb({ index }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function AdminListings() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [dataLoading, setDataLoading]   = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
@@ -165,19 +157,16 @@ export default function AdminListings() {
   const [search, setSearch]                       = useState("");
   const [page, setPage]                           = useState(1);
 
-  // Selection
-  const [selected, setSelected]     = useState(new Set());
+  const [selected, setSelected]      = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [exitingIds, setExitingIds]   = useState(new Set());
 
-  // Sheet
-  const [sheetOpen, setSheetOpen]       = useState(false);
-  const [sheetListing, setSheetListing] = useState(null);
-  const [sheetPhotoIdx, setSheetPhotoIdx] = useState(0);
-  const [tour360Open, setTour360Open]         = useState(false); // 360° preview collapsible
+  const [sheetOpen, setSheetOpen]           = useState(false);
+  const [sheetListing, setSheetListing]     = useState(null);
+  const [sheetPhotoIdx, setSheetPhotoIdx]   = useState(0);
+  const [tour360Open, setTour360Open]       = useState(false);
   const [tour360SelectedUrl, setTour360SelectedUrl] = useState(null);
 
-  // Rejection dialog
   const [rejectOpen, setRejectOpen]       = useState(false);
   const [rejectId, setRejectId]           = useState(null);
   const [rejectMotif, setRejectMotif]     = useState("");
@@ -213,16 +202,15 @@ export default function AdminListings() {
     }
   }
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
   async function handleApprove(id) {
     setActionLoading(p => ({ ...p, [id]: "approve" }));
     const { error } = await supabase.from("listings").update({ status: "approved", is_verified: true, has_been_approved: true }).eq("id", id);
     if (!error) {
       setListings(p => p.map(l => l.id === id ? { ...l, status: "approved", is_verified: true, has_been_approved: true } : l));
       if (sheetListing?.id === id) setSheetOpen(false);
-      toast.success("Annonce approuvée avec succès");
+      toast.success(t("admin.listings.approveSuccess"));
     } else {
-      toast.error("Erreur lors de l'approbation", { description: error.message });
+      toast.error(t("admin.listings.approveError"), { description: error.message });
     }
     setActionLoading(p => { const n = { ...p }; delete n[id]; return n; });
   }
@@ -238,10 +226,10 @@ export default function AdminListings() {
     setRejectLoading(true);
 
     const motifLabels = {
-      photos:       "Photos floues",
-      incomplet:    "Informations incomplètes",
-      doublon:      "Doublon",
-      inapproprie:  "Inapproprié",
+      photos:      t("admin.reject.motifs.photos"),
+      incomplet:   t("admin.reject.motifs.incomplet"),
+      doublon:     t("admin.reject.motifs.doublon"),
+      inapproprie: t("admin.reject.motifs.inapproprie"),
     };
     const fullReason = `${motifLabels[rejectMotif] ?? rejectMotif}${rejectComment.trim() ? ` — ${rejectComment.trim()}` : ""}`;
 
@@ -257,9 +245,9 @@ export default function AdminListings() {
       setRejectId(null);
       setRejectMotif("");
       setRejectComment("");
-      toast.success("Logement refusé avec succès", { description: fullReason });
+      toast.success(t("admin.reject.successToast"), { description: fullReason });
     } else {
-      toast.error("Erreur lors du refus", { description: error.message });
+      toast.error(t("admin.reject.errorToast"), { description: error.message });
     }
 
     setRejectLoading(false);
@@ -287,17 +275,17 @@ export default function AdminListings() {
     if (!ids.length || bulkLoading) return;
     setBulkLoading(true);
     setExitingIds(new Set(ids));
-    const reason = "Rejet groupé par l'administrateur";
+    const reason = t("admin.listings.bulkRejectReason");
     const { error } = await supabase.from("listings").update({ status: "rejected", is_verified: false, rejection_reason: reason }).in("id", ids);
     if (!error) {
       await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
       setListings(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "rejected", is_verified: false, rejection_reason: reason } : l));
       setSelected(new Set());
       setExitingIds(new Set());
-      toast.success(`${ids.length} annonce${ids.length > 1 ? "s" : ""} rejetée${ids.length > 1 ? "s" : ""}`);
+      toast.success(t("admin.listings.bulkRejectSuccess", { count: ids.length }));
     } else {
       setExitingIds(new Set());
-      toast.error("Erreur lors du rejet", { description: error.message });
+      toast.error(t("admin.listings.bulkRejectError"), { description: error.message });
     }
     setBulkLoading(false);
   }
@@ -310,30 +298,25 @@ export default function AdminListings() {
     const { error } = await supabase.from("listings").delete().in("id", ids);
     if (!error) {
       await new Promise(r => setTimeout(r, (ids.length - 1) * 60 + 320));
-      // Removing the rows from local state auto-updates every derived counter
-      // (pending/approved/rejected tab counts + sidebar badge).
       setListings(prev => prev.filter(l => !ids.includes(l.id)));
       setSelected(new Set());
       setExitingIds(new Set());
-      toast.success(`${ids.length} annonce${ids.length > 1 ? "s" : ""} supprimée${ids.length > 1 ? "s" : ""} définitivement`);
+      toast.success(t("admin.listings.bulkDeleteSuccess", { count: ids.length }));
     } else {
       setExitingIds(new Set());
-      toast.error("Erreur lors de la suppression", { description: error.message });
+      toast.error(t("admin.listings.bulkDeleteError"), { description: error.message });
     }
     setBulkLoading(false);
   }
 
-  // ── Sheet helpers ────────────────────────────────────────────────────────────
   function openSheet(listing, e) {
     e?.stopPropagation();
     setSheetListing(listing);
     setSheetPhotoIdx(0);
-    setTour360Open(false); // collapse any 360° preview from a previous listing
+    setTour360Open(false);
     setSheetOpen(true);
   }
 
-  // ── Selection helpers ────────────────────────────────────────────────────────
-  const pageIds         = useMemo(() => [], []); // populated below after derived data
   const enriched = useMemo(() =>
     listings.map(l => ({
       ...l,
@@ -385,9 +368,6 @@ export default function AdminListings() {
     });
   }
 
-  const sheetPhotos = sheetListing?.images || [];
-
-  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <Dialog
       open={rejectOpen}
@@ -399,7 +379,7 @@ export default function AdminListings() {
 
       <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
-        {/* ── Top Bar ─────────────────────────────────────────────────────── */}
+        {/* Top Bar */}
         <header style={{
           position: "sticky", top: 0, zIndex: 5,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
@@ -410,59 +390,58 @@ export default function AdminListings() {
             DarBelDar
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#006E6E", color: "#ADEBB3", fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-              Admin
+              {t("admin.badge")}
             </span>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Annonces en attente</b>
+            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.listings.breadcrumb")}</b>
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79", padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-            En direct
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <LanguageSelector />
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79", padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
+              {t("admin.live")}
+            </span>
+          </div>
         </header>
 
         <main style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* ── Title + stats strip ─────────────────────────────────────── */}
+          {/* Title + stats */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div>
               <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>
-                Annonces en attente
+                {t("admin.listings.title")}
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-                {pendingTabCount} annonce{pendingTabCount !== 1 ? "s" : ""} en attente de modération
+                {t("admin.listings.subtitle", { count: pendingTabCount })}
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {enriched.filter(l => l.slaHigh).length > 0 && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 12.5, fontWeight: 600 }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-                  {enriched.filter(l => l.slaHigh).length} hors délai (&gt;5 j)
+                  {t("admin.listings.overdue", { count: enriched.filter(l => l.slaHigh).length })}
                 </span>
               )}
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: "#B45309", fontSize: 12.5, fontWeight: 600 }}>
-                {warnCount} avec avertissements
+                {t("admin.listings.withWarnings", { count: warnCount })}
               </span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, background: "#E4F6E6", border: "1px solid #ADEBB3", color: "#006E6E", fontSize: 12.5, fontWeight: 600 }}>
-                {okCount} qualité OK
+                {t("admin.listings.qualityOk", { count: okCount })}
               </span>
             </div>
           </div>
 
-          {/* ── Table card ──────────────────────────────────────────────── */}
+          {/* Table card */}
           <div style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, boxShadow: "0 1px 0 rgba(255,255,255,.6) inset, 0 6px 18px -14px rgba(15,42,42,.18)" }}>
 
             {/* Toolbar */}
             <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap" }}>
               {(filter === "approved" || filter === "rejected") ? (
-                /* Approved/Rejected tabs: bulk delete only (shared ButtonDiscard) */
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <ButtonDiscard
-                      disabled={selected.size === 0 || bulkLoading}
-                      style={{ marginRight: 4 }}
-                    >
-                      Supprimer la sélection
+                    <ButtonDiscard disabled={selected.size === 0 || bulkLoading} style={{ marginRight: 4 }}>
+                      {t("admin.listings.deleteSelection")}
                       {selected.size > 0 && (
                         <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-[5px] text-[10.5px] font-bold bg-destructive/15 text-destructive">
                           {selected.size}
@@ -472,24 +451,18 @@ export default function AdminListings() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Êtes-vous absolument sûr ?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Cette action est irréversible. Cela supprimera définitivement ces annonces de nos serveurs.
-                      </AlertDialogDescription>
+                      <AlertDialogTitle>{t("admin.listings.deleteConfirmTitle")}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("admin.listings.deleteConfirmDesc")}</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Annuler</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleBulkDelete}
-                        className="bg-red-600 text-white hover:bg-red-700"
-                      >
-                        Supprimer définitivement
+                      <AlertDialogCancel>{t("admin.listings.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 text-white hover:bg-red-700">
+                        {t("admin.listings.deleteConfirm")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               ) : (
-                /* All other tabs (en attente, qualité, alertes): bulk approve + reject */
                 <>
                   <button
                     onClick={handleBulkApprove}
@@ -505,7 +478,7 @@ export default function AdminListings() {
                     }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m5 12 5 5 9-11"/></svg>
-                    Approuver la sélection
+                    {t("admin.listings.approveSelection")}
                     {selected.size > 0 && (
                       <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(173,235,179,.22)", color: "#ADEBB3", fontSize: 10.5, fontWeight: 700 }}>
                         {selected.size}
@@ -526,7 +499,7 @@ export default function AdminListings() {
                     }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                    Rejeter la sélection
+                    {t("admin.listings.rejectSelection")}
                     {selected.size > 0 && (
                       <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: "rgba(180,83,9,.18)", color: "#B45309", fontSize: 10.5, fontWeight: 700 }}>
                         {selected.size}
@@ -535,6 +508,7 @@ export default function AdminListings() {
                   </button>
                 </>
               )}
+
               {/* Search */}
               <div style={{ flex: 1, maxWidth: 280, position: "relative" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#98A3A0" strokeWidth="2" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
@@ -542,37 +516,33 @@ export default function AdminListings() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Titre, hôte, wilaya…"
+                  placeholder={t("admin.listings.searchPlaceholder")}
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1); }}
                   style={{
                     width: "100%", padding: "7px 10px 7px 30px", borderRadius: 8,
                     border: "1px solid #E5DFCE", background: "#FAFAF8",
-                    fontSize: 12.5, color: "#0F2A2A", outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color .15s",
+                    fontSize: 12.5, color: "#0F2A2A", outline: "none", boxSizing: "border-box",
                   }}
                   onFocus={e => { e.target.style.borderColor = "#006E6E"; }}
                   onBlur={e => { e.target.style.borderColor = "#E5DFCE"; }}
                 />
                 {search && (
-                  <button
-                    onClick={() => { setSearch(""); setPage(1); }}
-                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, color: "#98A3A0", display: "grid", placeItems: "center" }}
-                  >
+                  <button onClick={() => { setSearch(""); setPage(1); }} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 2, color: "#98A3A0", display: "grid", placeItems: "center" }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 6l12 12M18 6 6 18"/></svg>
                   </button>
                 )}
               </div>
 
+              {/* Filter tabs */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[
-                  { key: "all",      label: `Tous (${enriched.length})` },
-                  { key: "ok",       label: `Qualité OK (${okCount})` },
-                  { key: "warn",     label: `Avec alertes (${warnCount})` },
-                  { key: "pending",  label: `En attente (${pendingTabCount})` },
-                  { key: "approved", label: `Approuvées (${approvedTabCount})` },
-                  { key: "rejected", label: `Rejetées (${rejectedTabCount})` },
+                  { key: "all",      label: t("admin.listings.filters.all",       { count: enriched.length }) },
+                  { key: "ok",       label: t("admin.listings.filters.qualityOk", { count: okCount }) },
+                  { key: "warn",     label: t("admin.listings.filters.withAlerts", { count: warnCount }) },
+                  { key: "pending",  label: t("admin.listings.filters.pending",   { count: pendingTabCount }) },
+                  { key: "approved", label: t("admin.listings.filters.approved",  { count: approvedTabCount }) },
+                  { key: "rejected", label: t("admin.listings.filters.rejected",  { count: rejectedTabCount }) },
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -596,11 +566,11 @@ export default function AdminListings() {
                   <TableHead style={{ paddingLeft: 20, width: 44 }}>
                     <Checkbox checked={masterChecked} onCheckedChange={toggleAll} />
                   </TableHead>
-                  <TableHead style={{ width: 280, color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Propriété</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Localisation</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>Hôte</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, minWidth: 180 }}>Qualité</TableHead>
-                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 20 }}>Actions</TableHead>
+                  <TableHead style={{ width: 280, color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.property")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.location")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500 }}>{t("admin.listings.cols.host")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, minWidth: 180 }}>{t("admin.listings.cols.quality")}</TableHead>
+                  <TableHead style={{ color: "#98A3A0", fontSize: 11, letterSpacing: ".07em", textTransform: "uppercase", fontWeight: 500, textAlign: "right", paddingRight: 20 }}>{t("admin.listings.cols.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
 
@@ -649,7 +619,7 @@ export default function AdminListings() {
                 ) : pageRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} style={{ textAlign: "center", padding: "48px 24px", color: "#6E7B79", fontSize: 14 }}>
-                      Aucune annonce dans cette catégorie.
+                      {t("admin.listings.empty")}
                     </TableCell>
                   </TableRow>
                 ) : pageRows.map((listing, i) => {
@@ -658,6 +628,7 @@ export default function AdminListings() {
                   const exitOrder = isExiting ? pageRows.filter(r => exitingIds.has(r.id)).findIndex(r => r.id === listing.id) : 0;
                   const tone      = AVATAR_TONES[i % AVATAR_TONES.length];
                   const imgSrc    = listing.images?.[0];
+                  const hostCount = userListingCounts[listing.user_id] || 1;
 
                   return (
                     <TableRow
@@ -674,12 +645,11 @@ export default function AdminListings() {
                         background: selected.has(listing.id) ? "#F5FBF5" : undefined,
                       }}
                     >
-                      {/* ── Checkbox ────────────────────────────────────── */}
                       <TableCell style={{ paddingLeft: 20, paddingTop: 14, paddingBottom: 14, width: 44 }} onClick={e => e.stopPropagation()}>
                         <Checkbox checked={selected.has(listing.id)} onCheckedChange={() => toggleRow(listing.id)} />
                       </TableCell>
 
-                      {/* ── Propriété ───────────────────────────────────── */}
+                      {/* Property */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, background: "#FAF7EC", border: "1px solid #E5DFCE" }}>
@@ -697,7 +667,7 @@ export default function AdminListings() {
                               {listing.rooms > 0 && (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#6E7B79" }}>
                                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                                  {listing.rooms} ch.
+                                  {t("admin.listings.bedrooms", { count: listing.rooms })}
                                 </span>
                               )}
                               {listing.size && <span style={{ fontSize: 11.5, color: "#6E7B79" }}>{listing.size} m²</span>}
@@ -706,7 +676,7 @@ export default function AdminListings() {
                         </div>
                       </TableCell>
 
-                      {/* ── Localisation ────────────────────────────────── */}
+                      {/* Location */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6E7B79" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
@@ -714,11 +684,14 @@ export default function AdminListings() {
                         </div>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 500, color: listing.slaHigh ? "#ef4444" : "#98A3A0" }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                          {listing.days === 0 ? "Soumis aujourd'hui" : `En attente depuis ${listing.days} jour${listing.days > 1 ? "s" : ""}`}
+                          {listing.days === 0
+                            ? t("admin.listings.submittedToday")
+                            : t("admin.listings.waitingDays", { count: listing.days })
+                          }
                         </div>
                       </TableCell>
 
-                      {/* ── Hôte ────────────────────────────────────────── */}
+                      {/* Host */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 12, background: tone.bg, color: tone.color, border: `1.5px solid ${tone.border}` }}>
@@ -726,24 +699,24 @@ export default function AdminListings() {
                           </span>
                           <div>
                             <div style={{ fontWeight: 600, fontSize: 13, color: "#0F2A2A", letterSpacing: "-.003em" }}>
-                              {listing.profiles?.full_name || "Inconnu"}
+                              {listing.profiles?.full_name || t("admin.activity.unknown")}
                             </div>
                             <div style={{ fontSize: 11.5, color: "#98A3A0", marginTop: 2, fontFamily: "monospace" }}>
-                              {userListingCounts[listing.user_id] || 1} annonce{(userListingCounts[listing.user_id] || 1) > 1 ? "s" : ""} au total
+                              {t("admin.listings.totalListings", { count: hostCount })}
                             </div>
                           </div>
                         </div>
                       </TableCell>
 
-                      {/* ── Qualité ─────────────────────────────────────── */}
+                      {/* Quality */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14 }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
-                          {listing.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                          {listing.badges.map(b => <QualityBadge key={b.labelKey} labelKey={b.labelKey} type={b.type} />)}
                           {listing.tour_360_urls?.length > 0 && <Tour360Badge />}
                         </div>
                       </TableCell>
 
-                      {/* ── Actions ─────────────────────────────────────── */}
+                      {/* Actions */}
                       <TableCell style={{ paddingTop: 14, paddingBottom: 14, paddingRight: 20, textAlign: "right" }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                           <button
@@ -751,7 +724,7 @@ export default function AdminListings() {
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 8, background: "#F5F5F5", border: "1px solid #E5DFCE", color: "#6E7B79", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
                           >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            Examiner
+                            {t("admin.listings.review")}
                           </button>
                           {(listing.status === "pending" || (listing.has_been_approved && !listing.is_verified && listing.status !== "rejected")) && (<>
                           <button
@@ -762,7 +735,7 @@ export default function AdminListings() {
                             onMouseLeave={e => { e.currentTarget.style.background = "#E4F6E6"; }}
                           >
                             <Check className="mr-1.5 h-4 w-4" />
-                            Approuver
+                            {t("admin.actions.approve")}
                           </button>
                           <DialogTrigger asChild>
                             <button
@@ -773,7 +746,7 @@ export default function AdminListings() {
                               onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; }}
                             >
                               <XCircle className="mr-1.5 h-4 w-4" />
-                              Rejeter
+                              {t("admin.listings.reject")}
                             </button>
                           </DialogTrigger>
                           </>)}
@@ -785,12 +758,16 @@ export default function AdminListings() {
               </TableBody>
             </Table>
 
-            {/* ── Pagination ──────────────────────────────────────────── */}
+            {/* Pagination */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #E5DFCE", fontSize: 12.5, color: "#6E7B79" }}>
               <span>
                 {filtered.length === 0
-                  ? "0 résultat"
-                  : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} sur ${filtered.length}`
+                  ? t("admin.listings.noResult")
+                  : t("admin.listings.pageRange", {
+                      start: (page - 1) * PAGE_SIZE + 1,
+                      end: Math.min(page * PAGE_SIZE, filtered.length),
+                      total: filtered.length,
+                    })
                 }
               </span>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -815,30 +792,22 @@ export default function AdminListings() {
         </main>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SHEET — Quick Preview
-      ══════════════════════════════════════════════════════════════════════════ */}
+      {/* Sheet — Quick Preview */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" showCloseButton={false} className="p-0 gap-0 flex flex-col w-[520px] sm:max-w-[520px] overflow-hidden">
-
           {sheetListing && (() => {
             const s = sheetListing;
             const photos = s.images || [];
             const busy = !!actionLoading[s.id];
+            const hostCount = userListingCounts[s.user_id] || 1;
 
             return (
               <>
-                {/* Scrollable body */}
                 <div style={{ flex: 1, overflowY: "auto" }}>
-
-                  {/* ── Cover image ── */}
+                  {/* Cover image */}
                   <div style={{ position: "relative", height: 260, background: "#0F2A2A", flexShrink: 0 }}>
                     {photos.length > 0 ? (
-                      <img
-                        src={photos[sheetPhotoIdx]}
-                        alt=""
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
+                      <img src={photos[sheetPhotoIdx]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     ) : (
                       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <svg viewBox="0 0 64 64" style={{ width: 80, opacity: 0.4 }}>
@@ -846,20 +815,12 @@ export default function AdminListings() {
                         </svg>
                       </div>
                     )}
-
-                    {/* Photo nav */}
                     {photos.length > 1 && (
                       <>
-                        <button
-                          onClick={() => setSheetPhotoIdx(i => (i - 1 + photos.length) % photos.length)}
-                          style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.85)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}
-                        >
+                        <button onClick={() => setSheetPhotoIdx(i => (i - 1 + photos.length) % photos.length)} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.85)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F2A2A" strokeWidth="2"><path d="M15 6l-6 6 6 6"/></svg>
                         </button>
-                        <button
-                          onClick={() => setSheetPhotoIdx(i => (i + 1) % photos.length)}
-                          style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.85)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}
-                        >
+                        <button onClick={() => setSheetPhotoIdx(i => (i + 1) % photos.length)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,.85)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F2A2A" strokeWidth="2"><path d="M9 6l6 6-6 6"/></svg>
                         </button>
                         <span style={{ position: "absolute", bottom: 12, right: 12, padding: "3px 10px", borderRadius: 999, background: "rgba(0,0,0,.55)", color: "#fff", fontSize: 11.5, fontWeight: 600 }}>
@@ -867,12 +828,7 @@ export default function AdminListings() {
                         </span>
                       </>
                     )}
-
-                    {/* Close button */}
-                    <button
-                      onClick={() => setSheetOpen(false)}
-                      style={{ position: "absolute", top: 12, left: 12, width: 32, height: 32, borderRadius: "50%", background: "rgba(0,0,0,.45)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}
-                    >
+                    <button onClick={() => setSheetOpen(false)} style={{ position: "absolute", top: 12, left: 12, width: 32, height: 32, borderRadius: "50%", background: "rgba(0,0,0,.45)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg>
                     </button>
                   </div>
@@ -881,39 +837,33 @@ export default function AdminListings() {
                   {photos.length > 1 && (
                     <div style={{ display: "flex", gap: 6, padding: "10px 16px", background: "#FAFAF8", borderBottom: "1px solid #E5DFCE", overflowX: "auto" }}>
                       {photos.map((src, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setSheetPhotoIdx(idx)}
-                          style={{ width: 60, height: 48, borderRadius: 8, overflow: "hidden", flexShrink: 0, padding: 0, border: `2px solid ${idx === sheetPhotoIdx ? "#006E6E" : "transparent"}`, cursor: "pointer", background: "none" }}
-                        >
+                        <button key={idx} onClick={() => setSheetPhotoIdx(idx)} style={{ width: 60, height: 48, borderRadius: 8, overflow: "hidden", flexShrink: 0, padding: 0, border: `2px solid ${idx === sheetPhotoIdx ? "#006E6E" : "transparent"}`, cursor: "pointer", background: "none" }}>
                           <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                         </button>
                       ))}
                     </div>
                   )}
 
-                  {/* ── Content ── */}
+                  {/* Content */}
                   <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
 
                     {/* Title + tags + SLA */}
                     <div>
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A", lineHeight: 1.3, flex: 1 }}>
-                          {s.title}
-                        </h2>
+                        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A", lineHeight: 1.3, flex: 1 }}>{s.title}</h2>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 500, color: s.slaHigh ? "#ef4444" : "#98A3A0", flexShrink: 0, marginTop: 3 }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                          {s.days === 0 ? "Soumis aujourd'hui" : `${s.days}j en attente`}
+                          {s.days === 0 ? t("admin.listings.submittedToday") : t("admin.listings.daysWaitingShort", { count: s.days })}
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                         {s.is_for_exchange && (
-                          <span style={{ background: "#0F2A2A", color: "#ADEBB3", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Échange</span>
+                          <span style={{ background: "#0F2A2A", color: "#ADEBB3", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>{t("admin.listings.exchange")}</span>
                         )}
                         {s.is_for_sale && (
-                          <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>Vente</span>
+                          <span style={{ background: "#4B3FD8", color: "#fff", fontSize: 11.5, fontWeight: 600, padding: "3px 12px", borderRadius: 999 }}>{t("admin.listings.sale")}</span>
                         )}
-                        {s.badges.map(b => <QualityBadge key={b.label} label={b.label} type={b.type} />)}
+                        {s.badges.map(b => <QualityBadge key={b.labelKey} labelKey={b.labelKey} type={b.type} />)}
                         {s.tour_360_urls?.length > 0 && <Tour360Badge />}
                       </div>
                     </div>
@@ -929,7 +879,7 @@ export default function AdminListings() {
                       {s.rooms > 0 && (
                         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0A3D3D" strokeWidth="1.8"><path d="M2 9h20M2 9v10h20V9M5 9V5h14v4"/><path d="M2 14h20"/></svg>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{s.rooms} chambre{s.rooms > 1 ? "s" : ""}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{t("admin.listings.bedrooms", { count: s.rooms })}</span>
                         </div>
                       )}
                       {s.size && (
@@ -941,7 +891,9 @@ export default function AdminListings() {
                       {s.floor != null && (
                         <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, borderLeft: "1px solid rgba(10,61,61,.2)", paddingLeft: 16 }}>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A3D3D" strokeWidth="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>{s.floor === 0 ? "RDC" : `Étage ${s.floor}`}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0A3D3D" }}>
+                            {s.floor === 0 ? t("admin.listings.groundFloor") : t("admin.listings.floor", { floor: s.floor })}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -949,7 +901,7 @@ export default function AdminListings() {
                     {/* Description */}
                     {s.description && (
                       <div>
-                        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Description</p>
+                        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>{t("admin.listings.description")}</p>
                         <p style={{ margin: 0, fontSize: 13.5, color: "#0F2A2A", lineHeight: 1.75 }}>{s.description}</p>
                       </div>
                     )}
@@ -957,7 +909,7 @@ export default function AdminListings() {
                     {/* Amenities */}
                     {s.amenities?.length > 0 && (
                       <div>
-                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Équipements</p>
+                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>{t("admin.listings.amenities")}</p>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 12px" }}>
                           {s.amenities.map(name => {
                             const Icon = AMENITY_ICONS[name] || Wifi;
@@ -972,10 +924,10 @@ export default function AdminListings() {
                       </div>
                     )}
 
-                    {/* ── 360° Virtual Tour ── */}
+                    {/* 360° Virtual Tour */}
                     {s.tour_360_urls?.length > 0 && (
                       <div>
-                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>Visite virtuelle</p>
+                        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, color: "#98A3A0", textTransform: "uppercase", letterSpacing: ".07em" }}>{t("admin.listings.virtualTour")}</p>
                         <button
                           onClick={() => {
                             const opening = !tour360Open;
@@ -996,10 +948,9 @@ export default function AdminListings() {
                         >
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                             <Globe2 style={{ width: 17, height: 17, flexShrink: 0 }} />
-                            Inspecter la visite 360° ({s.tour_360_urls.length})
+                            {t("admin.listings.inspect360", { count: s.tour_360_urls.length })}
                           </span>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                            style={{ transform: tour360Open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: tour360Open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }}>
                             <path d="M6 9l6 6 6-6" />
                           </svg>
                         </button>
@@ -1009,16 +960,7 @@ export default function AdminListings() {
                             {s.tour_360_urls.length > 1 && (
                               <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                                 {s.tour_360_urls.map((url, i) => (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setTour360SelectedUrl(url)}
-                                    style={{
-                                      width: 56, height: 56, borderRadius: 10, overflow: "hidden", padding: 0,
-                                      border: `2.5px solid ${tour360SelectedUrl === url ? "#006E6E" : "#E5DFCE"}`,
-                                      cursor: "pointer", background: "#0F2A2A", flexShrink: 0, position: "relative",
-                                    }}
-                                  >
+                                  <button key={i} type="button" onClick={() => setTour360SelectedUrl(url)} style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", padding: 0, border: `2.5px solid ${tour360SelectedUrl === url ? "#006E6E" : "#E5DFCE"}`, cursor: "pointer", background: "#0F2A2A", flexShrink: 0, position: "relative" }}>
                                     <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: 0.75 }} />
                                     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ADEBB3" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" strokeLinecap="round"/></svg>
@@ -1031,16 +973,10 @@ export default function AdminListings() {
                               <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #E5DFCE", background: "#0F2A2A" }}>
                                 <Suspense fallback={
                                   <div style={{ height: 400, display: "grid", placeItems: "center", color: "#ADEBB3", fontSize: 13 }}>
-                                    Chargement de la visite 360°…
+                                    {t("admin.listings.loading360")}
                                   </div>
                                 }>
-                                  <ReactPhotoSphereViewer
-                                    key={tour360SelectedUrl}
-                                    src={tour360SelectedUrl}
-                                    width="100%"
-                                    height="400px"
-                                    autorotate={false}
-                                  />
+                                  <ReactPhotoSphereViewer key={tour360SelectedUrl} src={tour360SelectedUrl} width="100%" height="400px" autorotate={false} />
                                 </Suspense>
                               </div>
                             )}
@@ -1055,10 +991,10 @@ export default function AdminListings() {
                         {initials(s.profiles?.full_name)}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>{s.profiles?.full_name || "Inconnu"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>{s.profiles?.full_name || t("admin.activity.unknown")}</div>
                         {s.profiles?.wilaya && <div style={{ fontSize: 12.5, color: "#6E7B79", marginTop: 2 }}>{s.profiles.wilaya}</div>}
                         <div style={{ fontSize: 11.5, color: "#98A3A0", marginTop: 2 }}>
-                          {userListingCounts[s.user_id] || 1} annonce{(userListingCounts[s.user_id] || 1) > 1 ? "s" : ""} au total
+                          {t("admin.listings.totalListings", { count: hostCount })}
                         </div>
                       </div>
                     </div>
@@ -1066,7 +1002,7 @@ export default function AdminListings() {
                   </div>
                 </div>
 
-                {/* ── Sheet footer ── */}
+                {/* Sheet footer */}
                 <div style={{ padding: "16px 20px", borderTop: "1px solid #E5DFCE", display: "flex", gap: 10, background: "#FFFFFF" }}>
                   {(s.status === "pending" || (s.has_been_approved && !s.is_verified && s.status !== "rejected")) ? (<>
                   <DialogTrigger asChild>
@@ -1076,7 +1012,7 @@ export default function AdminListings() {
                       style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px", borderRadius: 10, background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#991B1B", fontSize: 13.5, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer" }}
                     >
                       <XCircle className="mr-1.5 h-4 w-4" />
-                      Rejeter
+                      {t("admin.listings.reject")}
                     </button>
                   </DialogTrigger>
                   <button
@@ -1087,58 +1023,52 @@ export default function AdminListings() {
                     onMouseLeave={e => { e.currentTarget.style.background = "#006E6E"; }}
                   >
                     <Check className="mr-1.5 h-4 w-4" />
-                    {busy ? "En cours…" : "Approuver"}
+                    {busy ? t("admin.inProgress") : t("admin.actions.approve")}
                   </button>
                   </>) : (
                   <button
                     onClick={() => setSheetOpen(false)}
                     style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "11px", borderRadius: 10, background: "#F5F5F5", border: "1px solid #E5DFCE", color: "#6E7B79", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
                   >
-                    Fermer
+                    {t("admin.listings.close")}
                   </button>
                   )}
                 </div>
               </>
             );
           })()}
-
         </SheetContent>
       </Sheet>
 
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
     </div>
 
-    {/* ═══════════════════════════════════════════════════════════════════════
-        DIALOG — Rejection flow (DialogContent lives outside the scroll div)
-    ══════════════════════════════════════════════════════════════════════════ */}
-    <DialogContent
-      showCloseButton={false}
-      className="sm:max-w-[425px] p-6 bg-background border border-border text-foreground rounded-xl"
-    >
+    {/* Rejection Dialog */}
+    <DialogContent showCloseButton={false} className="sm:max-w-[425px] p-6 bg-background border border-border text-foreground rounded-xl">
       <DialogHeader className="space-y-1.5 text-left">
         <DialogTitle className="text-xl font-semibold tracking-tight">
-          Motif du refus
+          {t("admin.reject.title")}
         </DialogTitle>
         <DialogDescription className="text-sm text-muted-foreground">
-          Sélectionnez un motif et ajoutez un commentaire optionnel.
+          {t("admin.reject.desc")}
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-3 py-2">
         <Select value={rejectMotif} onValueChange={setRejectMotif}>
           <SelectTrigger className="w-full bg-background border border-input text-sm rounded-md px-3 py-2">
-            <SelectValue placeholder="Choisir un motif…" />
+            <SelectValue placeholder={t("admin.reject.selectMotif")} />
           </SelectTrigger>
           <SelectContent className="bg-popover text-popover-foreground border border-border rounded-md shadow-md">
-            <SelectItem value="photos">Photos floues</SelectItem>
-            <SelectItem value="incomplet">Informations incomplètes</SelectItem>
-            <SelectItem value="doublon">Doublon</SelectItem>
-            <SelectItem value="inapproprie">Inapproprié</SelectItem>
+            <SelectItem value="photos">{t("admin.reject.motifs.photos")}</SelectItem>
+            <SelectItem value="incomplet">{t("admin.reject.motifs.incomplet")}</SelectItem>
+            <SelectItem value="doublon">{t("admin.reject.motifs.doublon")}</SelectItem>
+            <SelectItem value="inapproprie">{t("admin.reject.motifs.inapproprie")}</SelectItem>
           </SelectContent>
         </Select>
 
         <Textarea
-          placeholder="Commentaire additionnel (optionnel)…"
+          placeholder={t("admin.reject.commentPlaceholder")}
           rows={3}
           value={rejectComment}
           onChange={e => setRejectComment(e.target.value)}
@@ -1149,16 +1079,11 @@ export default function AdminListings() {
       <DialogFooter className="flex flex-row justify-end gap-2 pt-4">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={rejectLoading}>
-            Annuler
+            {t("admin.reject.cancel")}
           </Button>
         </DialogClose>
-        <Button
-          variant="destructive"
-          type="submit"
-          onClick={handleRejectConfirm}
-          disabled={!rejectMotif || rejectLoading}
-        >
-          {rejectLoading ? "Refus en cours…" : "Confirmer le refus"}
+        <Button variant="destructive" type="submit" onClick={handleRejectConfirm} disabled={!rejectMotif || rejectLoading}>
+          {rejectLoading ? t("admin.reject.confirming") : t("admin.reject.confirm")}
         </Button>
       </DialogFooter>
     </DialogContent>

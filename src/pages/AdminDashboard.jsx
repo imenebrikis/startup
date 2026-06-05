@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Skeleton } from "../components/ui/skeleton";
 import { useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
+import LanguageSelector from "../components/LanguageSelector";
 
 const DOT_COLORS = {
   purple: { bg: "#7A55C9", ring: "#EFE7FB" },
@@ -21,14 +24,14 @@ const AVATAR_TONES = [
   { bg: "#E4EFFA", color: "#2F6FB5", border: "#C9DCF1" },
 ];
 
-function timeAgo(date) {
+function timeAgo(date, t) {
   const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (s < 60) return "À l'instant";
+  if (s < 60) return t("admin.time.now");
   const m = Math.floor(s / 60);
-  if (m < 60) return `Il y a ${m} min`;
+  if (m < 60) return t("admin.time.minutesAgo", { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `Il y a ${h} h`;
-  return `Il y a ${Math.floor(h / 24)} j`;
+  if (h < 24) return t("admin.time.hoursAgo", { count: h });
+  return t("admin.time.daysAgo", { count: Math.floor(h / 24) });
 }
 
 function initials(name) {
@@ -39,6 +42,9 @@ function initials(name) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language?.startsWith("en") ? "en-GB" : "fr-FR";
+
   const [dataLoading, setDataLoading] = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +54,7 @@ export default function AdminDashboard() {
   const [pendingListings, setPendingListings] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [suspendingId, setSuspendingId] = useState(null);
 
   useEffect(() => { initAdmin(); }, []);
 
@@ -65,86 +72,96 @@ export default function AdminDashboard() {
   async function fetchAll() {
     setDataLoading(true);
     try {
-    const [
-      { count: totalUsers },
-      { count: totalListings },
-      { count: pendingCount },
-      { count: completedExchanges },
-      { data: pending },
-      { data: users },
-      { data: recentListings },
-      { data: recentProfiles },
-      { data: recentExchanges },
-    ] = await Promise.all([
-      supabase.from("profiles").select("*", { count: "exact", head: true }),
-      supabase.from("listings").select("*", { count: "exact", head: true }),
-      supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("exchanges").select("*", { count: "exact", head: true }).eq("status", "accepted"),
-      supabase.from("listings")
-        .select("*, profiles!listings_user_id_fkey(full_name)")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(5),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("listings")
-        .select("*, profiles!listings_user_id_fkey(full_name)")
-        .order("created_at", { ascending: false })
-        .limit(4),
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(3),
-      supabase.from("exchanges")
-        .select("*, profiles!exchanges_requester_id_fkey(full_name), listings!exchanges_listing_id_fkey(title)")
-        .order("created_at", { ascending: false })
-        .limit(3),
-    ]);
+      const [
+        { count: totalUsers },
+        { count: totalListings },
+        { count: pendingCount },
+        { count: completedExchanges },
+        { data: pending },
+        { data: users },
+        { data: recentListings },
+        { data: recentProfiles },
+        { data: recentExchanges },
+      ] = await Promise.all([
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("listings").select("*", { count: "exact", head: true }),
+        supabase.from("listings").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("exchanges").select("*", { count: "exact", head: true }).eq("status", "accepted"),
+        supabase.from("listings")
+          .select("*, profiles!listings_user_id_fkey(full_name)")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("listings")
+          .select("*, profiles!listings_user_id_fkey(full_name)")
+          .order("created_at", { ascending: false })
+          .limit(4),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(3),
+        supabase.from("exchanges")
+          .select("*, profiles!exchanges_requester_id_fkey(full_name), listings!exchanges_listing_id_fkey(title)")
+          .order("created_at", { ascending: false })
+          .limit(3),
+      ]);
 
-    setStats({
-      totalUsers: totalUsers || 0,
-      totalListings: totalListings || 0,
-      pendingCount: pendingCount || 0,
-      completedExchanges: completedExchanges || 0,
-    });
-    setPendingListings(pending || []);
-    setAllUsers(users || []);
-
-    const items = [];
-    recentProfiles?.forEach(p => items.push({
-      color: "purple",
-      title: "Nouvel utilisateur inscrit",
-      who: p.full_name || "Utilisateur",
-      sub: p.wilaya || "",
-      time: new Date(p.created_at),
-    }));
-    recentListings?.forEach(l => {
-      const isApproved = l.status === "approved";
-      const isRejected = l.status === "rejected";
-      items.push({
-        color: isApproved ? "green" : isRejected ? "danger" : "blue",
-        title: isApproved ? "Annonce approuvée" : isRejected ? "Annonce rejetée" : "Nouvelle annonce soumise",
-        who: l.profiles?.full_name || "Inconnu",
-        sub: l.title,
-        time: new Date(l.created_at),
+      setStats({
+        totalUsers: totalUsers || 0,
+        totalListings: totalListings || 0,
+        pendingCount: pendingCount || 0,
+        completedExchanges: completedExchanges || 0,
       });
-    });
-    recentExchanges?.forEach(e => items.push({
-      color: e.status === "accepted" ? "green" : "teal",
-      title: e.status === "accepted" ? "Échange confirmé" : "Demande d'échange",
-      who: e.profiles?.full_name || "Inconnu",
-      sub: e.listings?.title || "",
-      time: new Date(e.created_at),
-    }));
-    items.sort((a, b) => b.time - a.time);
-    setActivity(items.slice(0, 6));
+      setPendingListings(pending || []);
+      setAllUsers(users || []);
+
+      const items = [];
+      recentProfiles?.forEach(p => items.push({
+        color: "purple",
+        typeKey: "newUser",
+        who: p.full_name || "",
+        sub: p.wilaya || "",
+        time: new Date(p.created_at),
+      }));
+      recentListings?.forEach(l => {
+        const isApproved = l.status === "approved";
+        const isRejected = l.status === "rejected";
+        items.push({
+          color: isApproved ? "green" : isRejected ? "danger" : "blue",
+          typeKey: isApproved ? "listingApproved" : isRejected ? "listingRejected" : "listingSubmitted",
+          who: l.profiles?.full_name || "",
+          sub: l.title,
+          time: new Date(l.created_at),
+        });
+      });
+      recentExchanges?.forEach(e => items.push({
+        color: e.status === "accepted" ? "green" : "teal",
+        typeKey: e.status === "accepted" ? "exchangeConfirmed" : "exchangeRequest",
+        who: e.profiles?.full_name || "",
+        sub: e.listings?.title || "",
+        time: new Date(e.created_at),
+      }));
+      items.sort((a, b) => b.time - a.time);
+      setActivity(items.slice(0, 6));
     } finally {
       setDataLoading(false);
     }
+  }
+
+  async function refreshPending() {
+    const { data } = await supabase
+      .from("listings")
+      .select("*, profiles!listings_user_id_fkey(full_name)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    setPendingListings(data || []);
   }
 
   async function handleApprove(id) {
     setActionLoading(prev => ({ ...prev, [id]: "approve" }));
     const { error } = await supabase.from("listings").update({ status: "approved", is_verified: true }).eq("id", id);
     if (!error) {
-      setPendingListings(prev => prev.filter(l => l.id !== id));
       setStats(prev => ({ ...prev, pendingCount: Math.max(0, prev.pendingCount - 1) }));
+      await refreshPending();
     }
     setActionLoading(prev => { const n = { ...prev }; delete n[id]; return n; });
   }
@@ -153,10 +170,24 @@ export default function AdminDashboard() {
     setActionLoading(prev => ({ ...prev, [id]: "reject" }));
     const { error } = await supabase.from("listings").update({ status: "rejected" }).eq("id", id);
     if (!error) {
-      setPendingListings(prev => prev.filter(l => l.id !== id));
       setStats(prev => ({ ...prev, pendingCount: Math.max(0, prev.pendingCount - 1) }));
+      await refreshPending();
     }
     setActionLoading(prev => { const n = { ...prev }; delete n[id]; return n; });
+  }
+
+  async function toggleBan(user) {
+    const newBanned = !user.is_banned;
+    setSuspendingId(user.id);
+    setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: newBanned } : u));
+    const { error } = await supabase.from("profiles").update({ is_banned: newBanned }).eq("id", user.id);
+    setSuspendingId(null);
+    if (error) {
+      setAllUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_banned: user.is_banned } : u));
+      toast.error(t("admin.users.suspendError"));
+    } else {
+      toast.success(newBanned ? t("admin.users.suspendSuccess") : t("admin.users.reactivateSuccess"));
+    }
   }
 
   const filteredUsers = allUsers.filter(u =>
@@ -167,32 +198,32 @@ export default function AdminDashboard() {
 
   const KPI_CARDS = [
     {
-      label: "Utilisateurs", value: stats.totalUsers,
+      label: t("admin.kpi.users"), value: stats.totalUsers,
       iconBg: "#EFE7FB", iconColor: "#7A55C9", iconBorder: "#DCCEF5",
       ghost: "rgba(122,85,201,.10)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c1.2-3 3.8-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/><circle cx="17" cy="7" r="2.6"/><path d="M14.5 14.5c1.5-.7 3-.9 4.5-.5 1.4.4 2.5 1.3 3 2.5"/></svg>,
-      delta: "Total inscrits", warn: false,
+      delta: t("admin.kpi.usersDelta"), warn: false,
     },
     {
-      label: "Annonces totales", value: stats.totalListings,
+      label: t("admin.kpi.listings"), value: stats.totalListings,
       iconBg: "#E4EFFA", iconColor: "#2F6FB5", iconBorder: "#C9DCF1",
       ghost: "rgba(47,111,181,.10)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>,
-      delta: "Toutes statuts", warn: false,
+      delta: t("admin.kpi.listingsDelta"), warn: false,
     },
     {
-      label: "En vérification", value: stats.pendingCount,
+      label: t("admin.kpi.pending"), value: stats.pendingCount,
       iconBg: "#FBEED1", iconColor: "#B4791E", iconBorder: "#ECD6A1",
       ghost: "rgba(180,121,30,.12)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3 2"/></svg>,
-      delta: "Action requise", warn: true,
+      delta: t("admin.kpi.pendingDelta"), warn: true,
     },
     {
-      label: "Échanges réalisés", value: stats.completedExchanges,
+      label: t("admin.kpi.exchanges"), value: stats.completedExchanges,
       iconBg: "#E4F6E6", iconColor: "#005B5B", iconBorder: "#C9E8CD",
       ghost: "rgba(173,235,179,.40)",
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>,
-      delta: "Échanges acceptés", warn: false,
+      delta: t("admin.kpi.exchangesDelta"), warn: false,
     },
   ];
 
@@ -201,7 +232,6 @@ export default function AdminDashboard() {
 
       <AdminSidebar active="dashboard" pendingCount={stats.pendingCount} adminProfile={adminProfile} />
 
-      {/* ===== Main Content ===== */}
       <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* Top Bar */}
@@ -211,32 +241,31 @@ export default function AdminDashboard() {
           padding: "14px 24px", background: "rgba(243,238,224,.88)",
           backdropFilter: "blur(12px)", borderBottom: "1px solid #E5DFCE",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
-              DarBelDar
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",
-                borderRadius: 999, background: "#005B5B", color: "#ADEBB3",
-                fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
-                Admin
-              </span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
-              <b style={{ color: "#0F2A2A", fontWeight: 600 }}>Tableau de bord</b>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#6E7B79", fontSize: 13, fontWeight: 500 }}>
+            DarBelDar
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px",
+              borderRadius: 999, background: "#005B5B", color: "#ADEBB3",
+              fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ADEBB3" }} />
+              {t("admin.badge")}
             </span>
-          </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
+            <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.dashboard")}</b>
+          </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <LanguageSelector />
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79",
               padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE",
             }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#8FD89A", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
-              En direct
+              {t("admin.live")}
             </span>
             <Link
               to="/dashboard"
-              title="Retour app"
+              title={t("admin.backToApp")}
               style={{
                 width: 36, height: 36, borderRadius: 10, display: "grid", placeItems: "center",
                 border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#0F2A2A", textDecoration: "none",
@@ -253,10 +282,10 @@ export default function AdminDashboard() {
           {/* Title Row */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14, margin: "-4px 0 -6px" }}>
             <div>
-              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>Tableau de bord Admin</h1>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-.02em", color: "#0F2A2A" }}>{t("admin.title")}</h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6E7B79" }}>
-                Vue d'ensemble · <span style={{ fontFamily: "monospace" }}>
-                  {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                {t("admin.overview")} · <span style={{ fontFamily: "monospace" }}>
+                  {new Date().toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
                 </span>
               </p>
             </div>
@@ -295,7 +324,7 @@ export default function AdminDashboard() {
                   }}>{icon}</span>
                 </div>
                 <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.02em", lineHeight: 1, color: "#0F2A2A", fontFamily: "monospace" }}>
-                  {value.toLocaleString("fr-FR")}
+                  {value.toLocaleString(locale)}
                 </div>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: warn ? "#B4791E" : "#2F8A3E" }}>
                   {warn
@@ -318,8 +347,8 @@ export default function AdminDashboard() {
             }}>
               <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE" }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Annonces en attente d'approbation</h2>
-                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Vérifiez chaque logement avant publication.</p>
+                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.pending.title")}</h2>
+                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.pending.subtitle")}</p>
                 </div>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px",
@@ -327,7 +356,7 @@ export default function AdminDashboard() {
                   fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
-                  {stats.pendingCount} en attente
+                  {t("admin.pending.badge", { count: stats.pendingCount })}
                 </span>
               </div>
 
@@ -349,7 +378,7 @@ export default function AdminDashboard() {
                   ))
                 ) : pendingListings.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                    ✓ Aucune annonce en attente
+                    {t("admin.pending.empty")}
                   </div>
                 ) : pendingListings.map((listing, i) => {
                   const imgSrc = listing.images?.[0];
@@ -389,17 +418,17 @@ export default function AdminDashboard() {
                         <p style={{ margin: 0, fontSize: 12.5, color: "#6E7B79", display: "flex", alignItems: "center", gap: 6 }}>
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
                           {listing.wilaya}
-                          {listing.rooms && <><span style={{ opacity: .5 }}>•</span>{listing.rooms} ch.</>}
+                          {listing.rooms && <><span style={{ opacity: .5 }}>•</span>{t("admin.pending.rooms", { count: listing.rooms })}</>}
                         </p>
                         <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "#98A3A0" }}>
-                          Par <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{listing.profiles?.full_name || "Inconnu"}</b>
+                          {t("admin.pending.by")} <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{listing.profiles?.full_name || t("admin.activity.unknown")}</b>
                         </p>
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <button
                           onClick={() => handleApprove(listing.id)}
                           disabled={busy}
-                          aria-label="Approuver"
+                          aria-label={t("admin.actions.approve")}
                           style={{
                             width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center",
                             background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A",
@@ -411,7 +440,7 @@ export default function AdminDashboard() {
                         <button
                           onClick={() => handleReject(listing.id)}
                           disabled={busy}
-                          aria-label="Refuser"
+                          aria-label={t("admin.actions.reject")}
                           style={{
                             width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center",
                             background: "#FFFFFF", color: "#C13C26", border: "1px solid #F2C5BC",
@@ -431,7 +460,17 @@ export default function AdminDashboard() {
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 fontSize: 12.5, color: "#6E7B79",
               }}>
-                <span>{pendingListings.length} affichées sur <b style={{ color: "#0F2A2A" }}>{stats.pendingCount}</b></span>
+                <span>{t("admin.pending.shownOf", { shown: pendingListings.length, total: stats.pendingCount })}</span>
+                <Link
+                  to="/admin/listings"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    color: "#005B5B", fontWeight: 600, fontSize: 12.5, textDecoration: "none",
+                  }}
+                >
+                  {t("admin.pending.seeAll")}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </Link>
               </div>
             </article>
 
@@ -442,8 +481,8 @@ export default function AdminDashboard() {
             }}>
               <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, borderBottom: "1px solid #E5DFCE" }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Activité récente</h2>
-                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Flux des dernières actions sur la plateforme.</p>
+                  <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.activity.title")}</h2>
+                  <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.activity.subtitle")}</p>
                 </div>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px",
@@ -451,7 +490,7 @@ export default function AdminDashboard() {
                   fontSize: 11.5, fontWeight: 600, flexShrink: 0,
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3.5"/><path d="M3 12a9 9 0 0 1 18 0M21 12a9 9 0 0 1-18 0"/></svg>
-                  En temps réel
+                  {t("admin.activity.realtime")}
                 </span>
               </div>
 
@@ -469,7 +508,7 @@ export default function AdminDashboard() {
                   ))
                 ) : activity.length === 0 ? (
                   <div style={{ padding: "32px 20px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                    Aucune activité récente
+                    {t("admin.activity.empty")}
                   </div>
                 ) : activity.map((item, i) => {
                   const dc = DOT_COLORS[item.color] || DOT_COLORS.teal;
@@ -482,14 +521,16 @@ export default function AdminDashboard() {
                         <span style={{ width: 10, height: 10, borderRadius: "50%", background: dc.bg, boxShadow: `0 0 0 4px ${dc.ring}`, display: "block" }} />
                       </div>
                       <div>
-                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0F2A2A", letterSpacing: "-.003em" }}>{item.title}</p>
+                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0F2A2A", letterSpacing: "-.003em" }}>
+                          {t("admin.activity." + item.typeKey)}
+                        </p>
                         <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#6E7B79" }}>
-                          <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{item.who}</b>
+                          <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{item.who || t("admin.activity.unknown")}</b>
                           {item.sub ? ` — ${item.sub.length > 30 ? item.sub.slice(0, 30) + "…" : item.sub}` : ""}
                         </p>
                       </div>
                       <span style={{ fontSize: 11.5, color: "#98A3A0", whiteSpace: "nowrap", paddingTop: 2, fontFamily: "monospace" }}>
-                        {timeAgo(item.time)}
+                        {timeAgo(item.time, t)}
                       </span>
                     </div>
                   );
@@ -497,7 +538,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ borderTop: "1px solid #E5DFCE", padding: "12px 20px", fontSize: 12.5, color: "#6E7B79" }}>
-                {activity.length} événements affichés
+                {t("admin.activity.footer", { count: activity.length })}
               </div>
             </article>
 
@@ -513,8 +554,8 @@ export default function AdminDashboard() {
               justifyContent: "space-between", gap: 14, borderBottom: "1px solid #E5DFCE", flexWrap: "wrap",
             }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>Gestion des utilisateurs</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>Tous les comptes actifs sur la plateforme.</p>
+                <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 600, letterSpacing: "-.005em", color: "#0F2A2A" }}>{t("admin.users.title")}</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#6E7B79" }}>{t("admin.users.subtitle")}</p>
               </div>
               <label style={{
                 display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px",
@@ -525,7 +566,7 @@ export default function AdminDashboard() {
                 <input
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher un utilisateur..."
+                  placeholder={t("admin.users.searchPlaceholder")}
                   style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: "#0F2A2A", font: "inherit", fontSize: 13 }}
                 />
               </label>
@@ -535,7 +576,13 @@ export default function AdminDashboard() {
               <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13.5 }}>
                 <thead>
                   <tr>
-                    {["Utilisateur", "Wilaya", "Inscrit le", "Rôle", "Actions"].map((h, i) => (
+                    {[
+                      t("admin.users.cols.user"),
+                      t("admin.users.cols.wilaya"),
+                      t("admin.users.cols.registeredOn"),
+                      t("admin.users.cols.role"),
+                      t("admin.users.cols.actions"),
+                    ].map((h, i) => (
                       <th key={h} style={{
                         textAlign: i === 4 ? "right" : "left", fontWeight: 500, fontSize: 11.5,
                         textTransform: "uppercase", letterSpacing: ".06em", color: "#98A3A0",
@@ -601,7 +648,7 @@ export default function AdminDashboard() {
                           ) : <span style={{ color: "#98A3A0" }}>—</span>}
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", color: "#6E7B79", fontFamily: "monospace" }}>
-                          {user.created_at ? new Date(user.created_at).toLocaleDateString("fr-FR") : "—"}
+                          {user.created_at ? new Date(user.created_at).toLocaleDateString(locale) : "—"}
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle" }}>
                           <span style={{
@@ -613,29 +660,55 @@ export default function AdminDashboard() {
                             fontSize: 11.5, fontWeight: 600,
                           }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />
-                            {isAdmin ? "Admin" : "Utilisateur"}
+                            {t(isAdmin ? "admin.role.admin" : "admin.role.user")}
                           </span>
                         </td>
                         <td style={{ padding: "14px 22px", borderBottom: "1px solid #E5DFCE", verticalAlign: "middle", textAlign: "right" }}>
-                          <Link
-                            to={`/profile/${user.id}`}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px",
-                              borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
-                              color: "#005B5B", fontSize: 12.5, fontWeight: 600, textDecoration: "none",
-                            }}
-                          >
-                            Voir profil
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                          </Link>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+                            <Link
+                              to={`/profile/${user.id}`}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px",
+                                borderRadius: 999, background: "#E4F6E6", border: "1px solid #C9E8CD",
+                                color: "#005B5B", fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+                              }}
+                            >
+                              {t("admin.users.viewProfile")}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                            </Link>
+                            {!isAdmin && (
+                              <button
+                                onClick={() => toggleBan(user)}
+                                disabled={suspendingId === user.id}
+                                title={user.is_banned ? t("admin.users.reactivate") : t("admin.users.suspend")}
+                                style={{
+                                  width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center",
+                                  background: user.is_banned ? "#E4F6E6" : "#FDECEA",
+                                  border: `1px solid ${user.is_banned ? "#C9E8CD" : "#F5C6C2"}`,
+                                  color: user.is_banned ? "#005B5B" : "#C13C26",
+                                  cursor: suspendingId === user.id ? "not-allowed" : "pointer",
+                                  opacity: suspendingId === user.id ? 0.5 : 1,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {suspendingId === user.id ? (
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin .7s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
+                                ) : user.is_banned ? (
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z"/><path d="M8 12l3 3 5-5"/></svg>
+                                ) : (
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                   {!dataLoading && filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
-                        Aucun utilisateur trouvé
+                      <td colSpan={5} style={{ padding: "32px 22px", textAlign: "center", color: "#6E7B79", fontSize: 13.5 }}>
+                        {t("admin.users.empty")}
                       </td>
                     </tr>
                   )}
@@ -648,14 +721,24 @@ export default function AdminDashboard() {
               justifyContent: "space-between", gap: 12,
               borderTop: "1px solid #E5DFCE", fontSize: 12.5, color: "#6E7B79",
             }}>
-              <span>{filteredUsers.length} sur <b style={{ color: "#0F2A2A" }}>{allUsers.length}</b> utilisateurs</span>
+              <span>{t("admin.users.footer", { count: filteredUsers.length, total: allUsers.length })}</span>
+              <Link
+                to="/admin/users"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  color: "#005B5B", fontWeight: 600, fontSize: 12.5, textDecoration: "none",
+                }}
+              >
+                {t("admin.users.seeAll")}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </Link>
             </div>
           </section>
 
         </main>
       </section>
 
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

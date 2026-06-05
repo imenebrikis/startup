@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
+import LanguageSelector from "../components/LanguageSelector";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ini(name) {
@@ -10,27 +12,21 @@ function ini(name) {
   return (p[0][0] + (p[1]?.[0] || "")).toUpperCase();
 }
 
-function fmtSidebarTime(s) {
+function fmtSidebarTime(s, t, locale) {
   if (!s) return "";
   const d = new Date(s);
-  const diffMs = Date.now() - d.getTime();
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffDays === 0) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  if (diffDays === 1) return "Hier";
-  if (diffDays < 7) return d.toLocaleDateString("fr-FR", { weekday: "short" });
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (diffDays === 0) return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (diffDays === 1) return t("admin.time.yesterday");
+  if (diffDays < 7)  return d.toLocaleDateString(locale, { weekday: "short" });
+  return d.toLocaleDateString(locale, { day: "numeric", month: "short" });
 }
 
-function fmtMsgTime(s) {
+function fmtMsgTime(s, locale) {
   if (!s) return "";
-  return new Date(s).toLocaleString("fr-FR", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  });
+  return new Date(s).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-// Voice messages are stored as a public storage URL in `content`
-// (uploaded as `voice_<timestamp>.webm`). Detect those so they render
-// as an audio player instead of a raw link.
 function isAudioMessage(content) {
   if (typeof content !== "string") return false;
   const url = content.trim();
@@ -55,14 +51,14 @@ function toneFor(name) {
 }
 
 function Avatar({ name, size = 32 }) {
-  const t = toneFor(name);
+  const tone = toneFor(name);
   return (
     <span style={{
       width: size, height: size, borderRadius: "50%",
       display: "grid", placeItems: "center", flexShrink: 0,
       fontSize: size * 0.35, fontWeight: 700,
-      background: t.bg, color: t.color,
-      border: `1.5px solid ${t.color}22`,
+      background: tone.bg, color: tone.color,
+      border: `1.5px solid ${tone.color}22`,
     }}>
       {ini(name)}
     </span>
@@ -80,17 +76,20 @@ function HomeSvg({ size = 11 }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function AdminMessages() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language?.startsWith("en") ? "en-GB" : "fr-FR";
+
+  const [loading, setLoading]       = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [adminProfile, setAdminProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   const [conversations, setConversations] = useState([]);
-  const [convsLoading, setConvsLoading] = useState(false);
-  const [activeConv, setActiveConv] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [msgsLoading, setMsgsLoading] = useState(false);
-  const [search, setSearch] = useState("");
+  const [convsLoading, setConvsLoading]   = useState(false);
+  const [activeConv, setActiveConv]       = useState(null);
+  const [messages, setMessages]           = useState([]);
+  const [msgsLoading, setMsgsLoading]     = useState(false);
+  const [search, setSearch]               = useState("");
 
   const bottomRef = useRef(null);
 
@@ -155,7 +154,6 @@ export default function AdminMessages() {
     );
   });
 
-  // ── Loading / auth guards ──────────────────────────────────────────────────
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F8FAFC" }}>
       <div style={{ width: 26, height: 26, border: "3px solid #ADEBB3", borderTopColor: "#006E6E", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
@@ -165,7 +163,9 @@ export default function AdminMessages() {
 
   if (!authorized) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
-      <p style={{ color: "#64748B", fontSize: 15, fontFamily: "'Inter', sans-serif" }}>Accès non autorisé.</p>
+      <p style={{ color: "#64748B", fontSize: 15, fontFamily: "'Inter', sans-serif" }}>
+        {t("admin.transactions.unauthorized")}
+      </p>
     </div>
   );
 
@@ -173,17 +173,14 @@ export default function AdminMessages() {
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#F8FAFC", fontFamily: "'Inter', sans-serif" }}>
       <AdminSidebar active="messages" pendingCount={pendingCount} adminProfile={adminProfile} />
 
-      {/* ══ Conversation list panel ══════════════════════════════════════════ */}
-      <div style={{
-        width: 310, flexShrink: 0, borderRight: "1px solid #E2E8F0",
-        display: "flex", flexDirection: "column", background: "#FFFFFF",
-      }}>
+      {/* Conversation list panel */}
+      <div style={{ width: 310, flexShrink: 0, borderRight: "1px solid #E2E8F0", display: "flex", flexDirection: "column", background: "#FFFFFF" }}>
 
         {/* Panel header */}
         <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0F172A", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-              Conversations
+              {t("admin.messages.title")}
             </h2>
             <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#F0FDF4", color: "#15803D", border: "1px solid #BBF7D0" }}>
               {conversations.length}
@@ -194,10 +191,15 @@ export default function AdminMessages() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher…"
+              placeholder={t("admin.messages.search")}
               style={{ border: 0, outline: 0, fontSize: 13, color: "#0F172A", background: "transparent", fontFamily: "'Inter', sans-serif", flex: 1 }}
             />
           </label>
+        </div>
+
+        {/* Language selector row */}
+        <div style={{ padding: "8px 16px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end" }}>
+          <LanguageSelector />
         </div>
 
         {/* List */}
@@ -210,18 +212,20 @@ export default function AdminMessages() {
             </div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: "48px 20px", textAlign: "center" }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.3" style={{ margin: "0 auto 10px" }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.3" style={{ margin: "0 auto 10px" }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
               <div style={{ fontSize: 13.5, color: "#0F172A", fontWeight: 600 }}>
-                {search ? "Aucun résultat" : "Aucune conversation"}
+                {search ? t("admin.messages.noResults") : t("admin.messages.noConversations")}
               </div>
               <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
-                {search ? "Essayez d'autres termes." : "Les échanges entre utilisateurs apparaîtront ici."}
+                {search ? t("admin.messages.noResultsHint") : t("admin.messages.noConversationsHint")}
               </div>
             </div>
           ) : filtered.map(conv => {
             const isActive = activeConv?.id === conv.id;
-            const n1 = conv.profile_one?.full_name || "Utilisateur";
-            const n2 = conv.profile_two?.full_name || "Utilisateur";
+            const n1 = conv.profile_one?.full_name || t("admin.messages.userFallback");
+            const n2 = conv.profile_two?.full_name || t("admin.messages.userFallback");
             const t2 = toneFor(n2);
             return (
               <button
@@ -246,8 +250,7 @@ export default function AdminMessages() {
                     width: 20, height: 20, borderRadius: "50%",
                     display: "grid", placeItems: "center",
                     background: t2.bg, color: t2.color,
-                    fontSize: 8, fontWeight: 700,
-                    border: "2px solid #fff",
+                    fontSize: 8, fontWeight: 700, border: "2px solid #fff",
                   }}>
                     {ini(n2)}
                   </span>
@@ -273,7 +276,7 @@ export default function AdminMessages() {
                 </div>
 
                 <span style={{ fontSize: 10.5, color: "#94A3B8", whiteSpace: "nowrap", marginTop: 2, flexShrink: 0 }}>
-                  {fmtSidebarTime(conv.last_message_at)}
+                  {fmtSidebarTime(conv.last_message_at, t, locale)}
                 </span>
               </button>
             );
@@ -281,19 +284,22 @@ export default function AdminMessages() {
         </div>
       </div>
 
-      {/* ══ Chat window ═════════════════════════════════════════════════════ */}
+      {/* Chat window */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {!activeConv ? (
-          /* Empty state */
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, color: "#94A3B8", padding: 40 }}>
             <div style={{ width: 64, height: 64, borderRadius: 18, background: "#F1F5F9", display: "grid", placeItems: "center" }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.4">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#64748B", marginBottom: 6 }}>Aucune conversation sélectionnée</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#64748B", marginBottom: 6 }}>
+                {t("admin.messages.noneSelected")}
+              </div>
               <div style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
-                Cliquez sur une conversation à gauche<br />pour afficher l'historique complet.
+                {t("admin.messages.noneSelectedHint")}
               </div>
             </div>
           </div>
@@ -342,8 +348,11 @@ export default function AdminMessages() {
                 background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A",
                 flexShrink: 0,
               }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Mode surveillance
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                {t("admin.messages.surveillanceMode")}
               </span>
             </div>
 
@@ -354,8 +363,7 @@ export default function AdminMessages() {
                   {[...Array(5)].map((_, i) => (
                     <div key={i} style={{
                       alignSelf: i % 2 === 0 ? "flex-start" : "flex-end",
-                      width: `${35 + (i * 13) % 30}%`, height: 48,
-                      borderRadius: 14,
+                      width: `${35 + (i * 13) % 30}%`, height: 48, borderRadius: 14,
                       background: "linear-gradient(90deg,#f1f5f9 25%,#e8edf2 50%,#f1f5f9 75%)",
                       backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite",
                     }} />
@@ -363,7 +371,9 @@ export default function AdminMessages() {
                 </div>
               ) : messages.length === 0 ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>Aucun message dans cette conversation.</span>
+                  <span style={{ fontSize: 13, color: "#94A3B8", fontStyle: "italic" }}>
+                    {t("admin.messages.noMessages")}
+                  </span>
                 </div>
               ) : messages.map((msg, idx) => {
                 const isOne = msg.sender_id === activeConv.participant_one;
@@ -372,7 +382,6 @@ export default function AdminMessages() {
                   : activeConv.profile_two?.full_name;
                 const prevMsg = messages[idx - 1];
                 const showSender = !prevMsg || prevMsg.sender_id !== msg.sender_id;
-                // group messages within 5 minutes by the same sender
                 const showTime = !messages[idx + 1] || messages[idx + 1].sender_id !== msg.sender_id ||
                   new Date(messages[idx + 1].created_at) - new Date(msg.created_at) > 300000;
 
@@ -382,9 +391,11 @@ export default function AdminMessages() {
                     style={{ display: "flex", flexDirection: "column", alignItems: isOne ? "flex-start" : "flex-end", gap: 2, marginTop: showSender && idx > 0 ? 10 : 0 }}
                   >
                     {showSender && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: isOne ? 0 : 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         {isOne && <Avatar name={senderName} size={18} />}
-                        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#475569" }}>{senderName || "Utilisateur"}</span>
+                        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#475569" }}>
+                          {senderName || t("admin.messages.userFallback")}
+                        </span>
                         {!isOne && <Avatar name={senderName} size={18} />}
                       </div>
                     )}
@@ -401,11 +412,7 @@ export default function AdminMessages() {
                       }}>
                         {isAudioMessage(msg.content) ? (
                           <div className="flex flex-col gap-1">
-                            <audio
-                              controls
-                              src={msg.content}
-                              className="w-full max-w-sm rounded-md"
-                            />
+                            <audio controls src={msg.content} className="w-full max-w-sm rounded-md" />
                             <a
                               href={msg.content}
                               target="_blank"
@@ -413,7 +420,7 @@ export default function AdminMessages() {
                               download
                               className="self-start text-[11px] text-slate-400 underline hover:text-slate-600"
                             >
-                              Télécharger l'audio
+                              {t("admin.messages.downloadAudio")}
                             </a>
                           </div>
                         ) : (
@@ -422,7 +429,7 @@ export default function AdminMessages() {
                       </div>
                       {showTime && (
                         <span style={{ fontSize: 10.5, color: "#94A3B8", whiteSpace: "nowrap", paddingBottom: 2 }}>
-                          {fmtMsgTime(msg.created_at)}
+                          {fmtMsgTime(msg.created_at, locale)}
                         </span>
                       )}
                     </div>
@@ -444,7 +451,7 @@ export default function AdminMessages() {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
                 <span style={{ fontSize: 13, color: "#CBD5E1", fontStyle: "italic", userSelect: "none" }}>
-                  Lecture seule — les administrateurs ne peuvent pas envoyer de messages.
+                  {t("admin.messages.readOnly")}
                 </span>
               </div>
             </div>

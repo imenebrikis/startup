@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
+import Logo from "./Logo";
 
 const TONES = [
   { bg: "#E4F6E6", color: "#005B5B", border: "#C9E8CD" },
@@ -19,92 +21,68 @@ export default function AdminSidebar({
   adminProfile,
 }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const sbW = collapsed ? 70 : 260;
 
   const NAV = [
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
           <rect x="3" y="3" width="8" height="9" rx="1.5" />
           <rect x="13" y="3" width="8" height="5" rx="1.5" />
           <rect x="13" y="10" width="8" height="11" rx="1.5" />
           <rect x="3" y="14" width="8" height="7" rx="1.5" />
         </svg>
       ),
-      label: "Tableau de bord",
+      label: t("admin.sidebar.dashboard"),
       key: "dashboard",
       to: "/admin",
     },
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
           <path d="M3 11l9-7 9 7" />
           <path d="M5 10v10h14V10" />
           <path d="M10 20v-6h4v6" />
         </svg>
       ),
-      label: "Annonces",
+      label: t("admin.sidebar.listings"),
       key: "listings",
       to: "/admin/listings",
       badge: pendingCount || null,
     },
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
           <circle cx="9" cy="8" r="3.4" />
           <path d="M2.5 19c1.2-3 3.8-4.5 6.5-4.5s5.3 1.5 6.5 4.5" />
           <circle cx="17" cy="7" r="2.6" />
           <path d="M14.5 14.5c1.5-.7 3-.9 4.5-.5 1.4.4 2.5 1.3 3 2.5" />
         </svg>
       ),
-      label: "Utilisateurs",
+      label: t("admin.sidebar.users"),
       key: "users",
       to: "/admin/users",
     },
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
           <path d="M7 7h11l-3-3" />
           <path d="M17 17H6l3 3" />
         </svg>
       ),
-      label: "Échanges & Ventes",
+      label: t("admin.sidebar.exchanges"),
       key: "exchanges",
       to: "/admin/transactions",
     },
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
       ),
-      label: "Messages",
+      label: t("admin.sidebar.messages"),
       key: "messages",
       to: "/admin/messages",
     },
@@ -113,19 +91,12 @@ export default function AdminSidebar({
   const MOD = [
     {
       icon: (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 21V4" />
           <path d="M4 4h12l-2 4 2 4H4" />
         </svg>
       ),
-      label: "Modération",
+      label: t("admin.sidebar.moderation"),
       key: "reports",
       to: "/admin/reports",
     },
@@ -155,42 +126,19 @@ export default function AdminSidebar({
           }}
         >
           {isActive && (
-            <span
-              style={{
-                position: "absolute",
-                left: -8,
-                top: 8,
-                bottom: 8,
-                width: 3,
-                borderRadius: 3,
-                background: "#006E6E",
-              }}
-            />
+            <span style={{ position: "absolute", left: -8, top: 8, bottom: 8, width: 3, borderRadius: 3, background: "#006E6E" }} />
           )}
-          <span
-            style={{
-              width: 18,
-              height: 18,
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
+          <span style={{ width: 18, height: 18, flexShrink: 0, display: "flex", alignItems: "center" }}>
             {icon}
           </span>
           {!collapsed && <span style={{ flex: 1 }}>{label}</span>}
           {!collapsed && badge > 0 && (
-            <span
-              style={{
-                background: warnBadge ? "#FBEED1" : "#006E6E",
-                color: warnBadge ? "#B4791E" : "#ADEBB3",
-                border: warnBadge ? "1px solid #ECD6A1" : "none",
-                fontSize: 10.5,
-                fontWeight: 700,
-                padding: "2px 8px",
-                borderRadius: 999,
-              }}
-            >
+            <span style={{
+              background: warnBadge ? "#FBEED1" : "#006E6E",
+              color: warnBadge ? "#B4791E" : "#ADEBB3",
+              border: warnBadge ? "1px solid #ECD6A1" : "none",
+              fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+            }}>
               {badge}
             </span>
           )}
@@ -204,100 +152,26 @@ export default function AdminSidebar({
   return (
     <aside
       style={{
-        position: "sticky",
-        top: 0,
-        height: "100vh",
-        width: sbW,
-        flexShrink: 0,
-        background: "#F3EEE0",
-        borderRight: "1px solid #E5DFCE",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        transition: "width 0.25s cubic-bezier(0.4,0,0.2,1)",
-        zIndex: 10,
+        position: "sticky", top: 0, height: "100vh", width: sbW, flexShrink: 0,
+        background: "#F3EEE0", borderRight: "1px solid #E5DFCE",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+        transition: "width 0.25s cubic-bezier(0.4,0,0.2,1)", zIndex: 10,
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: 14,
-          borderBottom: "1px solid #E5DFCE",
-          gap: 10,
-          justifyContent: collapsed ? "center" : "space-between",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", padding: 14, borderBottom: "1px solid #E5DFCE", gap: 10, justifyContent: collapsed ? "center" : "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" }}>
           {!collapsed && (
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  letterSpacing: "-0.01em",
-                  color: "#0F2A2A",
-                  lineHeight: 1,
-                }}
-              >
-                DarBelDar
-              </div>
-              <span
-                style={{
-                  marginTop: 4,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  background: "#006E6E",
-                  color: "#ADEBB3",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: ".08em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Admin
-              </span>
-            </div>
+            <Logo to="/" size={22} color="#0A3D3D" style={{ paddingLeft: 10 }} />
           )}
         </div>
         <button
-          onClick={() => setCollapsed((prev) => !prev)}
-          aria-label={collapsed ? "Déplier le menu" : "Replier le menu"}
-          title={collapsed ? "Déplier le menu" : "Replier le menu"}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 8,
-            display: "grid",
-            placeItems: "center",
-            border: "1px solid #E5DFCE",
-            background: "#FFFFFF",
-            color: "#6E7B79",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
+          onClick={() => setCollapsed(prev => !prev)}
+          aria-label={collapsed ? t("admin.sidebar.expand") : t("admin.sidebar.collapse")}
+          title={collapsed ? t("admin.sidebar.expand") : t("admin.sidebar.collapse")}
+          style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#6E7B79", cursor: "pointer", flexShrink: 0 }}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          >
-            {/* Chevron points right (expand) when collapsed, left (collapse) when open */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d={collapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
           </svg>
         </button>
@@ -307,30 +181,12 @@ export default function AdminSidebar({
       <div style={{ flex: 1, padding: "6px 8px", overflowY: "auto" }}>
         <div style={{ padding: "8px 4px 4px" }}>
           {!collapsed && (
-            <div
-              style={{
-                padding: "6px 10px 8px",
-                fontSize: 10.5,
-                textTransform: "uppercase",
-                letterSpacing: ".1em",
-                color: "#98A3A0",
-                fontWeight: 600,
-              }}
-            >
-              Plateforme
+            <div style={{ padding: "6px 10px 8px", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".1em", color: "#98A3A0", fontWeight: 600 }}>
+              {t("admin.sidebar.platform")}
             </div>
           )}
-          <ul
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-            }}
-          >
-            {NAV.map((item) => (
+          <ul style={{ display: "flex", flexDirection: "column", gap: 2, listStyle: "none", margin: 0, padding: 0 }}>
+            {NAV.map(item => (
               <NavItem key={item.key} {...item} itemKey={item.key} />
             ))}
           </ul>
@@ -338,30 +194,12 @@ export default function AdminSidebar({
 
         <div style={{ padding: "8px 4px 4px" }}>
           {!collapsed && (
-            <div
-              style={{
-                padding: "6px 10px 8px",
-                fontSize: 10.5,
-                textTransform: "uppercase",
-                letterSpacing: ".1em",
-                color: "#98A3A0",
-                fontWeight: 600,
-              }}
-            >
-              Modération
+            <div style={{ padding: "6px 10px 8px", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".1em", color: "#98A3A0", fontWeight: 600 }}>
+              {t("admin.sidebar.moderation")}
             </div>
           )}
-          <ul
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-            }}
-          >
-            {MOD.map((item) => (
+          <ul style={{ display: "flex", flexDirection: "column", gap: 2, listStyle: "none", margin: 0, padding: 0 }}>
+            {MOD.map(item => (
               <NavItem key={item.key} {...item} itemKey={item.key} />
             ))}
           </ul>
@@ -372,109 +210,32 @@ export default function AdminSidebar({
       <div style={{ borderTop: "1px solid #E5DFCE", padding: 14 }}>
         {collapsed ? (
           <button
-            onClick={() => setCollapsed((prev) => !prev)}
-            aria-label="Déplier le menu"
-            title="Déplier le menu"
-            style={{
-              width: "100%",
-              display: "flex",
-              justifyContent: "center",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
+            onClick={() => setCollapsed(prev => !prev)}
+            aria-label={t("admin.sidebar.expand")}
+            title={t("admin.sidebar.expand")}
+            style={{ width: "100%", display: "flex", justifyContent: "center", background: "none", border: "none", cursor: "pointer" }}
           >
-            <span
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: "#006E6E",
-                color: "#ADEBB3",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 700,
-                fontSize: 12,
-              }}
-            >
+            <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#006E6E", color: "#ADEBB3", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 12 }}>
               {adminIni}
             </span>
           </button>
         ) : (
           <button
             onClick={() => supabase.auth.signOut().then(() => navigate("/"))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 10px",
-              borderRadius: 12,
-              background: "#FFFFFF",
-              border: "1px solid #E5DFCE",
-              width: "100%",
-              cursor: "pointer",
-              minWidth: 0,
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 12, background: "#FFFFFF", border: "1px solid #E5DFCE", width: "100%", cursor: "pointer", minWidth: 0 }}
           >
-            <span
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: "#006E6E",
-                color: "#ADEBB3",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 700,
-                fontSize: 12,
-                flexShrink: 0,
-              }}
-            >
+            <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#006E6E", color: "#ADEBB3", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
               {adminIni}
             </span>
-            <span
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                minWidth: 0,
-                flex: 1,
-                textAlign: "left",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "#0F2A2A",
-                  lineHeight: 1.1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
+            <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, textAlign: "left" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#0F2A2A", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {adminProfile?.full_name || "Admin"}
               </span>
-              <span
-                style={{
-                  fontSize: 11.5,
-                  color: "#6E7B79",
-                  marginTop: 2,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <span style={{ fontSize: 11.5, color: "#6E7B79", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {adminProfile?.email || ""}
               </span>
             </span>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#6E7B79"
-              strokeWidth="1.8"
-            >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6E7B79" strokeWidth="1.8">
               <path d="M6 9l6 6 6-6" />
             </svg>
           </button>
