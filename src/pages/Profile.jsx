@@ -163,23 +163,12 @@ export default function Profile() {
     <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
       <Sidebar active="Profil" />
       <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
-        {/* Profile card skeleton */}
+        {/* Profile card skeleton — mirrors avatar → full name → location */}
         <div style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, padding: "30px 32px 28px", marginBottom: 22 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, marginBottom: 26 }}>
-            <div className="skeleton-pulse" style={{ width: 104, height: 104, borderRadius: "50%" }} />
-            <div className="skeleton-pulse" style={{ width: 180, height: 22, borderRadius: 8 }} />
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <div className="skeleton-pulse" style={{ width: 140, height: 15, borderRadius: 6 }} />
-              <div className="skeleton-pulse" style={{ width: 120, height: 15, borderRadius: 6 }} />
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-            {[0, 1, 2].map((i) => (
-              <div key={i} style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", borderRadius: 16, padding: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                <div className="skeleton-pulse" style={{ width: 56, height: 48, borderRadius: 8 }} />
-                <div className="skeleton-pulse" style={{ width: "65%", height: 13, borderRadius: 6 }} />
-              </div>
-            ))}
+            <div className="animate-pulse" style={{ width: 104, height: 104, borderRadius: "50%", background: "#E5E7EB" }} />
+            <div className="animate-pulse" style={{ width: 200, height: 30, borderRadius: 8, background: "#E5E7EB", marginTop: 6 }} />
+            <div className="animate-pulse" style={{ width: 160, height: 16, borderRadius: 6, background: "#E5E7EB", marginTop: 4 }} />
           </div>
         </div>
         {/* Tabs skeleton */}
