@@ -6,6 +6,7 @@ import {
   Upload, X, Wind, Thermometer, Wifi, Droplets, Flame, Zap,
   Car, Trees, Waves, UtensilsCrossed, WashingMachine, ArrowUpDown,
   ChevronDown, ChevronLeft, ChevronRight, Check,
+  Sailboat, ShieldCheck, Bath,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup,
@@ -46,21 +47,29 @@ const AMENITIES = [
   { name: "Cuisine équipée",    key: "kitchen",    Icon: UtensilsCrossed },
   { name: "Machine à laver",    key: "washer",     Icon: WashingMachine },
   { name: "Ascenseur",          key: "elevator",   Icon: ArrowUpDown },
+  { name: "Vue sur mer",        key: "seaView",    Icon: Sailboat },
+  { name: "Sécurité (Caméras / Alarme)", key: "security", Icon: ShieldCheck },
+  { name: "Jacuzzi",            key: "jacuzzi",    Icon: Bath },
 ];
 
 // `value` is stored directly to house_rules in DB — must stay French.
 // `key` maps to addListing.rules.* for translated display.
-const RULES_PILLS = [
-  { value: "Non-fumeur",          key: "nonSmoker"    },
-  { value: "Fumeur",              key: "smoker"       },
-  { value: "Pas d'animaux",       key: "noPets"       },
-  { value: "Animaux acceptés",    key: "petsAllowed"  },
-  { value: "Pas de fêtes",        key: "noParties"    },
-  { value: "Familles uniquement", key: "familiesOnly" },
-  { value: "Livret de famille",   key: "familyBook"   },
-  { value: "Pas d'alcool",        key: "noAlcohol"    },
-  { value: "Femmes uniquement",   key: "womenOnly"    },
-  { value: "Heures de silence",   key: "quietHours"   },
+const RULES_OPTIONS = [
+  { value: "Non-fumeur",                       key: "nonSmoker"       },
+  { value: "Pas d'animaux",                    key: "noPets"          },
+  { value: "Pas de fêtes",                     key: "noParties"       },
+  { value: "Heures de silence (22h - 07h)",    key: "quietHours"      },
+  { value: "Familles uniquement",              key: "familiesOnly"    },
+  { value: "Femmes uniquement",                key: "womenOnly"       },
+  { value: "Livret de famille exigé",          key: "familyBook"      },
+  { value: "Pas d'alcool",                     key: "noAlcohol"       },
+  { value: "Pas de visiteurs",                 key: "noVisitors"      },
+  { value: "Pièce d'identité requise",         key: "idRequired"      },
+  { value: "Pas de chaussures à l'intérieur",  key: "noShoes"         },
+  { value: "Pas de sous-location",             key: "noSubletting"    },
+  { value: "Éteindre clim/lumières au départ", key: "turnOffUtilities" },
+  { value: "Photos/Vidéos interdites",         key: "noPhotos"        },
+  { value: "Pas d'invités tiers",              key: "noThirdPartyGuests" },
 ];
 
 // `value` is stored in DB. `labelKey` maps to addListing.propertyTypes.*.
@@ -304,6 +313,7 @@ export default function AddListing() {
 
   const showPrice = type === "sale" || type === "both";
   const today = new Date().toISOString().split("T")[0];
+  const oneYearFromToday = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0];
 
   function getStepError() {
     switch (step) {
@@ -366,12 +376,6 @@ export default function AddListing() {
     alignItems: "center", gap: 8, color: on ? "#ADEBB3" : "#005B5B", fontSize: 13,
     fontWeight: 500, cursor: "pointer", textAlign: "center", transition: "all 0.15s",
   });
-  const pill = (on) => ({
-    padding: "9px 16px", borderRadius: 999, background: on ? "#005B5B" : "#FFFFFF",
-    border: `1px solid ${on ? "#005B5B" : "#E5DFCE"}`, color: on ? "#ADEBB3" : "#005B5B",
-    fontSize: 13.5, fontWeight: 500, cursor: "pointer", transition: "all 0.15s",
-  });
-
   return (
     <div style={{ minHeight: "100vh", background: "#F3EEE0", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
       {/* Top bar */}
@@ -556,12 +560,12 @@ export default function AddListing() {
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s4.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.propertyTypeLabel")} <span style={{ color: "#004848" }}>*</span></label>
+                  <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.propertyTypeLabel")}</label>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                     {PROPERTY_TYPES.map(({ value, labelKey }) => {
                       const on = propertyType === value;
                       return (
-                        <button key={value} type="button" onClick={() => setPropertyType(value)} style={tile(on)}>
+                        <button key={value} type="button" onClick={() => { setPropertyType(value); if (value === "studio") setRooms("1"); }} style={tile(on)}>
                           {t(`addListing.propertyTypes.${labelKey}`)}
                         </button>
                       );
@@ -570,8 +574,8 @@ export default function AddListing() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.roomsLabel")} <span style={{ color: "#004848" }}>*</span></label>
-                    <input type="number" min="0" value={rooms} onChange={(e) => setRooms(e.target.value)} placeholder={t("addListing.steps.s4.roomsPlaceholder")} style={inp}
+                    <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.roomsLabel")}</label>
+                    <input type="number" min={propertyType === "studio" ? "1" : "0"} max={propertyType === "studio" ? "1" : "20"} value={rooms} onChange={(e) => { const v = e.target.value; if (v === "") return setRooms(""); const n = Number(v); if (Number.isNaN(n)) return; const studio = propertyType === "studio"; const lo = studio ? 1 : 0; const hi = studio ? 1 : 20; setRooms(String(Math.min(hi, Math.max(lo, n)))); }} placeholder={t("addListing.steps.s4.roomsPlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
@@ -583,7 +587,7 @@ export default function AddListing() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.floorLabel")}</label>
-                    <input type="number" min="0" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder={t("addListing.steps.s4.floorPlaceholder")} style={inp}
+                    <input type="number" min="0" max="30" value={floor} onChange={(e) => { const v = e.target.value; if (v === "") return setFloor(""); const n = Number(v); if (Number.isNaN(n)) return; setFloor(String(Math.min(30, Math.max(0, n)))); }} placeholder={t("addListing.steps.s4.floorPlaceholder")} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
@@ -627,12 +631,15 @@ export default function AddListing() {
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s6.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s6.hint")}</span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {RULES_PILLS.map(({ value, key }) => (
-                    <button key={value} type="button" onClick={() => toggleRule(value)} style={pill(selectedRules.includes(value))}>
-                      {t(`addListing.rules.${key}`)}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                  {RULES_OPTIONS.map(({ value, key }) => {
+                    const on = selectedRules.includes(value);
+                    return (
+                      <button key={value} type="button" onClick={() => toggleRule(value)} style={chip(on)}>
+                        {t(`addListing.rules.${key}`)}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s6.extraLabel")}</label>
@@ -655,13 +662,24 @@ export default function AddListing() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s7.fromLabel")} <span style={{ color: "#004848" }}>*</span></label>
-                    <input type="date" value={availableFrom} min={today} onChange={(e) => setAvailableFrom(e.target.value)} style={inp}
+                    <input type="date" value={availableFrom} min={today} max={oneYearFromToday}
+                      onChange={(e) => {
+                        let v = e.target.value;
+                        if (v) v = v < today ? today : v > oneYearFromToday ? oneYearFromToday : v;
+                        setAvailableFrom(v);
+                      }} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s7.toLabel")}</label>
-                    <input type="date" value={availableTo} min={availableFrom || today} onChange={(e) => setAvailableTo(e.target.value)} style={inp}
+                    <input type="date" value={availableTo} min={availableFrom || today} max={oneYearFromToday}
+                      onChange={(e) => {
+                        let v = e.target.value;
+                        const lo = availableFrom || today;
+                        if (v) v = v < lo ? lo : v > oneYearFromToday ? oneYearFromToday : v;
+                        setAvailableTo(v);
+                      }} style={inp}
                       onFocus={(e) => { e.target.style.borderColor = "#005B5B"; e.target.style.boxShadow = "0 0 0 3px rgba(0,91,91,0.12)"; }}
                       onBlur={(e) => { e.target.style.borderColor = "#E5DFCE"; e.target.style.boxShadow = "none"; }} />
                   </div>

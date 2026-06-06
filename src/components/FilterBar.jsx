@@ -50,11 +50,16 @@ const AMENITIES = [
   { value: "Cuisine équipée", key: "kitchen" },
   { value: "Machine à laver", key: "washer" },
   { value: "Ascenseur", key: "elevator" },
+  { value: "Vue sur mer", key: "seaView" },
+  { value: "Sécurité (Caméras / Alarme)", key: "security" },
+  { value: "Jacuzzi", key: "jacuzzi" },
 ];
 const CHECK_RULES = [
   { value: "Pas de fêtes", key: "noParties" },
   { value: "Familles uniquement", key: "familiesOnly" },
   { value: "Pas d'alcool", key: "noAlcohol" },
+  { value: "Photos/Vidéos interdites", key: "noPhotos" },
+  { value: "Pas d'invités tiers", key: "noThirdPartyGuests" },
 ];
 const SMOKING = [{ v: null, key: "any" }, { v: "Non-fumeur", key: "nonSmoker" }, { v: "Fumeur", key: "smoker" }];
 const PETS = [{ v: null, key: "any" }, { v: "Pas d'animaux", key: "noPets" }, { v: "Animaux acceptés", key: "petsAllowed" }];
@@ -128,6 +133,10 @@ function FilterChip({ id, label, open, setOpen, hovered, setHovered, width = 260
 export default function FilterBar({ filters, onChange, wilayas = [] }) {
   const { t, i18n } = useTranslation();
   const dpLocale = i18n.language === "en" ? enUS : fr;
+
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const maxDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
   const [open, setOpen] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -146,7 +155,13 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
       if (rowRef.current && rowRef.current.contains(e.target)) return;
       setOpen(null);
     };
-    const onMove = () => setOpen(null);
+    // Close on page scroll/resize (the portal is position:fixed and won't follow),
+    // but NOT when the scroll happens inside the dropdown's own scrollable list —
+    // otherwise the panel closes the instant the user tries to scroll it.
+    const onMove = (e) => {
+      if (e?.target?.closest && e.target.closest("[data-filter-pop]")) return;
+      setOpen(null);
+    };
     document.addEventListener("mousedown", onDown);
     window.addEventListener("resize", onMove);
     window.addEventListener("scroll", onMove, true);
@@ -246,6 +261,9 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
               locale={dpLocale}
               selected={dateRange?.from ? dateRange : undefined}
               onSelect={(range) => onChange({ dateRange: range || { from: null, to: null } })}
+              disabled={[{ before: minDate }, { after: maxDate }]}
+              startMonth={minDate}
+              endMonth={maxDate}
             />
             {dateRange?.from && (
               <button

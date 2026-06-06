@@ -4,7 +4,6 @@ import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import Logo from "../components/Logo";
 
-
 const styleTag = document.createElement("style");
 styleTag.textContent = `
   @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Inter:wght@400;500;600&display=swap');
@@ -174,6 +173,8 @@ if (!document.head.querySelector("#dbd-styles")) {
 
 /* ─── Component ────────────────────────────────────────────────────────────── */
 export default function Register() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -191,7 +192,9 @@ export default function Register() {
       if (mounted && session) navigate("/profile", { replace: true });
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
         navigate("/profile", { replace: true });
       }
@@ -211,8 +214,14 @@ export default function Register() {
     setError(null);
     setSuccess(null);
 
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Veuillez renseigner votre prénom et votre nom.");
+      return;
+    }
     if (!isStrongPassword(password)) {
-      setError("Le mot de passe doit contenir au moins 8 caractères, une majuscule et un chiffre.");
+      setError(
+        "Le mot de passe doit contenir au moins 8 caractères, une majuscule et un chiffre.",
+      );
       return;
     }
     if (password !== confirmPassword) {
@@ -222,7 +231,18 @@ export default function Register() {
 
     setLoading(true);
     await supabase.auth.signOut();
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+        data: {
+          // The handle_new_user DB trigger composes profiles.full_name from these.
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+        },
+      },
+    });
 
     if (signUpError) {
       setError(signUpError.message);
@@ -233,18 +253,28 @@ export default function Register() {
     const user = data?.user;
     const session = data?.session;
 
-    if (user && !session) {
-      setSuccess("Inscription réussie ! Veuillez vérifier votre boîte mail pour confirmer votre compte.");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setShowPassword(false);
-      setShowConfirmPassword(false);
-      setLoading(false);
-      return;
+    // Session returned directly → email confirmation is OFF. onAuthStateChange fires SIGNED_IN.
+    if (session) return;
+
+    // No session yet — try signing in immediately (works once "Confirm email" is disabled in Supabase).
+    if (user) {
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({ email, password });
+      if (!signInError && signInData?.session) return; // onAuthStateChange handles navigation
     }
 
-    // Auto-confirm path: session exists, onAuthStateChange fires SIGNED_IN and the effect navigates.
+    // Email confirmation is still required — tell the user to check their inbox.
+    setSuccess(
+      "Inscription réussie ! Veuillez vérifier votre boîte mail pour confirmer votre compte.",
+    );
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setLoading(false);
   };
 
   const handleGoogle = async () => {
@@ -266,13 +296,20 @@ export default function Register() {
           padding: "44px 40px 40px",
           width: "100%",
           maxWidth: "420px",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.06)",
+          boxShadow:
+            "0 24px 64px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.06)",
           position: "relative",
           zIndex: 1,
         }}
       >
         {/* Logo */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "6px",
+          }}
+        >
           <Logo size={38} accent="#ADEBB3" />
         </div>
 
@@ -287,16 +324,33 @@ export default function Register() {
             lineHeight: 1.5,
           }}
         >
-          Exchange homes across Algeria — start your journey
+          Exchange and sell homes across Algeria
         </p>
 
         {/* Google button */}
-        <button className="dbd-google-btn" onClick={handleGoogle} type="button" id="google-signup-btn">
+        <button
+          className="dbd-google-btn"
+          onClick={handleGoogle}
+          type="button"
+          id="google-signup-btn"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            <path
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              fill="#4285F4"
+            />
+            <path
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              fill="#34A853"
+            />
+            <path
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              fill="#EA4335"
+            />
           </svg>
           Continue with Google
         </button>
@@ -311,7 +365,16 @@ export default function Register() {
           }}
         >
           <div style={{ flex: 1, height: "1px", background: "#D6DDD6" }} />
-          <span style={{ fontSize: "12px", color: "#8AAA95", fontWeight: "600", letterSpacing: "0.5px" }}>OR</span>
+          <span
+            style={{
+              fontSize: "12px",
+              color: "#8AAA95",
+              fontWeight: "600",
+              letterSpacing: "0.5px",
+            }}
+          >
+            OR
+          </span>
           <div style={{ flex: 1, height: "1px", background: "#D6DDD6" }} />
         </div>
 
@@ -359,6 +422,40 @@ export default function Register() {
 
         {/* Form */}
         <form onSubmit={handleRegister} noValidate>
+          {/* Name fields */}
+          <div style={{ display: "flex", gap: 12 }}>
+            <div className="dbd-field" style={{ flex: 1 }}>
+              <input
+                className="dbd-input"
+                id="register-first-name"
+                type="text"
+                placeholder=" "
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+                autoComplete="given-name"
+              />
+              <label className="dbd-label" htmlFor="register-first-name">
+                Prénom
+              </label>
+            </div>
+            <div className="dbd-field" style={{ flex: 1 }}>
+              <input
+                className="dbd-input"
+                id="register-last-name"
+                type="text"
+                placeholder=" "
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                autoComplete="family-name"
+              />
+              <label className="dbd-label" htmlFor="register-last-name">
+                Nom
+              </label>
+            </div>
+          </div>
+
           {/* Email field */}
           <div className="dbd-field">
             <input
@@ -395,7 +492,11 @@ export default function Register() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={
+                showPassword
+                  ? "Masquer le mot de passe"
+                  : "Afficher le mot de passe"
+              }
               tabIndex={-1}
               style={{
                 position: "absolute",
@@ -436,7 +537,11 @@ export default function Register() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
-              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={
+                showConfirmPassword
+                  ? "Masquer le mot de passe"
+                  : "Afficher le mot de passe"
+              }
               tabIndex={-1}
               style={{
                 position: "absolute",
@@ -482,7 +587,7 @@ export default function Register() {
         >
           Already have an account?{" "}
           <Link
-            to="/"
+            to="/login"
             style={{
               color: "#4B3FD8",
               fontWeight: "600",
@@ -491,7 +596,9 @@ export default function Register() {
               transition: "border-color 0.15s",
             }}
             onMouseEnter={(e) => (e.target.style.borderBottomColor = "#4B3FD8")}
-            onMouseLeave={(e) => (e.target.style.borderBottomColor = "transparent")}
+            onMouseLeave={(e) =>
+              (e.target.style.borderBottomColor = "transparent")
+            }
           >
             Log in
           </Link>

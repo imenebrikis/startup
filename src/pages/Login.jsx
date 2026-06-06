@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate, Link } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import Logo from '../components/Logo'
 
 const styleTag = document.createElement('style')
@@ -65,6 +66,7 @@ const floatLabel = [
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -122,8 +124,17 @@ export default function Login() {
             <label className={floatLabel}>Email address</label>
           </div>
           <div className="dbd-field-l">
-            <input className="dbd-input-l peer" type="password" placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required />
+            <input className="dbd-input-l peer" type={showPassword ? 'text' : 'password'} placeholder=" " value={password} onChange={e => setPassword(e.target.value)} required style={{ paddingRight: 46 }} />
             <label className={floatLabel}>Password</label>
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              tabIndex={-1}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6A8A78', borderRadius: 8 }}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
           <div style={{ textAlign: 'right', marginBottom: '10px', marginTop: '-6px' }}>
             <Link to="/forgot-password" style={{ color: '#4B3FD8', fontSize: '13px', textDecoration: 'none', fontWeight: '500' }}>

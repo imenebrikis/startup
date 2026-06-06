@@ -10,6 +10,9 @@ import Browse from "./pages/Browse";
 import ListingDetail from "./pages/ListingDetail";
 import Exchanges from "./pages/Exchanges";
 import Messages from "./pages/Messages";
+import Faq from "./pages/Faq";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -35,6 +38,9 @@ function App() {
         <Route path="/my-exchanges" element={<Exchanges />} />
         <Route path="/modifier-annonce/:id" element={<AddListing />} />
         <Route path="/messages" element={<Messages />} />
+        <Route path="/faq" element={<Faq />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<RequireAuth />}>

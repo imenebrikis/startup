@@ -128,9 +128,10 @@ export default function PublicProfile() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const today = new Date().toISOString().slice(0, 10);
 
     (async () => {
+      setLoading(true);
       const [{ data: prof }, { data: rows }] = await Promise.all([
         supabase
           .from("profiles")
@@ -141,7 +142,9 @@ export default function PublicProfile() {
           .from("listings")
           .select("*")
           .eq("user_id", id)
-          .eq("status", "approved")
+          .eq("status", "approved")                              // moderation
+          .eq("is_active", true)                                 // not hidden by owner
+          .or(`available_to.gte.${today},available_to.is.null`)  // not expired (null = never expires)
           .order("created_at", { ascending: false }),
       ]);
 

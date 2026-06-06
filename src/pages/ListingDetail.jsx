@@ -7,6 +7,8 @@ const ReactPhotoSphereViewer = lazy(() =>
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Logo from "../components/Logo";
+import LanguageSelector from "../components/LanguageSelector";
+import SocialButton from "../components/ui/social-button";
 import {
   ChevronLeft,
   ChevronRight,
@@ -168,7 +170,8 @@ export default function ListingDetail() {
   }, [id, user]);
 
   const handleToggleLike = async () => {
-    if (!user || likeLoading) return;
+    if (!user) { navigate('/register'); return; }
+    if (likeLoading) return;
     setLikeLoading(true);
     if (isLiked) {
       await supabase.from("user_favorites").delete().eq("user_id", user.id).eq("listing_id", id);
@@ -181,7 +184,8 @@ export default function ListingDetail() {
   };
 
   const handleContact = async () => {
-    if (!user || !listing || contactLoading) return;
+    if (!user) { navigate('/register'); return; }
+    if (!listing || contactLoading) return;
     setContactLoading(true);
 
     // conversations table requires participant_one < participant_two (UUID order)
@@ -216,7 +220,8 @@ export default function ListingDetail() {
   };
 
   const handleContactSeller = async () => {
-    if (!user || !listing || contactSaleLoading) return;
+    if (!user) { navigate('/register'); return; }
+    if (!listing || contactSaleLoading) return;
     setContactSaleLoading(true);
 
     const [p1, p2] = [user.id, listing.user_id].sort();
@@ -268,7 +273,7 @@ export default function ListingDetail() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate("/login"); return; }
+      if (!user) return;
       setUser(user);
       const fn = user.user_metadata?.full_name;
       setInitials(
@@ -285,6 +290,34 @@ export default function ListingDetail() {
       .single()
       .then(({ data }) => { setListing(data); setLoading(false); });
   }, [id, navigate]);
+
+  // Dynamic OG meta tags for social link previews
+  useEffect(() => {
+    if (!listing) return;
+    const setMeta = (property, content) => {
+      let el = document.querySelector(`meta[property="${property}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("property", property);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content || "");
+    };
+    const title = listing.title || "DarBelDar";
+    const image = listing.images?.[0] || "";
+    const location = [listing.wilaya, listing.city || listing.quartier].filter(Boolean).join(", ");
+    const description = listing.description
+      ? listing.description.slice(0, 155)
+      : `Logement${listing.rooms ? ` ${listing.rooms} pièces` : ""} à ${location}`.trim();
+    document.title = `${title} — DarBelDar`;
+    setMeta("og:title", title);
+    setMeta("og:description", description);
+    setMeta("og:image", image);
+    setMeta("og:url", window.location.href);
+    setMeta("og:type", "website");
+    setMeta("og:site_name", "DarBelDar");
+    return () => { document.title = "DarBelDar — Échangez votre logement en Algérie"; };
+  }, [listing]);
 
   const fetchReviews = useCallback(() =>
     supabase
@@ -303,7 +336,8 @@ export default function ListingDetail() {
 
 
   const handleReview = async () => {
-    if (!rating || !user) return;
+    if (!user) { navigate('/register'); return; }
+    if (!rating) return;
     setSubmittingReview(true);
     await supabase.from("reviews").insert({
       listing_id: id, reviewer_id: user.id, rating, comment, created_at: new Date(),
@@ -325,16 +359,23 @@ export default function ListingDetail() {
         position: "sticky", top: 0, zIndex: 10,
         padding: "0 32px", height: "64px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: "12px",
       }}>
-        <Link to="/dashboard" style={{
+        <Link to="/browse" style={{
           fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
           textDecoration: "none", fontFamily: "'Bricolage Grotesque', sans-serif",
+          flexShrink: 0,
         }}><Logo size={22} color="#0A3D3D" /></Link>
-        <div style={{
-          width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#fff", fontWeight: "600", fontSize: "14px",
-        }}>{initials}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <LanguageSelector />
+          {user && (
+            <div style={{
+              width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontWeight: "600", fontSize: "14px",
+            }}>{initials}</div>
+          )}
+        </div>
       </nav>
 
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 32px 80px" }}>
@@ -533,12 +574,25 @@ export default function ListingDetail() {
                         <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D", background: "rgba(10,61,61,0.12)", padding: "8px 16px", borderRadius: "999px" }}>
                           {t("details.requestSent")}
                         </span>
-                      ) : (
+                      ) : user ? (
                         <SwapSheet
                           listing={listing}
                           user={user}
                           onSuccess={() => setExchangeSent(true)}
                         />
+                      ) : (
+                        <button
+                          onClick={() => navigate('/register')}
+                          style={{
+                            padding: "10px 22px", borderRadius: "999px",
+                            background: "#0A3D3D", color: "#ffffff",
+                            border: "none", fontSize: "13px", fontWeight: "700",
+                            cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                            transition: "background 0.18s",
+                          }}
+                        >
+                          {t("details.requestExchange")}
+                        </button>
                       )
                     )}
                     {isOwner && (
@@ -658,6 +712,7 @@ export default function ListingDetail() {
                       {contactLoading ? t("details.loading") : t("details.contact")}
                     </button>
                   )}
+                  <SocialButton style={{ flex: 1 }} />
                 </div>
 
                 {/* Availability / info card */}
@@ -864,7 +919,7 @@ export default function ListingDetail() {
                   </div>
                 ))}
 
-                {!isOwner && user && (
+                {!isOwner && (
                   <div style={{ background: "#ADEBB3", borderRadius: "14px", padding: "20px", marginTop: "8px" }}>
                     <p style={{ ...label, marginBottom: "12px", fontSize: "14px", color: "#0A3D3D" }}>{t("details.leaveReview")}</p>
                     <Stars rating={rating} onClick={setRating} hoveredStar={hoveredStar} setHoveredStar={setHoveredStar} emptyColor="rgba(0,73,73,0.35)" />

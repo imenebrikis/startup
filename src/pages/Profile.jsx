@@ -2,17 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  MapPin, Edit2, Save, X, Bed, Eye, Heart, ChevronDown, LogOut, CheckCircle2,
+  MapPin, Edit2, Save, X, Bed, Eye, EyeOff, Heart, ChevronDown, LogOut, CheckCircle2,
+  MoreVertical, Trash2,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup,
   DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { supabase } from "../lib/supabase";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogTrigger,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import Sidebar from "../components/Sidebar";
@@ -45,6 +46,7 @@ export default function Profile() {
   const [showSaveAlert, setShowSaveAlert] = useState(false);
   const [editForm, setEditForm] = useState({ full_name: "", wilaya: "", quartier: "" });
   const [listings, setListings] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [savedListings, setSavedListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +128,28 @@ export default function Profile() {
       console.error("Erreur lors de la suppression:", err);
       alert(t("profile.deleteError"));
     }
+  };
+
+  const handleToggleActive = async (listing) => {
+    const next = !listing.is_active;
+    // Optimistic update, rolled back on failure.
+    setListings((prev) => prev.map((l) => (l.id === listing.id ? { ...l, is_active: next } : l)));
+    const { error } = await supabase.from("listings").update({ is_active: next }).eq("id", listing.id);
+    if (error) {
+      console.error("Erreur lors du changement de visibilité:", error);
+      setListings((prev) => prev.map((l) => (l.id === listing.id ? { ...l, is_active: listing.is_active } : l)));
+    }
+  };
+
+  // Derives the lifecycle badge for an owner's listing card.
+  const getListingStatus = (listing) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const expired = listing.available_to && listing.available_to < today;
+    if (listing.status === "pending") return { key: "pending", bg: "#FBEACB", color: "#C77A1E", border: "#E7C892" };
+    if (listing.status === "rejected") return { key: "rejected", bg: "#F7DCD8", color: "#C0392B", border: "#E7B3AC" };
+    if (!listing.is_active) return { key: "hidden", bg: "#EFEFEA", color: "#6E7B79", border: "#DDDDD3" };
+    if (expired) return { key: "expired", bg: "#F7DCD8", color: "#C0392B", border: "#E7B3AC" };
+    return { key: "published", bg: "#ADEBB3", color: "#005B5B", border: "#8FD89A" };
   };
 
   const navInitials = (profile?.full_name || user?.email?.[0] || "?")
@@ -366,16 +390,20 @@ export default function Profile() {
                           <span style={{ fontSize: 11, color: "#6E7B79" }}>{t("profile.photoPlaceholder")}</span>
                         </div>
                       )}
-                      <span style={{
-                        position: "absolute", top: 12, right: 12,
-                        background: listing.is_verified ? "#ADEBB3" : "#FBEACB",
-                        color: listing.is_verified ? "#005B5B" : "#C77A1E",
-                        padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600,
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        border: listing.is_verified ? "1px solid #8FD89A" : "1px solid #C77A1E",
-                      }}>
-                        {listing.is_verified ? t("profile.published") : t("profile.pending")}
-                      </span>
+                      {(() => {
+                        const st = getListingStatus(listing);
+                        return (
+                          <span style={{
+                            position: "absolute", top: 12, right: 12,
+                            background: st.bg, color: st.color,
+                            padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            border: `1px solid ${st.border}`,
+                          }}>
+                            {t(`profile.status.${st.key}`)}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Body */}
@@ -392,55 +420,83 @@ export default function Profile() {
                         <span style={{ background: "#E4F6E6", border: "1px solid #D5E9D8", color: "#005B5B", padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
                           {listing.is_for_exchange && listing.is_for_sale ? t("profile.badge.exchangeSale") : listing.is_for_sale ? t("profile.badge.sale") : t("profile.badge.exchange")}
                         </span>
-                        <Link
-                          to={`/listing/${listing.id}`}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#005B5B", textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}
-                        >
-                          <Eye style={{ width: 14, height: 14 }} /> {t("profile.view")}
-                        </Link>
-                      </div>
-
-                      {isOwnProfile && (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-                          <button
-                            onClick={() => navigate(`/modifier-annonce/${listing.id}`)}
-                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 12px", borderRadius: 12, fontSize: 13.5, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <Link
+                            to={`/listing/${listing.id}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#005B5B", textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}
                           >
-                            <Edit2 style={{ width: 13, height: 13 }} /> {t("profile.actions.edit")}
-                          </button>
+                            <Eye style={{ width: 14, height: 14 }} />
+                          </Link>
 
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 12px", borderRadius: 12, fontSize: 13.5, fontWeight: 600, background: "#F7DCD8", color: "#C0392B", border: "none", cursor: "pointer" }}>
-                                {t("profile.actions.delete")}
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5DFCE", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 400, margin: "auto" }}>
-                              <AlertDialogHeader style={{ marginBottom: 24 }}>
-                                <AlertDialogTitle style={{ fontSize: 18, fontWeight: 600, color: "#0F2A2A", marginBottom: 8 }}>
-                                  {t("profile.deleteConfirm.title")}
-                                </AlertDialogTitle>
-                                <AlertDialogDescription style={{ fontSize: 14, color: "#6E7B79", lineHeight: 1.5 }}>
-                                  {t("profile.deleteConfirm.desc")}
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                                <AlertDialogCancel asChild>
-                                  <button style={{ padding: "10px 16px", borderRadius: 12, background: "#fff", color: "#0F2A2A", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>{t("profile.actions.cancel")}</button>
-                                </AlertDialogCancel>
-                                <AlertDialogAction asChild>
-                                  <button onClick={() => handleDeleteListing(listing.id)} style={{ padding: "10px 16px", borderRadius: 12, background: "#005B5B", color: "#ADEBB3", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", margin: 0 }}>{t("profile.actions.delete")}</button>
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          {isOwnProfile && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  aria-label={t("profile.actions.menu")}
+                                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 9, background: "transparent", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                                >
+                                  <MoreVertical style={{ width: 16, height: 16 }} />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" sideOffset={8} style={{
+                                backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
+                                borderRadius: '12px', padding: '6px', minWidth: '180px',
+                                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+                                zIndex: 9999,
+                              }}>
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleActive(listing)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}
+                                >
+                                  {listing.is_active
+                                    ? <><EyeOff style={{ width: '15px', height: '15px' }} /> {t("profile.actions.hide")}</>
+                                    : <><Eye style={{ width: '15px', height: '15px' }} /> {t("profile.actions.show")}</>}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/modifier-annonce/${listing.id}`)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}
+                                >
+                                  <Edit2 style={{ width: '15px', height: '15px' }} /> {t("profile.actions.edit")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => setDeleteTarget(listing)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#ef4444', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}
+                                >
+                                  <Trash2 style={{ width: '15px', height: '15px' }} /> {t("profile.actions.delete")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </article>
                 ))}
               </div>
             )}
+
+            {/* Single delete-confirmation dialog, driven by the kebab menu (kept outside the
+                menu so the dropdown can close without unmounting the dialog). */}
+            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+              <AlertDialogContent style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5DFCE", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 400, margin: "auto" }}>
+                <AlertDialogHeader style={{ marginBottom: 24 }}>
+                  <AlertDialogTitle style={{ fontSize: 18, fontWeight: 600, color: "#0F2A2A", marginBottom: 8 }}>
+                    {t("profile.deleteConfirm.title")}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription style={{ fontSize: 14, color: "#6E7B79", lineHeight: 1.5 }}>
+                    {t("profile.deleteConfirm.desc")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                  <AlertDialogCancel asChild>
+                    <button style={{ padding: "10px 16px", borderRadius: 12, background: "#fff", color: "#0F2A2A", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>{t("profile.actions.cancel")}</button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <button onClick={() => { if (deleteTarget) handleDeleteListing(deleteTarget.id); setDeleteTarget(null); }} style={{ padding: "10px 16px", borderRadius: 12, background: "#005B5B", color: "#ADEBB3", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", margin: 0 }}>{t("profile.actions.delete")}</button>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
 
@@ -510,7 +566,7 @@ export default function Profile() {
                             {l.is_for_exchange && l.is_for_sale ? t("profile.badge.exchangeSale") : l.is_for_sale ? t("profile.badge.sale") : t("profile.badge.exchange")}
                           </span>
                           <Link to={`/listing/${l.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#005B5B", textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}>
-                            <Eye style={{ width: 14, height: 14 }} /> {t("profile.view")}
+                            <Eye style={{ width: 14, height: 14 }} />
                           </Link>
                         </div>
                       </div>

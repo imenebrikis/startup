@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
+import { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Logo from '../components/Logo'
 import FilterBar from '../components/FilterBar'
 import LanguageSelector from '../components/LanguageSelector'
-import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft, Menu } from 'lucide-react'
+import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft, Menu, LogOut, LayoutDashboard } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,7 +119,8 @@ function ListingCard({ listing, navigate, userId }) {
 
   const handleToggleFavorite = async (e) => {
     e.stopPropagation()
-    if (!userId || likeLoading) return
+    if (!userId) { navigate('/register'); return }
+    if (likeLoading) return
     setLikeLoading(true)
     if (isFavorited) {
       await supabase.from('user_favorites').delete().eq('user_id', userId).eq('listing_id', listing.id)
@@ -362,24 +363,37 @@ export default function Browse() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { navigate('/login'); return }
+      if (!user) return
       setUserId(user.id)
       const fullName = user.user_metadata?.full_name
       if (fullName) setInitials(fullName.split(' ').map(n => n[0]).join('').toUpperCase())
       else if (user.email) setInitials(user.email[0].toUpperCase())
     })
+  }, [])
 
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
     supabase
       .from('listings')
       .select('*')
+      .eq('status', 'approved')           // respect admin moderation
+      .eq('is_active', true)              // not hidden by the owner
+      .or(`available_to.gte.${today},available_to.is.null`)  // not expired (null = never expires)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setListings(data || [])
         setLoading(false)
       })
-  }, [navigate])
+  }, [])
 
-  function applyUserFilters(list) {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUserId(null)
+    setInitials('?')
+    navigate('/')
+  }
+
+  const applyUserFilters = useCallback((list) => {
     const { wilaya, type, logement, chambres, dateRange, equipments, rules } = activeFilters
     const reqFrom = dateRange?.from ? new Date(dateRange.from) : null
     const reqTo = dateRange?.to ? new Date(dateRange.to) : reqFrom
@@ -408,16 +422,16 @@ export default function Browse() {
       }
       return true
     })
-  }
+  }, [activeFilters])
 
   const filteredProperties = useMemo(() =>
     applyUserFilters(listings),
-    [listings, activeFilters]
+    [listings, applyUserFilters]
   )
 
   const filteredMap = useMemo(() =>
     applyUserFilters(listings.filter(l => l.latitude && l.longitude)),
-    [listings, activeFilters]
+    [listings, applyUserFilters]
   )
 
   return (
@@ -472,8 +486,8 @@ export default function Browse() {
         </button>
 
         {/* CTA */}
-        <Link
-          to="/add-listing"
+        <button
+          onClick={() => navigate(userId ? '/add-listing' : '/register')}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '8px 16px',
@@ -481,29 +495,69 @@ export default function Browse() {
             background: '#ADEBB3',
             color: '#000000',
             fontSize: '13px', fontWeight: '700',
-            textDecoration: 'none',
+            border: 'none',
             fontFamily: "'Inter', sans-serif",
             flexShrink: 0,
             whiteSpace: 'nowrap',
+            cursor: 'pointer',
           }}
         >
           <Plus style={{ width: '13px', height: '13px' }} />
           {t('browse.nav.publish')}
-        </Link>
+        </button>
 
-        {/* Airbnb-style profile menu pill */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label={t('browse.nav.profileMenu')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '5px 6px 5px 14px', borderRadius: '999px',
-                border: '1px solid #e5e7eb', background: '#ffffff',
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              <Menu style={{ width: '16px', height: '16px', color: '#1a1a1a' }} />
+        {/* Airbnb-style profile menu pill — authenticated only */}
+        {userId && (
+          <div style={{ display: 'flex', alignItems: 'center', borderRadius: '999px', border: '1px solid #e5e7eb', background: '#ffffff', flexShrink: 0, overflow: 'hidden' }}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label={t('browse.nav.profileMenu')}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    padding: '8px 8px 8px 14px',
+                    background: 'transparent', border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Menu style={{ width: '16px', height: '16px', color: '#1a1a1a' }} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={10} style={{
+                backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
+                borderRadius: '12px', padding: '6px', minWidth: '200px',
+                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+                zIndex: 9999,
+              }}>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                    <User style={{ width: '15px', height: '15px' }} /> {t('browse.nav.profile')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile?tab=likes" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                    <Heart style={{ width: '15px', height: '15px' }} /> {t('browse.nav.favorites')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/messages" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                    <MessageSquare style={{ width: '15px', height: '15px' }} /> {t('browse.nav.messages')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
+                    <LayoutDashboard style={{ width: '15px', height: '15px' }} /> {t('browse.nav.dashboard')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#ef4444', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}
+                >
+                  <LogOut style={{ width: '15px', height: '15px' }} /> {t('browse.nav.logout')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center', padding: '5px 6px', textDecoration: 'none' }}>
               <span style={{
                 width: '30px', height: '30px', borderRadius: '50%',
                 background: '#4B3FD8', color: '#ffffff',
@@ -512,31 +566,9 @@ export default function Browse() {
               }}>
                 {initials}
               </span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={10} style={{
-            backgroundColor: '#ffffff', border: '1px solid #e5e7eb',
-            borderRadius: '12px', padding: '6px', minWidth: '200px',
-            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-            zIndex: 9999,
-          }}>
-            <DropdownMenuItem asChild>
-              <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
-                <User style={{ width: '15px', height: '15px' }} /> {t('browse.nav.profile')}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/profile?tab=likes" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
-                <Heart style={{ width: '15px', height: '15px' }} /> {t('browse.nav.favorites')}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/messages" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', fontSize: '13.5px', color: '#1f2937', textDecoration: 'none', fontFamily: "'Inter', sans-serif", cursor: 'pointer' }}>
-                <MessageSquare style={{ width: '15px', height: '15px' }} /> {t('browse.nav.messages')}
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* ── Main content ── */}

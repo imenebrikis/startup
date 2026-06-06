@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Calendar, Check, X, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import NotificationBell from "../components/NotificationBell";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+
+// Shared shape for the exchange tied to a conversation: status, proposed dates,
+// and both sides' houses (offered = proposer's house, requested = receiver's house).
+const EXCHANGE_SELECT = `id, status, requester_id, receiver_id, listing_id, offered_house_id, start_date, end_date,
+  offered_house:listings!offered_house_id ( id, title, wilaya, city, rooms, images ),
+  requested_house:listings!listing_id ( id, title, wilaya, city, rooms, images )`;
 
 const initFrom = (name) =>
   name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
@@ -57,9 +67,12 @@ export default function Messages() {
   const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-DZ";
   const navigate = useNavigate();
   const location = useLocation();
+  // In-app navigation (e.g. from ListingDetail) preselects via router state.
   const preselectedConvId = location.state?.conversationId ?? null;
   const activeChatUserId   = location.state?.activeChatUserId ?? null;
   const activeChatUserName = location.state?.activeChatUserName ?? null;
+  // Deep-link support: notifications route here as /messages?convId=<id>.
+  const queryConvId = new URLSearchParams(location.search).get("convId");
 
   const [user, setUser]                   = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -76,6 +89,7 @@ export default function Messages() {
   const [exchangeLoading, setExchangeLoading] = useState(false);
   const [hoveredMsgId, setHoveredMsgId]   = useState(null);
   const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
+  const [deleteConvTarget, setDeleteConvTarget] = useState(null);
 
   const messagesEndRef   = useRef(null);
   const channelRef       = useRef(null);
@@ -151,7 +165,9 @@ export default function Messages() {
     setLoadingConvs(false);
   }, [user]);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  useEffect(() => {
+    (async () => { await fetchConversations(); })();
+  }, [fetchConversations]);
 
   // ── Fetch messages ───────────────────────────────────────────────────────
   const fetchMessages = useCallback(async (convId) => {
@@ -166,18 +182,41 @@ export default function Messages() {
     setLoadingMsgs(false);
   }, []);
 
+  // ── Fetch exchange for active conversation ────────────────────────────────
+  // Declared before the auto-select effects below so they can call it safely.
+  // Look the exchange up by the *participant pair* (me ↔ partner), in either
+  // direction, rather than by the conversation's listing id. The same exchange
+  // must resolve identically whether the logged-in user is the requester or the
+  // receiver — keying off requester/receiver makes it symmetric.
+  const fetchExchange = useCallback(async (partnerId) => {
+    if (!user || !partnerId) { setActiveExchange(null); return; }
+    const { data } = await supabase
+      .from("exchanges")
+      .select(EXCHANGE_SELECT)
+      .or(
+        `and(requester_id.eq.${user.id},receiver_id.eq.${partnerId}),` +
+        `and(requester_id.eq.${partnerId},receiver_id.eq.${user.id})`
+      )
+      .order("created_at", { ascending: false })
+      .limit(1);
+    setActiveExchange(data?.[0] ?? null);
+  }, [user]);
+
   // ── Auto-select when arriving from ListingDetail ─────────────────────────
   useEffect(() => {
     if (!preselectedConvId || !user || didAutoSelect.current || conversations.length === 0) return;
     const conv = conversations.find((c) => c.id === preselectedConvId);
     if (!conv) return;
     didAutoSelect.current = true;
-    setActiveConvId(conv.id);
-    setActivePartner(conv.partner);
-    setActiveConvListing(conv.listing ?? null);
-    markConvRead(conv.id);
-    fetchMessages(conv.id);
-  }, [conversations, user, preselectedConvId, fetchMessages, markConvRead]);
+    (async () => {
+      setActiveConvId(conv.id);
+      setActivePartner(conv.partner);
+      setActiveConvListing(conv.listing ?? null);
+      markConvRead(conv.id);
+      fetchMessages(conv.id);
+      fetchExchange(conv.partner?.id ?? null);
+    })();
+  }, [conversations, user, preselectedConvId, fetchMessages, fetchExchange, markConvRead]);
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -241,19 +280,23 @@ export default function Messages() {
     return () => { supabase.removeChannel(inboxCh); };
   }, [user, fetchConversations]);
 
-  // ── Fetch exchange for active conversation ────────────────────────────────
-  const fetchExchange = useCallback(async (listingId, partnerId) => {
-    if (!listingId || !partnerId) { setActiveExchange(null); return; }
-    const { data } = await supabase
-      .from("exchanges")
-      .select("id, status, requester_id, listing_id")
-      .eq("listing_id", listingId)
-      .or(`requester_id.eq.${user.id},requester_id.eq.${partnerId}`)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    setActiveExchange(data ?? null);
-  }, [user]);
+  // ── Realtime: exchange status ──────────────────────────────────────────────
+  // When either party confirms/cancels, both chats reflect the new status live.
+  // payload.new carries only raw columns, so we merge it onto the joined houses
+  // we already hold rather than replacing the object outright.
+  useEffect(() => {
+    if (!activeExchange?.id) return;
+    const exCh = supabase
+      .channel(`exchange-${activeExchange.id}`)
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "exchanges", filter: `id=eq.${activeExchange.id}` },
+        (payload) => {
+          setActiveExchange((prev) => (prev && prev.id === payload.new.id ? { ...prev, ...payload.new } : prev));
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(exCh); };
+  }, [activeExchange?.id]);
 
   // ── Auto-select / create conversation when arriving from Exchanges ────────
   useEffect(() => {
@@ -262,13 +305,15 @@ export default function Messages() {
     const existing = conversations.find((c) => c.partner?.id === activeChatUserId);
     if (existing) {
       didAutoSelect.current = true;
-      setActiveConvId(existing.id);
-      setActivePartner(existing.partner);
-      setActiveConvListing(existing.listing ?? null);
-      setActiveExchange(null);
-      markConvRead(existing.id);
-      fetchMessages(existing.id);
-      fetchExchange(existing.listing?.id ?? null, existing.partner?.id ?? null);
+      (async () => {
+        setActiveConvId(existing.id);
+        setActivePartner(existing.partner);
+        setActiveConvListing(existing.listing ?? null);
+        setActiveExchange(null);
+        markConvRead(existing.id);
+        fetchMessages(existing.id);
+        fetchExchange(existing.partner?.id ?? null);
+      })();
       return;
     }
 
@@ -306,24 +351,39 @@ export default function Messages() {
   }, [conversations, user, activeChatUserId, activeChatUserName, loadingConvs, fetchMessages, fetchExchange, markConvRead]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const selectConversation = (conv) => {
+  const selectConversation = useCallback((conv) => {
     setActiveConvId(conv.id);
     setActivePartner(conv.partner);
     setActiveConvListing(conv.listing ?? null);
     setActiveExchange(null);
     markConvRead(conv.id);
     fetchMessages(conv.id);
-    fetchExchange(conv.listing?.id ?? null, conv.partner?.id ?? null);
-  };
+    fetchExchange(conv.partner?.id ?? null);
+  }, [markConvRead, fetchMessages, fetchExchange]);
+
+  // ── Deep-link: open the thread named by ?convId= ───────────────────────────
+  // Works on fresh load AND when a notification is clicked while already on
+  // /messages (the route doesn't remount). Once consumed, the query is stripped
+  // so manually picking another thread isn't snapped back — and clicking the same
+  // notification again re-adds the query and re-triggers this effect.
+  useEffect(() => {
+    if (!queryConvId || !user || conversations.length === 0) return;
+    const conv = conversations.find((c) => c.id === queryConvId);
+    if (!conv) return;
+    (async () => {
+      selectConversation(conv);
+      navigate("/messages", { replace: true });
+    })();
+  }, [queryConvId, user, conversations, selectConversation, navigate]);
 
   const handleExchangeAction = async (newStatus) => {
     if (!activeExchange || exchangeLoading) return;
     setExchangeLoading(true);
     const { data, error } = await supabase
       .from("exchanges")
-      .update({ status: newStatus })
+      .update({ status: newStatus, updated_by: user.id })
       .eq("id", activeExchange.id)
-      .select("id, status, requester_id, listing_id")
+      .select(EXCHANGE_SELECT)
       .single();
     if (!error && data) setActiveExchange(data);
     setExchangeLoading(false);
@@ -373,6 +433,30 @@ export default function Messages() {
       return;
     }
     fetchConversations(); // refresh inbox preview if the last message was removed
+  };
+
+  // ── Delete an entire conversation (participant only) ───────────────────────
+  // Messages cascade-delete via the conversation_id FK (ON DELETE CASCADE).
+  const handleDeleteConversation = async (convId) => {
+    if (!convId) return;
+    const prevConvs = conversations;
+    // Optimistic: drop from the inbox and clear the chat pane if it was open.
+    setConversations((prev) => prev.filter((c) => c.id !== convId));
+    markConvRead(convId);
+    if (activeConvId === convId) {
+      setActiveConvId(null);
+      setActivePartner(null);
+      setActiveConvListing(null);
+      setActiveExchange(null);
+      setMessages([]);
+    }
+    const { error } = await supabase.from("conversations").delete().eq("id", convId);
+    if (error) {
+      console.error("[handleDeleteConversation]", error);
+      setConversations(prevConvs); // restore on failure
+      return;
+    }
+    fetchConversations();
   };
 
   const handleKeyDown = (e) => {
@@ -556,6 +640,21 @@ export default function Messages() {
                       {t("messages.viewProfile")}
                     </button>
                   </div>
+
+                  <div style={{ flex: 1 }} />
+
+                  {/* Delete this conversation */}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConvTarget({ id: activeConvId, name: activePartner?.full_name })}
+                    aria-label={t("messages.deleteConversation")}
+                    title={t("messages.deleteConversation")}
+                    style={{ width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6E7B79", background: "none", border: "none", cursor: "pointer", flexShrink: 0, transition: "background 0.15s, color 0.15s" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(193,60,38,0.10)"; e.currentTarget.style.color = "#C13C26"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#6E7B79"; }}
+                  >
+                    <Trash2 style={{ width: 18, height: 18 }} />
+                  </button>
                 </header>
 
                 {/* Message stream */}
@@ -734,6 +833,103 @@ export default function Messages() {
             <div style={{ padding: 14, gap: 14, display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
               {activeConvId ? (
                 <>
+                  {/* ── Exchange details (house being swapped, dates, shared decision) ── */}
+                  {activeExchange && (() => {
+                    // Always surface the *other* party's house in the swap:
+                    // if I'm the requester, that's the house I asked for (requested_house);
+                    // if I'm the receiver, that's the house they offered (offered_house).
+                    const isRequester = activeExchange.requester_id === user?.id;
+                    const otherHouse =
+                      (isRequester ? activeExchange.requested_house : activeExchange.offered_house) ||
+                      activeConvListing;
+                    const { start_date, end_date, status } = activeExchange;
+                    const dateText = (start_date || end_date)
+                      ? [fmtDay(start_date, dateLocale), fmtDay(end_date, dateLocale)].filter(Boolean).join(" – ")
+                      : t("messages.flexibleDates");
+                    const loc = otherHouse
+                      ? [otherHouse.city, otherHouse.wilaya].filter(Boolean).join(", ")
+                      : "";
+                    return (
+                      <section style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                        {/* Panel label */}
+                        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #F0EAD9" }}>
+                          <p style={{ margin: 0, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "#005B5B", fontWeight: 700 }}>
+                            {t("messages.exchangeDetails")}
+                          </p>
+                        </div>
+
+                        {/* House photo */}
+                        <div style={{ position: "relative", width: "100%", aspectRatio: "16/10", background: "#E5DFCE", overflow: "hidden" }}>
+                          {otherHouse?.images?.[0]
+                            ? <img src={otherHouse.images[0]} alt={otherHouse.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            : <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#005B5B,#1F7878)" }} />}
+                          <span style={{ position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 6, background: "#005B5B", color: "#F3EEE0", padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, boxShadow: "0 2px 6px rgba(0,0,0,.15)" }}>
+                            {t("messages.exchangeSummary")}
+                          </span>
+                        </div>
+
+                        {/* House meta */}
+                        <div style={{ padding: "14px 16px 4px", display: "flex", flexDirection: "column", gap: 8 }}>
+                          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0F2A2A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {otherHouse?.title || t("messages.noListing")}
+                          </p>
+                          {loc && (
+                            <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#0F2A2A", fontWeight: 500 }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#005B5B" strokeWidth="1.8">
+                                <path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/>
+                              </svg>
+                              {loc}
+                            </p>
+                          )}
+                          <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6E7B79" }}>
+                            <Calendar style={{ width: 13, height: 13 }} /> {t("messages.proposedDates")}: <strong style={{ color: "#0F2A2A", fontWeight: 600 }}>{dateText}</strong>
+                          </p>
+                        </div>
+
+                        {/* Shared decision: pill buttons while a decision is still pending, badge once final */}
+                        <div style={{ padding: "12px 16px 16px" }}>
+                          {(status === "pending" || status === "accepted") && (
+                            <>
+                              <p style={{ margin: "0 0 8px", textAlign: "center", fontSize: 12, color: "#6E7B79" }}>
+                                {t("messages.confirmHint")}
+                              </p>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                  onClick={() => handleExchangeAction("cancelled")}
+                                  disabled={exchangeLoading}
+                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #D9D4C4", background: "#FFFFFF", color: "#6E7B79", opacity: exchangeLoading ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                                  onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#F7F4EA"; e.currentTarget.style.borderColor = "#CFC9B7"; } }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.borderColor = "#D9D4C4"; }}
+                                >
+                                  <X style={{ width: 14, height: 14 }} /> {t("messages.cancel")}
+                                </button>
+                                <button
+                                  onClick={() => handleExchangeAction("confirmed")}
+                                  disabled={exchangeLoading}
+                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: exchangeLoading ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                                  onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = "#F4C84B"; e.currentTarget.style.borderColor = "#E7B73A"; }}
+                                >
+                                  <Check style={{ width: 14, height: 14 }} /> {t("messages.confirm")}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                          {status === "confirmed" && (
+                            <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
+                              {t("messages.exchangeConfirmed")}
+                            </div>
+                          )}
+                          {status === "cancelled" && (
+                            <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#F7DCD8", color: "#C0392B", border: "1px solid #F2C9C2" }}>
+                              {t("messages.exchangeCancelled")}
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })()}
+
                   {/* ── Listing card (pc-card) ── */}
                   {activeConvListing ? (
                     <article style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -792,11 +988,13 @@ export default function Messages() {
                         </button>
                       </div>
                     </article>
-                  ) : (
+                  ) : !activeExchange ? (
+                    // Only show the empty-state when there's strictly no exchange AND no listing.
+                    // If the exchange card above rendered a house, this fallback stays hidden.
                     <div style={{ background: "#F3EEE0", border: "1px solid #E5DFCE", borderRadius: 22, padding: "28px 16px", textAlign: "center", color: "#6E7B79", fontSize: 13 }}>
                       {t("messages.noListing")}
                     </div>
-                  )}
+                  ) : null}
 
                   {/* ── Match card ── */}
                   <div style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 18, padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
@@ -819,41 +1017,6 @@ export default function Messages() {
                     </div>
                   </div>
 
-                  {/* ── Action buttons ── */}
-                  {activeExchange ? (
-                    activeExchange.status === "pending" ? (
-                      <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-                        <button
-                          onClick={() => handleExchangeAction("refused")}
-                          disabled={exchangeLoading}
-                          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #E5DFCE", background: "#FFFFFF", color: "#005B5B", transition: "border-color 0.15s", opacity: exchangeLoading ? 0.6 : 1 }}
-                          onMouseEnter={(e) => { if (!exchangeLoading) e.currentTarget.style.borderColor = "#005B5B"; }}
-                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#E5DFCE")}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>
-                          </svg>
-                          {t("messages.cancel")}
-                        </button>
-                        <button
-                          onClick={() => handleExchangeAction("accepted")}
-                          disabled={exchangeLoading}
-                          style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #ADEBB3", background: "#ADEBB3", color: "#005B5B", transition: "background 0.15s, border-color 0.15s", opacity: exchangeLoading ? 0.6 : 1 }}
-                          onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#8FD89A"; e.currentTarget.style.borderColor = "#8FD89A"; } }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "#ADEBB3"; e.currentTarget.style.borderColor = "#ADEBB3"; }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                            <circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>
-                          </svg>
-                          {t("messages.confirm")}
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 2, padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 600, background: activeExchange.status === "accepted" ? "#ADEBB3" : "#F3EEE0", color: activeExchange.status === "accepted" ? "#005B5B" : "#6E7B79", border: `1px solid ${activeExchange.status === "accepted" ? "#ADEBB3" : "#E5DFCE"}` }}>
-                        {activeExchange.status === "accepted" ? t("messages.exchangeConfirmed") : t("messages.exchangeCancelled")}
-                      </div>
-                    )
-                  ) : null}
                 </>
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#6E7B79", fontSize: 13, textAlign: "center" }}>
@@ -865,6 +1028,28 @@ export default function Messages() {
 
         </section>
       </main>
+
+      {/* ── Delete-conversation confirmation ── */}
+      <AlertDialog open={!!deleteConvTarget} onOpenChange={(open) => { if (!open) setDeleteConvTarget(null); }}>
+        <AlertDialogContent style={{ borderRadius: 16, padding: 24, background: "#fff", border: "1px solid #E5DFCE", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", maxWidth: 400, margin: "auto" }}>
+          <AlertDialogHeader style={{ marginBottom: 24 }}>
+            <AlertDialogTitle style={{ fontSize: 18, fontWeight: 600, color: "#0F2A2A", marginBottom: 8 }}>
+              {t("messages.deleteConfirm.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: 14, color: "#6E7B79", lineHeight: 1.5 }}>
+              {t("messages.deleteConfirm.desc", { name: deleteConvTarget?.name || t("messages.userFallback") })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <AlertDialogCancel asChild>
+              <button style={{ padding: "10px 16px", borderRadius: 12, background: "#fff", color: "#0F2A2A", border: "1px solid #E5DFCE", fontSize: 14, fontWeight: 500, cursor: "pointer", margin: 0 }}>{t("messages.deleteConfirm.cancel")}</button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <button onClick={() => { if (deleteConvTarget) handleDeleteConversation(deleteConvTarget.id); setDeleteConvTarget(null); }} style={{ padding: "10px 16px", borderRadius: 12, background: "#C13C26", color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", margin: 0 }}>{t("messages.deleteConfirm.confirm")}</button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

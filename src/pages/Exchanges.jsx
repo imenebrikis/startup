@@ -21,9 +21,11 @@ const initials = (name) => name ? name.split(" ").map((n) => n[0]).join("").toUp
 function StatusBadge({ status }) {
   const { t } = useTranslation();
   const map = {
-    pending:  { key: "pending",  bg: "#FBEACB", color: "#C77A1E", dot: "#C77A1E" },
-    accepted: { key: "accepted", bg: "#D6EEDD", color: "#1F7A4F", dot: "#1F7A4F" },
-    refused:  { key: "refused",  bg: "#F7DCD8", color: "#C0392B", dot: "#C0392B" },
+    pending:   { key: "pending",   bg: "#FBEACB", color: "#C77A1E", dot: "#C77A1E" },
+    accepted:  { key: "accepted",  bg: "#D6EEDD", color: "#1F7A4F", dot: "#1F7A4F" },
+    refused:   { key: "refused",   bg: "#F7DCD8", color: "#C0392B", dot: "#C0392B" },
+    confirmed: { key: "confirmed", bg: "#ADEBB3", color: "#005B5B", dot: "#005B5B" },
+    cancelled: { key: "cancelled", bg: "#ECECE6", color: "#6E7B79", dot: "#9A9A90" },
   };
   const s = map[status] || map.pending;
   return (
@@ -55,8 +57,14 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
   const navigate = useNavigate();
   const [blockHover, setBlockHover] = useState(false);
   const [nameHover, setNameHover] = useState(false);
-  const requested = ex.requested_house;
-  const offered = ex.offered_house;
+  const requested = ex.requested_house;  // listing_id → the receiver's own house
+  const offered = ex.offered_house;      // offered_house_id → the requester's house
+  // The large visual shows the "other party's" house; the info block shows the viewer's own.
+  // sent:     hero = requested (their house I want),   info = offered  (my proposed house)
+  // received: hero = offered  (their proposed house),  info = requested (my own house)
+  const heroHouse = mode === "sent" ? requested : offered;
+  const infoHouse = mode === "sent" ? offered : requested;
+  const infoLabel = mode === "sent" ? t("exchanges.offeredLabel") : t("exchanges.ownLabel");
   const partnerProfile = mode === "sent" ? ex.receiver_profile : ex.sender_profile;
   const partnerName = partnerProfile?.full_name || t("exchanges.userFallback");
   const dateStr = ex.created_at
@@ -75,18 +83,18 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
       <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 22 }}>
         {/* Left: photo + title + user — Option 3 whole-block link */}
         <div>
-          {requested ? (
+          {heroHouse ? (
             <Link
-              to={`/listing/${requested.id}`}
+              to={`/listing/${heroHouse.id}`}
               onMouseEnter={() => setBlockHover(true)}
               onMouseLeave={() => setBlockHover(false)}
               style={{ display: "block", textAlign: "left", textDecoration: "none", transition: "opacity 0.2s ease", opacity: blockHover ? 0.95 : 1 }}
             >
               <div style={{ width: "100%", aspectRatio: "16/10", borderRadius: 16, overflow: "hidden", background: "#E5DFCE" }}>
-                {requested.images?.[0] ? (
+                {heroHouse.images?.[0] ? (
                   <img
-                    src={requested.images[0]}
-                    alt={requested.title}
+                    src={heroHouse.images[0]}
+                    alt={heroHouse.title}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transform: blockHover ? "scale(1.01)" : "scale(1)", transition: "transform 0.3s ease" }}
                   />
                 ) : (
@@ -98,11 +106,11 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
               </div>
 
               <h3 style={{ margin: "16px 0 4px", fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", color: "#0F2A2A", textDecoration: blockHover ? "underline" : "none", textDecorationThickness: 2 }}>
-                {requested.title}
+                {heroHouse.title}
               </h3>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "#005B5B", fontWeight: 500 }}>
                 <MapPin style={{ width: 13, height: 13 }} />
-                {requested.wilaya}{requested.city ? `, ${requested.city}` : ""}
+                {heroHouse.wilaya}{heroHouse.city ? `, ${heroHouse.city}` : ""}
               </div>
             </Link>
           ) : (
@@ -129,27 +137,27 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
 
         {/* Right: info blocks + actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <InfoBlock label={mode === "sent" ? t("exchanges.offeredLabel") : t("exchanges.requestedLabel")} refused={refused}>
-            {offered ? (
+          <InfoBlock label={infoLabel} refused={refused}>
+            {infoHouse ? (
               <>
-                <p style={{ fontSize: 15.5, fontWeight: 700, color: "#0F2A2A", margin: "0 0 8px", letterSpacing: "-0.005em" }}>{offered.title}</p>
+                <p style={{ fontSize: 15.5, fontWeight: 700, color: "#0F2A2A", margin: "0 0 8px", letterSpacing: "-0.005em" }}>{infoHouse.title}</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 13.5, color: refused ? "#C0392B" : "#005B5B" }}>
-                  {offered.wilaya && (
+                  {infoHouse.wilaya && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <MapPin style={{ width: 13, height: 13, opacity: 0.85 }} />
-                      {offered.wilaya}{offered.city ? `, ${offered.city}` : ""}
+                      {infoHouse.wilaya}{infoHouse.city ? `, ${infoHouse.city}` : ""}
                     </span>
                   )}
-                  {offered.rooms && (
+                  {infoHouse.rooms && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <BedDouble style={{ width: 13, height: 13, opacity: 0.85 }} />
-                      {t("exchanges.rooms", { count: offered.rooms })}
+                      {t("exchanges.rooms", { count: infoHouse.rooms })}
                     </span>
                   )}
-                  {(offered.available_from || offered.available_to) && (
+                  {(infoHouse.available_from || infoHouse.available_to) && (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <Calendar style={{ width: 13, height: 13, opacity: 0.85 }} />
-                      {[fmtDate(offered.available_from, dateLocale), fmtDate(offered.available_to, dateLocale)].filter(Boolean).join(" – ")}
+                      {[fmtDate(infoHouse.available_from, dateLocale), fmtDate(infoHouse.available_to, dateLocale)].filter(Boolean).join(" – ")}
                     </span>
                   )}
                 </div>
@@ -296,7 +304,7 @@ export default function Exchanges() {
 
   const updateStatus = async (id, status) => {
     setActionLoading(id);
-    await supabase.from("exchanges").update({ status }).eq("id", id);
+    await supabase.from("exchanges").update({ status, updated_by: user.id }).eq("id", id);
     await fetchExchanges(user.id);
     setActionLoading(null);
   };

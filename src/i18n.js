@@ -17,6 +17,8 @@ const resources = {
           favorites: "Favoris",
           messages: "Messages",
           profileMenu: "Menu du profil",
+          dashboard: "Tableau de bord",
+          logout: "Se déconnecter",
           loadingMap: "Chargement de la carte…",
         },
         badge: {
@@ -94,6 +96,8 @@ const resources = {
           noParties: "Pas de fêtes",
           familiesOnly: "Familles uniquement",
           noAlcohol: "Pas d'alcool",
+          noPhotos: "Photos/Vidéos interdites",
+          noThirdPartyGuests: "Pas d'invités tiers",
         },
         amenities: {
           ac: "Climatisation",
@@ -108,6 +112,9 @@ const resources = {
           kitchen: "Cuisine équipée",
           washer: "Machine à laver",
           elevator: "Ascenseur",
+          seaView: "Vue sur mer",
+          security: "Sécurité (Caméras / Alarme)",
+          jacuzzi: "Jacuzzi",
         },
       },
       details: {
@@ -173,12 +180,15 @@ const resources = {
           pending: "En attente",
           accepted: "Accepté",
           refused: "Refusé",
+          confirmed: "Échange confirmé",
+          cancelled: "Échange annulé",
         },
         requestedOn: "Demandé le {{date}}",
         userFallback: "Utilisateur",
         photoPlaceholder: "Photo du logement",
         offeredLabel: "Votre logement proposé",
         requestedLabel: "Votre logement demandé",
+        ownLabel: "Votre logement",
         yourMessage: "Votre message",
         requesterMessage: "Message du demandeur",
         unavailable: "Non disponible",
@@ -221,7 +231,7 @@ const resources = {
           titleRequired: "Veuillez saisir un titre pour votre annonce.",
           wilayaRequired: "Veuillez sélectionner une wilaya.",
           cityRequired: "Veuillez saisir le nom de la ville.",
-          quartierRequired: "Veuillez saisir le quartier / commune.",
+          quartierRequired: "Veuillez saisir le quartier.",
           propertyTypeRequired: "Veuillez choisir le type de logement.",
           roomsRequired: "Veuillez indiquer le nombre de chambres.",
           floorRequired: "Veuillez indiquer l'étage (0 pour rez-de-chaussée).",
@@ -248,15 +258,20 @@ const resources = {
         },
         rules: {
           nonSmoker: "Non-fumeur",
-          smoker: "Fumeur",
           noPets: "Pas d'animaux",
-          petsAllowed: "Animaux acceptés",
           noParties: "Pas de fêtes",
+          quietHours: "Heures de silence (22h - 07h)",
           familiesOnly: "Familles uniquement",
-          familyBook: "Livret de famille",
-          noAlcohol: "Pas d'alcool",
           womenOnly: "Femmes uniquement",
-          quietHours: "Heures de silence",
+          familyBook: "Livret de famille exigé",
+          noAlcohol: "Pas d'alcool",
+          noVisitors: "Pas de visiteurs",
+          idRequired: "Pièce d'identité requise",
+          noShoes: "Pas de chaussures à l'intérieur",
+          noSubletting: "Pas de sous-location",
+          turnOffUtilities: "Éteindre clim/lumières au départ",
+          noPhotos: "Photos/Vidéos interdites",
+          noThirdPartyGuests: "Pas d'invités tiers",
         },
         nav: {
           back: "Retour",
@@ -277,8 +292,8 @@ const resources = {
           s3: {
             heading: "Localisation", hint: "Placez un repère approximatif",
             wilayaLabel: "Wilaya", wilayaPlaceholder: "Sélectionnez…",
-            cityLabel: "Ville", cityPlaceholder: "Nom de la ville",
-            quartierLabel: "Quartier / Commune", quartierPlaceholder: "ex: Bir Mourad Raïs, Hydra, Bab Ezzouar…",
+            cityLabel: "Commune", cityPlaceholder: "Nom de la commune",
+            quartierLabel: "Quartier", quartierPlaceholder: "ex: Bir Mourad Raïs, Hydra, Bab Ezzouar…",
             quartierHint: "Visible publiquement — votre adresse exacte ne l'est jamais.",
             mapLabel: "Emplacement approximatif sur la carte",
           },
@@ -337,6 +352,46 @@ const resources = {
         messages: "Messages",
         profile: "Profil",
       },
+      faq: {
+        heading: "Questions fréquentes",
+        subtitle: "Tout ce que vous devez savoir sur Darbeldar, l'échange de logements en toute confiance.",
+        contact: {
+          lead: "Vous n'avez pas trouvé votre réponse ? Écrivez-nous à ",
+          tail: " ou contactez-nous sur nos réseaux sociaux !",
+        },
+        categories: [
+          {
+            title: "Le Concept Darbeldar",
+            items: [
+              { q: "Qu'est-ce que Darbeldar et comment ça fonctionne ?", a: "Darbeldar est une plateforme algérienne de confiance dédiée à l'échange temporaire de logements pour les vacances. Vous déposez l'annonce de votre maison, vous parcourez les fiches des autres membres, et vous proposez un échange !" },
+              { q: "Est-ce que l'utilisation de la plateforme est gratuite ?", a: "Oui, l'inscription, la création de vos fiches de logement et l'utilisation de la messagerie sont 100% gratuites." },
+            ],
+          },
+          {
+            title: "Confiance & Règles de la Maison",
+            items: [
+              { q: "Comment s'assurer du respect de mon logement ?", a: "Sur Darbeldar, vous gardez le contrôle total. Vous pouvez consulter en détail la fiche de l'utilisateur qui vous démarche et imposer des règles claires via nos options de filtrage (ex : Livret de famille exigé, Familles uniquement, Pièce d'identité requise)." },
+              { q: "Comment gérer les spécificités techniques (eau, électricité) ?", a: "Les fiches techniques de Darbeldar incluent explicitement des équipements indispensables comme la présence d'une « Citerne d'eau » ou d'un « Groupe électrogène » pour que tout soit transparent avant le voyage." },
+            ],
+          },
+          {
+            title: "Processus d'Échange & Chat",
+            items: [
+              { q: "Comment suivre mes demandes envoyées et reçues ?", a: "Rendez-vous sur votre page d'échanges. Sous l'onglet « Demandes reçues », l'interface affiche en grand le logement proposé par le voyageur et en petit votre propre logement pour éviter toute confusion." },
+              { q: "Comment valider définitivement un échange ?", a: "Une fois la demande acceptée, basculez sur l'interface de Chat. Dans le panneau latéral droit « Détails de l'échange », vérifiez la carte de la maison et la période proposée, puis cliquez sur le bouton « Confirmer »." },
+            ],
+          },
+          {
+            title: "Légal & Conditions",
+            items: [
+              { q: "Cette plateforme est-elle exclusive à l'Algérie ?", a: "Pour notre lancement, Darbeldar se concentre exclusivement sur les logements situés en Algérie afin de bâtir une communauté locale forte (idéal pour les résidents et la diaspora). À l'avenir, nous prévoyons de nous ouvrir à l'international !" },
+              { q: "Avez-vous un système de points comme d'autres plateformes ?", a: "Actuellement, Darbeldar fonctionne uniquement sur la base d'échanges réciproques (simultanés ou non) pour garantir un maximum de sécurité et de simplicité. Un système de points flexible sera introduit dans nos prochaines mises à jour." },
+              { q: "Suis-je couvert par une assurance pendant l'échange ?", a: "Pour le moment, l'échange repose sur votre propre assurance multirisque habitation (assurez-vous auprès de votre assureur algérien qu'elle couvre les invités à titre gratuit). Nous travaillons activement sur l'intégration d'une assurance globale Darbeldar qui couvrira automatiquement tous les échanges à l'avenir." },
+              { q: "Puis-je échanger mon logement si je suis locataire ?", a: "Oui, mais sous conditions ! Selon la loi algérienne, le prêt ou la sous-location d'un bien nécessite l'accord explicite et écrit de votre propriétaire. Si vous possédez cette autorisation, vous êtes le bienvenu. Sinon, l'échange est réservé aux propriétaires." },
+            ],
+          },
+        ],
+      },
       messages: {
         title: "Messages",
         inbox: "Boîte",
@@ -352,6 +407,13 @@ const resources = {
         stopRecording: "Arrêter l'enregistrement",
         deleteMessage: "Supprimer le message",
         delete: "Supprimer",
+        deleteConversation: "Supprimer la conversation",
+        deleteConfirm: {
+          title: "Supprimer la conversation ?",
+          desc: "Toute la conversation avec {{name}} sera définitivement supprimée. Cette action est irréversible.",
+          cancel: "Annuler",
+          confirm: "Supprimer",
+        },
         unread: "Non lu",
         selectConversation: "Sélectionnez une conversation",
         selectConversationHint: "Choisissez un contact à gauche pour commencer à échanger.",
@@ -362,6 +424,11 @@ const resources = {
         confirm: "Confirmer",
         exchangeConfirmed: "✓ Échange confirmé",
         exchangeCancelled: "✕ Échange annulé",
+        exchangeSummary: "Proposition d'échange",
+        exchangeDetails: "Détails de l'échange",
+        confirmHint: "Confirmez si vous acceptez l'échange",
+        proposedDates: "Dates proposées",
+        flexibleDates: "Dates flexibles",
         badge: {
           exchangeSale: "Échange & Vente",
           sale: "Vente",
@@ -374,8 +441,10 @@ const resources = {
         voiceError: "Impossible d'envoyer le message vocal : {{error}}",
       },
       notifications: {
+        ariaLabel: "Notifications",
         title: "Notifications",
-        markAllRead: "Tout marquer lu",
+        markAllRead: "Tout marquer comme lu",
+        empty: "Aucune nouvelle notification",
         emptyTitle: "Tout est calme",
         emptySubtitle: "Vos prochaines notifications apparaîtront ici.",
         view: "Voir",
@@ -395,6 +464,16 @@ const resources = {
           saving: "Sauvegarde…",
           cancel: "Annuler",
           delete: "Supprimer",
+          hide: "Masquer",
+          show: "Publier",
+          menu: "Options de l'annonce",
+        },
+        status: {
+          published: "Publié",
+          pending: "En attente",
+          rejected: "Refusé",
+          hidden: "Masqué",
+          expired: "Expiré",
         },
         tabs: {
           listings: "Mes annonces",
@@ -778,6 +857,10 @@ const resources = {
           }
         },
       },
+      listingDetail: {
+        copyLink: "Partager",
+        linkCopied: "Lien copié !",
+      },
       home: {
         nav: {
           home: "Accueil",
@@ -831,6 +914,8 @@ const resources = {
           favorites: "Favorites",
           messages: "Messages",
           profileMenu: "Profile menu",
+          dashboard: "Dashboard",
+          logout: "Log Out",
           loadingMap: "Loading map…",
         },
         badge: {
@@ -906,6 +991,8 @@ const resources = {
           noParties: "No parties",
           familiesOnly: "Families only",
           noAlcohol: "No alcohol",
+          noPhotos: "No photos/videos",
+          noThirdPartyGuests: "No third-party guests",
         },
         amenities: {
           ac: "Air conditioning",
@@ -920,6 +1007,9 @@ const resources = {
           kitchen: "Fitted kitchen",
           washer: "Washing machine",
           elevator: "Elevator",
+          seaView: "Sea view",
+          security: "Security (Cameras / Alarm)",
+          jacuzzi: "Jacuzzi",
         },
       },
       details: {
@@ -985,12 +1075,15 @@ const resources = {
           pending: "Pending",
           accepted: "Accepted",
           refused: "Declined",
+          confirmed: "Exchange confirmed",
+          cancelled: "Exchange cancelled",
         },
         requestedOn: "Requested on {{date}}",
         userFallback: "User",
         photoPlaceholder: "Property photo",
         offeredLabel: "Your offered home",
         requestedLabel: "Your requested home",
+        ownLabel: "Your property",
         yourMessage: "Your message",
         requesterMessage: "Requester's message",
         unavailable: "Unavailable",
@@ -1033,7 +1126,7 @@ const resources = {
           titleRequired: "Please enter a title for your listing.",
           wilayaRequired: "Please select a wilaya.",
           cityRequired: "Please enter the city name.",
-          quartierRequired: "Please enter the district / commune.",
+          quartierRequired: "Please enter the district.",
           propertyTypeRequired: "Please select the property type.",
           roomsRequired: "Please indicate the number of bedrooms.",
           floorRequired: "Please indicate the floor (0 for ground floor).",
@@ -1060,15 +1153,20 @@ const resources = {
         },
         rules: {
           nonSmoker: "Non-smoker",
-          smoker: "Smoker",
           noPets: "No pets",
-          petsAllowed: "Pets allowed",
           noParties: "No parties",
+          quietHours: "Quiet hours (10pm - 7am)",
           familiesOnly: "Families only",
-          familyBook: "Family booklet",
-          noAlcohol: "No alcohol",
           womenOnly: "Women only",
-          quietHours: "Quiet hours",
+          familyBook: "Family booklet required",
+          noAlcohol: "No alcohol",
+          noVisitors: "No visitors",
+          idRequired: "ID required",
+          noShoes: "No shoes indoors",
+          noSubletting: "No subletting",
+          turnOffUtilities: "Turn off AC/lights when leaving",
+          noPhotos: "No photos/videos",
+          noThirdPartyGuests: "No third-party guests",
         },
         nav: {
           back: "Back",
@@ -1089,8 +1187,8 @@ const resources = {
           s3: {
             heading: "Location", hint: "Place an approximate marker",
             wilayaLabel: "Wilaya", wilayaPlaceholder: "Select…",
-            cityLabel: "City", cityPlaceholder: "City name",
-            quartierLabel: "District / Commune", quartierPlaceholder: "e.g.: Bir Mourad Raïs, Hydra, Bab Ezzouar…",
+            cityLabel: "Commune", cityPlaceholder: "Commune name",
+            quartierLabel: "District", quartierPlaceholder: "e.g.: Bir Mourad Raïs, Hydra, Bab Ezzouar…",
             quartierHint: "Publicly visible — your exact address is never shown.",
             mapLabel: "Approximate location on the map",
           },
@@ -1149,6 +1247,46 @@ const resources = {
         messages: "Messages",
         profile: "Profile",
       },
+      faq: {
+        heading: "Frequently asked questions",
+        subtitle: "Everything you need to know about Darbeldar, home exchange you can trust.",
+        contact: {
+          lead: "Didn't find your answer? Email us at ",
+          tail: " or reach out on our social media!",
+        },
+        categories: [
+          {
+            title: "The Darbeldar Concept",
+            items: [
+              { q: "What is Darbeldar and how does it work?", a: "Darbeldar is a trusted Algerian platform dedicated to temporary home exchanges for the holidays. You post your home's listing, browse other members' listings, and propose an exchange!" },
+              { q: "Is the platform free to use?", a: "Yes — signing up, creating your home listings, and using the messaging are 100% free." },
+            ],
+          },
+          {
+            title: "Trust & House Rules",
+            items: [
+              { q: "How can I make sure my home is respected?", a: "On Darbeldar, you stay in full control. You can review in detail the profile of the user who reaches out to you and set clear rules through our filtering options (e.g. Family booklet required, Families only, ID required)." },
+              { q: "How are technical specifics (water, electricity) handled?", a: "Darbeldar's listings explicitly include essential amenities such as a 'Water tank' or a 'Generator' so that everything is transparent before the trip." },
+            ],
+          },
+          {
+            title: "Exchange Process & Chat",
+            items: [
+              { q: "How do I track my sent and received requests?", a: "Go to your exchanges page. Under the 'Received requests' tab, the interface shows the traveler's proposed home large and your own home small to avoid any confusion." },
+              { q: "How do I finalize an exchange?", a: "Once the request is accepted, switch to the Chat interface. In the right-hand 'Exchange details' panel, check the home card and the proposed dates, then click the 'Confirm' button." },
+            ],
+          },
+          {
+            title: "Legal & Terms",
+            items: [
+              { q: "Is this platform exclusive to Algeria?", a: "For our launch, Darbeldar focuses exclusively on homes located in Algeria in order to build a strong local community (ideal for residents and the diaspora). In the future, we plan to expand internationally!" },
+              { q: "Do you have a points system like other platforms?", a: "Currently, Darbeldar works solely on reciprocal exchanges (simultaneous or not) to guarantee maximum safety and simplicity. A flexible points system will be introduced in our upcoming updates." },
+              { q: "Am I covered by insurance during the exchange?", a: "For now, the exchange relies on your own comprehensive home insurance (check with your Algerian insurer that it covers non-paying guests). We are actively working on integrating a global Darbeldar insurance that will automatically cover all exchanges in the future." },
+              { q: "Can I exchange my home if I'm a tenant?", a: "Yes, but with conditions! Under Algerian law, lending or subletting a property requires the explicit written consent of your landlord. If you have that authorization, you are welcome. Otherwise, exchanges are reserved for owners." },
+            ],
+          },
+        ],
+      },
       messages: {
         title: "Messages",
         inbox: "Inbox",
@@ -1164,6 +1302,13 @@ const resources = {
         stopRecording: "Stop recording",
         deleteMessage: "Delete message",
         delete: "Delete",
+        deleteConversation: "Delete conversation",
+        deleteConfirm: {
+          title: "Delete conversation?",
+          desc: "The entire conversation with {{name}} will be permanently deleted. This action cannot be undone.",
+          cancel: "Cancel",
+          confirm: "Delete",
+        },
         unread: "Unread",
         selectConversation: "Select a conversation",
         selectConversationHint: "Choose a contact on the left to start chatting.",
@@ -1174,6 +1319,11 @@ const resources = {
         confirm: "Confirm",
         exchangeConfirmed: "✓ Exchange confirmed",
         exchangeCancelled: "✕ Exchange cancelled",
+        exchangeSummary: "Exchange proposal",
+        exchangeDetails: "Exchange details",
+        confirmHint: "Confirm if you agree to swap",
+        proposedDates: "Proposed dates",
+        flexibleDates: "Flexible dates",
         badge: {
           exchangeSale: "Swap & Sale",
           sale: "Sale",
@@ -1186,8 +1336,10 @@ const resources = {
         voiceError: "Could not send the voice message: {{error}}",
       },
       notifications: {
+        ariaLabel: "Notifications",
         title: "Notifications",
-        markAllRead: "Mark all read",
+        markAllRead: "Mark all as read",
+        empty: "No new notifications",
         emptyTitle: "All quiet",
         emptySubtitle: "Your next notifications will appear here.",
         view: "View",
@@ -1207,6 +1359,16 @@ const resources = {
           saving: "Saving…",
           cancel: "Cancel",
           delete: "Delete",
+          hide: "Hide",
+          show: "Publish",
+          menu: "Listing options",
+        },
+        status: {
+          published: "Published",
+          pending: "Pending",
+          rejected: "Rejected",
+          hidden: "Hidden",
+          expired: "Expired",
         },
         tabs: {
           listings: "My listings",
@@ -1589,6 +1751,10 @@ const resources = {
             daysAgo: "{{count}} d ago"
           }
         },
+      },
+      listingDetail: {
+        copyLink: "Share",
+        linkCopied: "Link copied!",
       },
       home: {
         nav: {

@@ -147,6 +147,11 @@ export default function SwapSheet({ listing, user, onSuccess }) {
     return `Jusqu'au ${fmt(to)}`;
   })();
 
+  const today = new Date().toISOString().slice(0, 10);
+  const oneYearFromToday = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().slice(0, 10);
+  const hostMin = listing?.available_from || today;
+  const hostMax = listing?.available_to || oneYearFromToday;
+
   const datesValid = !(startDate && endDate && new Date(endDate) < new Date(startDate));
   const canSubmit = !!selectedId && !submitting && datesValid;
 
@@ -386,8 +391,8 @@ export default function SwapSheet({ listing, user, onSuccess }) {
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     {[
-                      { label: "Du", value: startDate, set: setStartDate, min: new Date().toISOString().slice(0, 10), max: endDate || undefined },
-                      { label: "Au", value: endDate, set: setEndDate, min: startDate || new Date().toISOString().slice(0, 10) },
+                      { label: "Du", value: startDate, set: setStartDate, min: hostMin, max: endDate || hostMax },
+                      { label: "Au", value: endDate, set: setEndDate, min: startDate || hostMin, max: hostMax },
                     ].map(({ label, value, set, min, max }) => (
                       <div key={label} style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
                         <span style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</span>

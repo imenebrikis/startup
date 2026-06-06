@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import MotionButton from "./MotionButton";
 import tripSvg from "../assets/Trip-cuate.svg";
 import paperMapSvg from "../assets/PaperMap-cuate.svg";
+import { supabase } from "../lib/supabase";
 
 const HEADING_FONT = "'Bricolage Grotesque', sans-serif";
 const BODY_FONT = "'Satoshi', sans-serif";
@@ -10,6 +12,16 @@ const BRAND_TEAL = "#005B5B";
 
 export default function HowItWorks() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setIsAuthenticated(true);
+    });
+  }, []);
+
+  const handleCta = () => navigate(isAuthenticated ? "/dashboard" : "/register");
 
   const headlineParts = t("home.howItWorks.headlineParts", { returnObjects: true });
   const steps = t("home.howItWorks.steps", { returnObjects: true });
@@ -174,9 +186,9 @@ export default function HowItWorks() {
 
         {/* CTA */}
         <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-          <Link to="/register" style={{ display: "inline-block" }}>
+          <button type="button" onClick={handleCta} style={{ display: "inline-block", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
             <MotionButton label={t("home.howItWorks.cta")} fillClassName="bg-[#adebb3]" />
-          </Link>
+          </button>
         </div>
       </div>
     </section>
