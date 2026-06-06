@@ -879,7 +879,7 @@ const resources = {
         },
         hero: {
           headlineParts: ["Vendez, échangez,", "explorez - chaque", "coin d'Algérie est", "chez vous."],
-          description: "Que vous souhaitiez vendre votre maison ou la troquer contre une nouvelle aventure, DarBelDar vous connecte avec des propriétaires à travers les 58 wilayas.",
+          description: "Que vous souhaitiez vendre votre maison ou la troquer contre une nouvelle aventure, DarBelDar vous connecte avec des propriétaires à travers les 69 wilayas.",
           cta: "Découvrir nos lieux",
           imgAlt: "Maisons contemporaines lumineuses en Algérie",
         },
@@ -1783,7 +1783,7 @@ const resources = {
         },
         hero: {
           headlineParts: ["Sell, swap,", "explore — every", "corner of Algeria", "is home."],
-          description: "Whether you want to sell your home or swap it for a new adventure, DarBelDar connects you with homeowners across all 58 wilayas.",
+          description: "Whether you want to sell your home or swap it for a new adventure, DarBelDar connects you with homeowners across all 69 wilayas.",
           cta: "Explore listings",
           imgAlt: "Contemporary bright homes in Algeria",
         },
