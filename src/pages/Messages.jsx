@@ -12,7 +12,7 @@ import {
 
 // Shared shape for the exchange tied to a conversation: status, proposed dates,
 // and both sides' houses (offered = proposer's house, requested = receiver's house).
-const EXCHANGE_SELECT = `id, status, requester_id, receiver_id, listing_id, offered_house_id, start_date, end_date,
+const EXCHANGE_SELECT = `id, status, requester_id, receiver_id, listing_id, offered_house_id, start_date, end_date, exchange_date,
   offered_house:listings!offered_house_id ( id, title, wilaya, city, rooms, images ),
   requested_house:listings!listing_id ( id, title, wilaya, city, rooms, images )`;
 
@@ -87,6 +87,7 @@ export default function Messages() {
   const [isRecording, setIsRecording]     = useState(false);
   const [activeExchange, setActiveExchange] = useState(null);
   const [exchangeLoading, setExchangeLoading] = useState(false);
+  const [exchangeDate, setExchangeDate] = useState("");
   const [hoveredMsgId, setHoveredMsgId]   = useState(null);
   const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
   const [deleteConvTarget, setDeleteConvTarget] = useState(null);
@@ -379,9 +380,11 @@ export default function Messages() {
   const handleExchangeAction = async (newStatus) => {
     if (!activeExchange || exchangeLoading) return;
     setExchangeLoading(true);
+    const payload = { status: newStatus, updated_by: user.id };
+    if (newStatus === "confirmed" && exchangeDate) payload.exchange_date = exchangeDate;
     const { data, error } = await supabase
       .from("exchanges")
-      .update({ status: newStatus, updated_by: user.id })
+      .update(payload)
       .eq("id", activeExchange.id)
       .select(EXCHANGE_SELECT)
       .single();
@@ -893,6 +896,20 @@ export default function Messages() {
                               <p style={{ margin: "0 0 8px", textAlign: "center", fontSize: 12, color: "#6E7B79" }}>
                                 {t("messages.confirmHint")}
                               </p>
+                              <div style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: "#0F2A2A" }}>
+                                  {t("messages.exchangeDateLabel")}
+                                </label>
+                                <input
+                                  type="date"
+                                  value={exchangeDate}
+                                  onChange={(e) => setExchangeDate(e.target.value)}
+                                  min={new Date().toISOString().split("T")[0]}
+                                  max={end_date || undefined}
+                                  placeholder={t("messages.exchangeDatePlaceholder")}
+                                  style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13.5, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
+                                />
+                              </div>
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button
                                   onClick={() => handleExchangeAction("cancelled")}
@@ -905,9 +922,9 @@ export default function Messages() {
                                 </button>
                                 <button
                                   onClick={() => handleExchangeAction("confirmed")}
-                                  disabled={exchangeLoading}
-                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: exchangeLoading ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
-                                  onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
+                                  disabled={exchangeLoading || !exchangeDate}
+                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: (exchangeLoading || !exchangeDate) ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: (exchangeLoading || !exchangeDate) ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                                  onMouseEnter={(e) => { if (!exchangeLoading && exchangeDate) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background = "#F4C84B"; e.currentTarget.style.borderColor = "#E7B73A"; }}
                                 >
                                   <Check style={{ width: 14, height: 14 }} /> {t("messages.confirm")}
@@ -916,9 +933,22 @@ export default function Messages() {
                             </>
                           )}
                           {status === "confirmed" && (
-                            <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
-                              {t("messages.exchangeConfirmed")}
-                            </div>
+                            <>
+                              <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
+                                {t("messages.exchangeConfirmed")}
+                              </div>
+                              {activeExchange.exchange_date && (
+                                <div style={{ marginTop: 10, padding: "11px 14px", borderRadius: 12, background: "#F7F4EA", border: "1px solid #E5DFCE", display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#6E7B79" }}>
+                                    {t("messages.agreedExchangeDate")}
+                                  </span>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>
+                                    <Calendar style={{ width: 14, height: 14, color: "#005B5B" }} />
+                                    {new Date(activeExchange.exchange_date).toLocaleDateString(dateLocale, { year: "numeric", month: "long", day: "numeric" })}
+                                  </span>
+                                </div>
+                              )}
+                            </>
                           )}
                           {status === "cancelled" && (
                             <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#F7DCD8", color: "#C0392B", border: "1px solid #F2C9C2" }}>

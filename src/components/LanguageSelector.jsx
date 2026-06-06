@@ -29,7 +29,7 @@ export default function LanguageSelector() {
           style={{ padding: "0 14px" }}
         >
           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{active.flag}</span>
-          <span>{active.label}</span>
+          <span>{active.label.slice(0, 2).toUpperCase()}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </button>
       </DropdownMenuTrigger>

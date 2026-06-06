@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function ini(name) {
@@ -195,11 +194,6 @@ export default function AdminMessages() {
               style={{ border: 0, outline: 0, fontSize: 13, color: "#0F172A", background: "transparent", fontFamily: "'Inter', sans-serif", flex: 1 }}
             />
           </label>
-        </div>
-
-        {/* Language selector row */}
-        <div style={{ padding: "8px 16px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "flex-end" }}>
-          <LanguageSelector />
         </div>
 
         {/* List */}

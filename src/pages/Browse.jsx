@@ -373,17 +373,34 @@ export default function Browse() {
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10)
-    supabase
-      .from('listings')
-      .select('*')
-      .eq('status', 'approved')           // respect admin moderation
-      .eq('is_active', true)              // not hidden by the owner
-      .or(`available_to.gte.${today},available_to.is.null`)  // not expired (null = never expires)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setListings(data || [])
-        setLoading(false)
+    ;(async () => {
+      const { data } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('status', 'approved')           // respect admin moderation
+        .eq('is_active', true)              // not hidden by the owner
+        .or(`available_to.gte.${today},available_to.is.null`)  // not expired (null = never expires)
+        .order('created_at', { ascending: false })
+
+      // Auto-hide listings inside their confirmed-exchange window:
+      // hidden when exchange_date - 1 day <= today <= exchange_date (24h before until the day itself).
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+      const { data: hiddenExchanges } = await supabase
+        .from('exchanges')
+        .select('listing_id, offered_house_id')
+        .eq('status', 'confirmed')
+        .not('exchange_date', 'is', null)
+        .gte('exchange_date', today)        // exchange hasn't passed yet
+        .lte('exchange_date', tomorrow)     // hide starts 24h before the exchange date
+      const hiddenIds = new Set()
+      ;(hiddenExchanges || []).forEach((e) => {
+        if (e.listing_id) hiddenIds.add(e.listing_id)
+        if (e.offered_house_id) hiddenIds.add(e.offered_house_id)
       })
+
+      setListings((data || []).filter((l) => !hiddenIds.has(l.id)))
+      setLoading(false)
+    })()
   }, [])
 
   const handleLogout = async () => {

@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Trash2, CheckCircle, ChevronDown, Search, ShieldCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 
@@ -233,7 +232,6 @@ export default function AdminReports() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 6l6 6-6 6"/></svg>
             <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.sidebar.moderation")}</b>
           </span>
-          <LanguageSelector />
         </header>
 
         <main style={{ padding: "32px 40px 56px", minWidth: 0 }}>

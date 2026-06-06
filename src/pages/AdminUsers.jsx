@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "../components/ui/sheet";
@@ -240,7 +239,6 @@ export default function AdminUsers() {
             <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.sidebar.users")}</b>
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LanguageSelector />
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79",
               padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE",

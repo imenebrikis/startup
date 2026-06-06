@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
 import { Sheet, SheetContent } from "../components/ui/sheet";
 import { ArrowLeftRight, Tag } from "lucide-react";
 
@@ -664,7 +663,6 @@ export default function AdminTransactions() {
             <span style={{ color: "#0F172A", fontWeight: 600 }}>{t("admin.transactions.title")}</span>
           </nav>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LanguageSelector />
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#15803D", padding: "4px 10px", borderRadius: 999, background: "#F0FDF4", border: "1px solid #BBF7D0", fontWeight: 600 }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22C55E", animation: "pulse 1.8s infinite" }} />
               {t("admin.live")}
@@ -795,7 +793,10 @@ export default function AdminTransactions() {
                   </div>
 
                   {/* Property */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px 5px 5px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0", minWidth: 0 }}>
+                  <div
+                    onClick={tx.listing_id ? (e => { e.stopPropagation(); window.open(`/listing/${tx.listing_id}`, "_blank"); }) : undefined}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px 5px 5px", borderRadius: 9, background: "#F8FAFC", border: "1px solid #E2E8F0", minWidth: 0, cursor: tx.listing_id ? "pointer" : "default" }}
+                  >
                     <div style={{ width: 32, height: 32, borderRadius: 7, overflow: "hidden", background: "#E2E8F0", flexShrink: 0 }}>
                       {listing?.images?.[0]
                         ? <img src={listing.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />

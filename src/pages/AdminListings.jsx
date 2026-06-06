@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import "@photo-sphere-viewer/core/index.css";
 import AdminSidebar from "../components/AdminSidebar";
-import LanguageSelector from "../components/LanguageSelector";
 import { Checkbox } from "../components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -145,12 +144,14 @@ function PlaceholderThumb({ index }) {
 
 export default function AdminListings() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith("en") ? "en-US" : "fr-DZ";
 
   const [dataLoading, setDataLoading]   = useState(true);
   const [adminProfile, setAdminProfile] = useState(null);
 
   const [listings, setListings]                   = useState([]);
+  const [hiddenInfo, setHiddenInfo]               = useState({});
   const [userListingCounts, setUserListingCounts] = useState({});
   const [actionLoading, setActionLoading]         = useState({});
   const [filter, setFilter]                       = useState("all");
@@ -197,9 +198,46 @@ export default function AdminListings() {
       countData?.forEach(l => { counts[l.user_id] = (counts[l.user_id] || 0) + 1; });
       setUserListingCounts(counts);
       setListings(allData || []);
+      await fetchHidden();
     } finally {
       setDataLoading(false);
     }
+  }
+
+  // Listings inside their 24h exchange-hide window (confirmed exchange, exchange_date
+  // between today and tomorrow). Mirrors Browse.jsx's auto-hide filter.
+  async function fetchHidden() {
+    const today    = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const { data } = await supabase
+      .from("exchanges")
+      .select("id, listing_id, offered_house_id, exchange_date")
+      .eq("status", "confirmed")
+      .not("exchange_date", "is", null)
+      .gte("exchange_date", today)
+      .lte("exchange_date", tomorrow);
+    const map = {};
+    (data || []).forEach(e => {
+      const info = { exchangeId: e.id, exchangeDate: e.exchange_date };
+      if (e.listing_id)       map[e.listing_id]       = info;
+      if (e.offered_house_id) map[e.offered_house_id] = info;
+    });
+    setHiddenInfo(map);
+  }
+
+  async function handleUnhide(listingId) {
+    const info = hiddenInfo[listingId];
+    if (!info) return;
+    setActionLoading(p => ({ ...p, [listingId]: "unhide" }));
+    const { error } = await supabase.from("exchanges").update({ status: "cancelled" }).eq("id", info.exchangeId);
+    if (!error) {
+      // Cancelling the exchange un-hides both listings tied to it.
+      setHiddenInfo(prev => Object.fromEntries(Object.entries(prev).filter(([, v]) => v.exchangeId !== info.exchangeId)));
+      toast.success(t("admin.listings.unhideSuccess"));
+    } else {
+      toast.error(t("admin.listings.unhideError"), { description: error.message });
+    }
+    setActionLoading(p => { const n = { ...p }; delete n[listingId]; return n; });
   }
 
   async function handleApprove(id) {
@@ -335,13 +373,14 @@ export default function AdminListings() {
     if (filter === "pending")  base = base.filter(l => l.status === "pending" || (l.has_been_approved && !l.is_verified && l.status !== "rejected"));
     if (filter === "approved") base = base.filter(l => l.status === "approved" && !(l.has_been_approved === true && l.is_verified === false));
     if (filter === "rejected") base = base.filter(l => l.status === "rejected");
+    if (filter === "hidden")   base = base.filter(l => hiddenInfo[l.id]);
     if (!q) return base;
     return base.filter(l =>
       l.title?.toLowerCase().includes(q) ||
       l.profiles?.full_name?.toLowerCase().includes(q) ||
       l.wilaya?.toLowerCase().includes(q)
     );
-  }, [enriched, filter, search]);
+  }, [enriched, filter, search, hiddenInfo]);
 
   const totalPages      = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows        = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -350,6 +389,7 @@ export default function AdminListings() {
   const pendingTabCount  = enriched.filter(l => l.status === "pending" || (l.has_been_approved && !l.is_verified && l.status !== "rejected")).length;
   const approvedTabCount = enriched.filter(l => l.status === "approved").length;
   const rejectedTabCount = enriched.filter(l => l.status === "rejected").length;
+  const hiddenTabCount   = enriched.filter(l => hiddenInfo[l.id]).length;
 
   const currentPageIds  = pageRows.map(l => l.id);
   const allPageSelected = currentPageIds.length > 0 && currentPageIds.every(id => selected.has(id));
@@ -396,7 +436,6 @@ export default function AdminListings() {
             <b style={{ color: "#0F2A2A", fontWeight: 600 }}>{t("admin.listings.breadcrumb")}</b>
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <LanguageSelector />
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6E7B79", padding: "6px 10px", borderRadius: 999, background: "#FFFFFF", border: "1px solid #E5DFCE" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ADEBB3", boxShadow: "0 0 0 3px rgba(173,235,179,.18)", animation: "pulse 1.8s infinite" }} />
               {t("admin.live")}
@@ -543,6 +582,7 @@ export default function AdminListings() {
                   { key: "pending",  label: t("admin.listings.filters.pending",   { count: pendingTabCount }) },
                   { key: "approved", label: t("admin.listings.filters.approved",  { count: approvedTabCount }) },
                   { key: "rejected", label: t("admin.listings.filters.rejected",  { count: rejectedTabCount }) },
+                  { key: "hidden",   label: `${t("admin.listings.hiddenTab")} (${hiddenTabCount})` },
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -713,6 +753,12 @@ export default function AdminListings() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-start" }}>
                           {listing.badges.map(b => <QualityBadge key={b.labelKey} labelKey={b.labelKey} type={b.type} />)}
                           {listing.tour_360_urls?.length > 0 && <Tour360Badge />}
+                          {filter === "hidden" && hiddenInfo[listing.id] && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", lineHeight: 1.4 }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                              {t("admin.listings.exchangeDate")}: {new Date(hiddenInfo[listing.id].exchangeDate).toLocaleDateString(dateLocale, { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
 
@@ -726,6 +772,17 @@ export default function AdminListings() {
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                             {t("admin.listings.review")}
                           </button>
+                          {filter === "hidden" && hiddenInfo[listing.id] && (
+                            <button
+                              onClick={e => { e.stopPropagation(); handleUnhide(listing.id); }}
+                              disabled={busy}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, background: "#FFFFFF", border: "1px solid #BFDBFE", color: "#1D4ED8", fontSize: 12.5, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer" }}
+                              onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#EFF6FF"; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; }}
+                            >
+                              {t("admin.listings.unhide")}
+                            </button>
+                          )}
                           {(listing.status === "pending" || (listing.has_been_approved && !listing.is_verified && listing.status !== "rejected")) && (<>
                           <button
                             onClick={e => { e.stopPropagation(); handleApprove(listing.id); }}
@@ -846,6 +903,17 @@ export default function AdminListings() {
 
                   {/* Content */}
                   <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+                    {/* View public listing */}
+                    <button
+                      onClick={() => window.open(`/listing/${s.id}`, "_blank")}
+                      style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "#F5F5F5", border: "1px solid #E5DFCE", color: "#6E7B79", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#ADEBB3"; e.currentTarget.style.color = "#006E6E"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "#F5F5F5"; e.currentTarget.style.color = "#6E7B79"; }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+                      {t("admin.listings.viewListing")}
+                    </button>
 
                     {/* Title + tags + SLA */}
                     <div>
