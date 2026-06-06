@@ -75,9 +75,18 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError(error.message); setLoading(false) }
-    else navigate('/dashboard')
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) { setError(error.message); setLoading(false); return }
+    // Route by role using the same source as the admin route guard
+    // (profiles.role). Awaited so admins land on /admin directly instead of
+    // flashing the user dashboard first; any non-admin (or fetch failure)
+    // falls through to the normal dashboard.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+    navigate(profile?.role === 'admin' ? '/admin' : '/dashboard')
   }
 
   const handleGoogle = async () => {
