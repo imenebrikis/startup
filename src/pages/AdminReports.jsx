@@ -92,8 +92,6 @@ export default function AdminReports() {
     { key: "rejete",     label: t("admin.moderation.tabs.rejete")     },
   ];
 
-  useEffect(() => { init(); }, []);
-
   async function init() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/"); return; }
@@ -104,6 +102,8 @@ export default function AdminReports() {
     await fetchReports();
     setLoading(false);
   }
+
+  useEffect(() => { init(); }, []);
 
   async function fetchReports() {
     const { data, error } = await supabase

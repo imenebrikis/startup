@@ -29,7 +29,7 @@ export default function Dashboard() {
       if (!user) navigate("/login");
       else { setUser(user); fetchDashboardData(user.id); }
     });
-  }, []);
+  }, [navigate]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
@@ -91,18 +91,18 @@ export default function Dashboard() {
               pointerEvents: "none", zIndex: 2,
             }}
           />
-          {actionCards.map(({ to, Icon, title, sub, btn }) => (
-            <div key={to} style={{ borderRadius: 22, padding: "24px 26px", background: "#ADEBB3", border: "1px solid #D5E9D8", display: "flex", flexDirection: "column", gap: 14, minHeight: 200 }}>
+          {actionCards.map((card) => (
+            <div key={card.to} style={{ borderRadius: 22, padding: "24px 26px", background: "#ADEBB3", border: "1px solid #D5E9D8", display: "flex", flexDirection: "column", gap: 14, minHeight: 200 }}>
               <div style={{ width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "#005B5B", color: "#ADEBB3", flexShrink: 0 }}>
-                <Icon style={{ width: 22, height: 22 }} />
+                <card.Icon style={{ width: 22, height: 22 }} />
               </div>
-              <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em", color: "#0F2A2A" }}>{title}</h3>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: "#6E7B79" }}>{sub}</p>
+              <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em", color: "#0F2A2A" }}>{card.title}</h3>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: "#6E7B79" }}>{card.sub}</p>
               <Link
-                to={to}
+                to={card.to}
                 style={{ marginTop: "auto", alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 8, background: "#005B5B", color: "#F3EEE0", padding: "9px 16px", borderRadius: 999, fontSize: 13, fontWeight: 500, textDecoration: "none" }}
               >
-                {btn} →
+                {card.btn} →
               </Link>
             </div>
           ))}
