@@ -87,7 +87,8 @@ export default function Messages() {
   const [isRecording, setIsRecording]     = useState(false);
   const [activeExchange, setActiveExchange] = useState(null);
   const [exchangeLoading, setExchangeLoading] = useState(false);
-  const [exchangeDate, setExchangeDate] = useState("");
+  const [confirmStartDate, setConfirmStartDate] = useState("");
+  const [confirmEndDate, setConfirmEndDate] = useState("");
   const [hoveredMsgId, setHoveredMsgId]   = useState(null);
   const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
   const [deleteConvTarget, setDeleteConvTarget] = useState(null);
@@ -381,7 +382,10 @@ export default function Messages() {
     if (!activeExchange || exchangeLoading) return;
     setExchangeLoading(true);
     const payload = { status: newStatus, updated_by: user.id };
-    if (newStatus === "confirmed" && exchangeDate) payload.exchange_date = exchangeDate;
+    if (newStatus === "confirmed") {
+      if (confirmStartDate) payload.start_date = confirmStartDate;
+      if (confirmEndDate) payload.end_date = confirmEndDate;
+    }
     const { data, error } = await supabase
       .from("exchanges")
       .update(payload)
@@ -896,19 +900,37 @@ export default function Messages() {
                               <p style={{ margin: "0 0 8px", textAlign: "center", fontSize: 12, color: "#6E7B79" }}>
                                 {t("messages.confirmHint")}
                               </p>
-                              <div style={{ marginBottom: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: "#0F2A2A" }}>
+                              <div style={{ marginBottom: 10 }}>
+                                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#0F2A2A", marginBottom: 6 }}>
                                   {t("messages.exchangeDateLabel")}
                                 </label>
-                                <input
-                                  type="date"
-                                  value={exchangeDate}
-                                  onChange={(e) => setExchangeDate(e.target.value)}
-                                  min={new Date().toISOString().split("T")[0]}
-                                  max={end_date || undefined}
-                                  placeholder={t("messages.exchangeDatePlaceholder")}
-                                  style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13.5, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
-                                />
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Du</label>
+                                    <input
+                                      type="date"
+                                      value={confirmStartDate}
+                                      onChange={(e) => {
+                                        setConfirmStartDate(e.target.value);
+                                        if (confirmEndDate && e.target.value > confirmEndDate) setConfirmEndDate("");
+                                      }}
+                                      min={start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0]}
+                                      max="2027-12-31"
+                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Au</label>
+                                    <input
+                                      type="date"
+                                      value={confirmEndDate}
+                                      onChange={(e) => setConfirmEndDate(e.target.value)}
+                                      min={confirmStartDate || (start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0])}
+                                      max="2027-12-31"
+                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button
@@ -922,9 +944,9 @@ export default function Messages() {
                                 </button>
                                 <button
                                   onClick={() => handleExchangeAction("confirmed")}
-                                  disabled={exchangeLoading || !exchangeDate}
-                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: (exchangeLoading || !exchangeDate) ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: (exchangeLoading || !exchangeDate) ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
-                                  onMouseEnter={(e) => { if (!exchangeLoading && exchangeDate) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
+                                  disabled={exchangeLoading || !confirmStartDate || !confirmEndDate}
+                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                                  onMouseEnter={(e) => { if (!exchangeLoading && confirmStartDate && confirmEndDate) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background = "#F4C84B"; e.currentTarget.style.borderColor = "#E7B73A"; }}
                                 >
                                   <Check style={{ width: 14, height: 14 }} /> {t("messages.confirm")}
@@ -937,14 +959,17 @@ export default function Messages() {
                               <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
                                 {t("messages.exchangeConfirmed")}
                               </div>
-                              {activeExchange.exchange_date && (
+                              {(activeExchange.start_date || activeExchange.end_date) && (
                                 <div style={{ marginTop: 10, padding: "11px 14px", borderRadius: 12, background: "#F7F4EA", border: "1px solid #E5DFCE", display: "flex", flexDirection: "column", gap: 4 }}>
                                   <span style={{ fontSize: 11.5, fontWeight: 600, color: "#6E7B79" }}>
                                     {t("messages.agreedExchangeDate")}
                                   </span>
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>
                                     <Calendar style={{ width: 14, height: 14, color: "#005B5B" }} />
-                                    {new Date(activeExchange.exchange_date).toLocaleDateString(dateLocale, { year: "numeric", month: "long", day: "numeric" })}
+                                    {[
+                                      activeExchange.start_date && new Date(activeExchange.start_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
+                                      activeExchange.end_date && new Date(activeExchange.end_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
+                                    ].filter(Boolean).join(" – ")}
                                   </span>
                                 </div>
                               )}
