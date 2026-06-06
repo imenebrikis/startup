@@ -11,9 +11,10 @@ import {
 } from "../components/ui/alert-dialog";
 
 // Shared shape for the exchange tied to a conversation: status, proposed dates,
-// and both sides' houses (offered = proposer's house, requested = receiver's house).
+// and the requested house. The requested listing (listing_id) is the owner's own
+// house and the sender's target at once, so it's the single house shown to BOTH
+// participants — sourced from the exchange record, not a per-viewer swap.
 const EXCHANGE_SELECT = `id, status, requester_id, receiver_id, listing_id, offered_house_id, start_date, end_date, exchange_date,
-  offered_house:listings!offered_house_id ( id, title, wilaya, city, rooms, images ),
   requested_house:listings!listing_id ( id, title, wilaya, city, rooms, images )`;
 
 const initFrom = (name) =>
@@ -71,6 +72,9 @@ export default function Messages() {
   const preselectedConvId = location.state?.conversationId ?? null;
   const activeChatUserId   = location.state?.activeChatUserId ?? null;
   const activeChatUserName = location.state?.activeChatUserName ?? null;
+  // The listing this chat is about, when arriving from Exchanges (which has no
+  // existing conversation row to read it from). Used only when CREATING a thread.
+  const activeChatListingId = location.state?.listingId ?? null;
   // Deep-link support: notifications route here as /messages?convId=<id>.
   const queryConvId = new URLSearchParams(location.search).get("convId");
 
@@ -190,15 +194,22 @@ export default function Messages() {
   // direction, rather than by the conversation's listing id. The same exchange
   // must resolve identically whether the logged-in user is the requester or the
   // receiver — keying off requester/receiver makes it symmetric.
-  const fetchExchange = useCallback(async (partnerId) => {
+  const fetchExchange = useCallback(async (partnerId, listingId) => {
     if (!user || !partnerId) { setActiveExchange(null); return; }
-    const { data } = await supabase
+    let query = supabase
       .from("exchanges")
       .select(EXCHANGE_SELECT)
       .or(
         `and(requester_id.eq.${user.id},receiver_id.eq.${partnerId}),` +
         `and(requester_id.eq.${partnerId},receiver_id.eq.${user.id})`
-      )
+      );
+    // Scope to the listing this conversation is tied to, so the status/dates
+    // belong to THIS thread's property — not just the newest swap between the
+    // pair. The conversation's listing can sit on either side of the swap.
+    if (listingId) {
+      query = query.or(`listing_id.eq.${listingId},offered_house_id.eq.${listingId}`);
+    }
+    const { data } = await query
       .order("created_at", { ascending: false })
       .limit(1);
     setActiveExchange(data?.[0] ?? null);
@@ -216,7 +227,7 @@ export default function Messages() {
       setActiveConvListing(conv.listing ?? null);
       markConvRead(conv.id);
       fetchMessages(conv.id);
-      fetchExchange(conv.partner?.id ?? null);
+      fetchExchange(conv.partner?.id ?? null, conv.listing?.id ?? conv.listing_id ?? null);
     })();
   }, [conversations, user, preselectedConvId, fetchMessages, fetchExchange, markConvRead]);
 
@@ -314,7 +325,7 @@ export default function Messages() {
         setActiveExchange(null);
         markConvRead(existing.id);
         fetchMessages(existing.id);
-        fetchExchange(existing.partner?.id ?? null);
+        fetchExchange(existing.partner?.id ?? null, existing.listing?.id ?? existing.listing_id ?? null);
       })();
       return;
     }
@@ -326,7 +337,7 @@ export default function Messages() {
       const [p1, p2] = [user.id, activeChatUserId].sort();
       const { data: created, error } = await supabase
         .from("conversations")
-        .insert({ participant_one: p1, participant_two: p2 })
+        .insert({ participant_one: p1, participant_two: p2, listing_id: activeChatListingId })
         .select("*, listing:listings(id, title, wilaya, city, rooms, images, is_for_exchange, is_for_sale)")
         .single();
       if (error || !created) {
@@ -350,7 +361,7 @@ export default function Messages() {
       setActiveExchange(null);
       fetchMessages(conv.id);
     })();
-  }, [conversations, user, activeChatUserId, activeChatUserName, loadingConvs, fetchMessages, fetchExchange, markConvRead]);
+  }, [conversations, user, activeChatUserId, activeChatUserName, activeChatListingId, loadingConvs, fetchMessages, fetchExchange, markConvRead]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const selectConversation = useCallback((conv) => {
@@ -360,7 +371,7 @@ export default function Messages() {
     setActiveExchange(null);
     markConvRead(conv.id);
     fetchMessages(conv.id);
-    fetchExchange(conv.partner?.id ?? null);
+    fetchExchange(conv.partner?.id ?? null, conv.listing?.id ?? conv.listing_id ?? null);
   }, [markConvRead, fetchMessages, fetchExchange]);
 
   // ── Deep-link: open the thread named by ?convId= ───────────────────────────
@@ -841,20 +852,24 @@ export default function Messages() {
               {activeConvId ? (
                 <>
                   {/* ── Exchange details (house being swapped, dates, shared decision) ── */}
-                  {activeExchange && (() => {
-                    // Always surface the *other* party's house in the swap:
-                    // if I'm the requester, that's the house I asked for (requested_house);
-                    // if I'm the receiver, that's the house they offered (offered_house).
-                    const isRequester = activeExchange.requester_id === user?.id;
-                    const otherHouse =
-                      (isRequester ? activeExchange.requested_house : activeExchange.offered_house) ||
-                      activeConvListing;
+                  {/* Gated on the listing being an actual exchange: sale-only
+                      listings (is_for_exchange false) never show this card or its
+                      date-confirmation form — only the property card below. The
+                      flag comes from conversations.listing_id, so both participants
+                      evaluate it identically. */}
+                  {activeExchange && activeConvListing?.is_for_exchange && (() => {
+                    // The house shown is the exchange's requested listing
+                    // (exchanges.listing_id): it is simultaneously the sender's
+                    // requested target and the owner's own house, so both
+                    // participants see the SAME listing — never a per-viewer swap.
+                    // Fall back to the conversation's listing if the join is absent.
+                    const house = activeExchange.requested_house || activeConvListing;
                     const { start_date, end_date, status } = activeExchange;
                     const dateText = (start_date || end_date)
                       ? [fmtDay(start_date, dateLocale), fmtDay(end_date, dateLocale)].filter(Boolean).join(" – ")
                       : t("messages.flexibleDates");
-                    const loc = otherHouse
-                      ? [otherHouse.city, otherHouse.wilaya].filter(Boolean).join(", ")
+                    const loc = house
+                      ? [house.city, house.wilaya].filter(Boolean).join(", ")
                       : "";
                     return (
                       <section style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -867,8 +882,8 @@ export default function Messages() {
 
                         {/* House photo */}
                         <div style={{ position: "relative", width: "100%", aspectRatio: "16/10", background: "#E5DFCE", overflow: "hidden" }}>
-                          {otherHouse?.images?.[0]
-                            ? <img src={otherHouse.images[0]} alt={otherHouse.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          {house?.images?.[0]
+                            ? <img src={house.images[0]} alt={house.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                             : <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#005B5B,#1F7878)" }} />}
                           <span style={{ position: "absolute", top: 12, left: 12, display: "inline-flex", alignItems: "center", gap: 6, background: "#005B5B", color: "#F3EEE0", padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, boxShadow: "0 2px 6px rgba(0,0,0,.15)" }}>
                             {t("messages.exchangeSummary")}
@@ -878,7 +893,7 @@ export default function Messages() {
                         {/* House meta */}
                         <div style={{ padding: "14px 16px 4px", display: "flex", flexDirection: "column", gap: 8 }}>
                           <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0F2A2A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {otherHouse?.title || t("messages.noListing")}
+                            {house?.title || t("messages.noListing")}
                           </p>
                           {loc && (
                             <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#0F2A2A", fontWeight: 500 }}>
@@ -888,9 +903,13 @@ export default function Messages() {
                               {loc}
                             </p>
                           )}
-                          <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6E7B79" }}>
-                            <Calendar style={{ width: 13, height: 13 }} /> {t("messages.proposedDates")}: <strong style={{ color: "#0F2A2A", fontWeight: 600 }}>{dateText}</strong>
-                          </p>
+                          {/* Only when the requester actually specified a date —
+                              omit the line entirely when "date souhaitée" was empty. */}
+                          {(start_date || end_date) && (
+                            <p style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6E7B79" }}>
+                              <Calendar style={{ width: 13, height: 13 }} /> {t("messages.proposedDates")}: <strong style={{ color: "#0F2A2A", fontWeight: 600 }}>{dateText}</strong>
+                            </p>
+                          )}
                         </div>
 
                         {/* Shared decision: pill buttons while a decision is still pending, badge once final */}
@@ -986,7 +1005,11 @@ export default function Messages() {
                   })()}
 
                   {/* ── Listing card (pc-card) ── */}
-                  {activeConvListing ? (
+                  {/* Hidden when the exchange card above is showing (it already
+                      renders the property) — so exchanges show a single card, not a
+                      duplicate. Sales (is_for_exchange false) and exchange listings
+                      with no exchange record yet still fall through to this card. */}
+                  {activeConvListing && !(activeExchange && activeConvListing.is_for_exchange) ? (
                     <article style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                       {/* Photo area */}
                       <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#E5DFCE", overflow: "hidden" }}>
@@ -1043,9 +1066,9 @@ export default function Messages() {
                         </button>
                       </div>
                     </article>
-                  ) : !activeExchange ? (
-                    // Only show the empty-state when there's strictly no exchange AND no listing.
-                    // If the exchange card above rendered a house, this fallback stays hidden.
+                  ) : !activeConvListing && !activeExchange ? (
+                    // Empty-state only when there's strictly no listing AND no exchange.
+                    // When the exchange card rendered the house, this stays hidden.
                     <div style={{ background: "#F3EEE0", border: "1px solid #E5DFCE", borderRadius: 22, padding: "28px 16px", textAlign: "center", color: "#6E7B79", fontSize: 13 }}>
                       {t("messages.noListing")}
                     </div>

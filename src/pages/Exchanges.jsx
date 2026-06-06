@@ -178,7 +178,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
               <>
                 <button
                   type="button"
-                  onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName } })}
+                  onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName, listingId: ex.listing_id } })}
                   style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
                 >
                   <MessageSquare style={{ width: 15, height: 15 }} />
@@ -221,7 +221,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
             {mode === "received" && ex.status !== "pending" && (
               <button
                 type="button"
-                onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName } })}
+                onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName, listingId: ex.listing_id } })}
                 style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
               >
                 <MessageSquare style={{ width: 15, height: 15 }} />
@@ -269,7 +269,7 @@ export default function Exchanges() {
 
     const { data: sentData, error: sentError } = await supabase
       .from("exchanges")
-      .select(`id, status, message, created_at,
+      .select(`id, status, message, created_at, listing_id,
         requested_house:listings!listing_id ( id, title, wilaya, city, rooms, available_from, available_to, images ),
         offered_house:listings!offered_house_id ( id, title, wilaya, city, rooms, available_from, available_to, images ),
         receiver_profile:profiles!receiver_id ( id, full_name, wilaya )`)
@@ -280,7 +280,7 @@ export default function Exchanges() {
 
     const { data: receivedData, error: receivedError } = await supabase
       .from("exchanges")
-      .select(`id, status, message, created_at,
+      .select(`id, status, message, created_at, listing_id,
         requested_house:listings!listing_id ( id, title, wilaya, city, rooms, available_from, available_to, images ),
         offered_house:listings!offered_house_id ( id, title, wilaya, city, rooms, available_from, available_to, images ),
         sender_profile:profiles!requester_id ( id, full_name, wilaya )`)
