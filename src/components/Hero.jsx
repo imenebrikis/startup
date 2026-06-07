@@ -60,11 +60,11 @@ export default function Hero() {
       {/* ── Hero Body ── */}
       <div className="relative w-full min-h-screen md:h-screen flex flex-col md:flex-row">
         {/* Left Column */}
-        <div className="w-full md:w-[55%] md:h-full flex flex-col items-center justify-center pt-28 pb-12 md:py-0">
+        <div className="hero-left w-full md:w-[55%] md:h-full flex flex-col items-center justify-center pt-28 pb-12 md:py-0">
           <div className="w-full max-w-2xl px-8 lg:px-12 flex flex-col justify-center gap-6 text-left">
             {/* Headline */}
             <h1
-              className="font-satoshi font-normal text-4xl md:text-[88px] text-[#005B5B] leading-[1.05] tracking-tighter m-0 p-0"
+              className="font-satoshi font-normal text-4xl md:text-5xl lg:text-6xl xl:text-[88px] text-[#005B5B] leading-[1.05] tracking-tighter m-0 p-0"
               style={{ fontFamily: "'Satoshi', sans-serif" }}
             >
               {Array.isArray(headlineParts)
@@ -108,6 +108,17 @@ export default function Hero() {
           />
         </div>
       </div>
+
+      {/* Short-viewport safeguard: on landscape laptops with limited height the
+          full-size headline, vertically centered in a 100vh column under the
+          fixed 84px nav, can overflow upward into the logo/nav. On short screens
+          only, anchor the hero text below the nav instead of centering it.
+          Height media queries can't be expressed with Tailwind utilities. */}
+      <style>{`
+        @media (min-width: 768px) and (max-height: 768px) {
+          .hero-left { justify-content: flex-start; padding-top: 104px; }
+        }
+      `}</style>
     </div>
   );
 }

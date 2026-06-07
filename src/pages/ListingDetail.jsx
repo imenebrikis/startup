@@ -536,7 +536,11 @@ export default function ListingDetail() {
                 {Array.isArray(listing.tour_360_urls) && listing.tour_360_urls.length > 0 && (
                   <div>
                     <p style={{ ...sectionLabel, marginBottom: "8px" }}>{t("details.tour360")}</p>
-                    <div style={{ display: "flex", gap: "10px", height: "88px" }}>
+                    {/* flexWrap so 5+ panoramas (AddListing allows up to 10) wrap to
+                        new rows instead of overflowing the column. Fixed height removed:
+                        the 88px-tall thumbs self-size one row to 88px (0–2 case unchanged),
+                        and the container grows for wrapped rows. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                       {listing.tour_360_urls.map((url, i) => (
                         <button
                           key={i}

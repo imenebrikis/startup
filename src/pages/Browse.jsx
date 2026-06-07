@@ -589,7 +589,10 @@ export default function Browse() {
       </header>
 
       {/* ── Main content ── */}
-      <main className={isMapView ? '' : 'browse-main'} style={isMapView ? {} : { maxWidth: '1440px', margin: '0 auto' }}>
+      {/* Wrapper centers the capped <main> via flexbox. mx-auto can't be used here:
+          the global `* { margin: 0 }` reset (index.css) overrides margin-inline:auto. */}
+      <div className={isMapView ? 'contents' : 'flex justify-center'}>
+      <main className={isMapView ? '' : 'w-full max-w-7xl px-6 lg:px-12 pt-7 lg:pt-9 pb-20'}>
 
         {isMapView ? (
           <Suspense fallback={
@@ -616,11 +619,7 @@ export default function Browse() {
 
             {/* Grid */}
             {loading ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                gap: '20px',
-              }}>
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
               </div>
             ) : filteredProperties.length === 0 ? (
@@ -644,11 +643,7 @@ export default function Browse() {
                 </p>
               </div>
             ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                gap: '20px',
-              }}>
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {filteredProperties.map(listing => (
                   <ListingCard key={listing.id} listing={listing} navigate={navigate} userId={userId} />
                 ))}
@@ -657,13 +652,10 @@ export default function Browse() {
           </>
         )}
       </main>
+      </div>
 
       <style>{`
         header input::placeholder { color: rgba(255,255,255,0.40); }
-        .browse-main { padding: 28px 24px 80px; }
-        @media (min-width: 1024px) {
-          .browse-main { padding: 36px 48px 80px; }
-        }
       `}</style>
     </div>
   )

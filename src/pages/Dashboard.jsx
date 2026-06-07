@@ -50,7 +50,12 @@ export default function Dashboard() {
     <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
       <Sidebar active="Parcourir" />
 
-      <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
+      <main style={{ padding: "26px 42px 56px" }}>
+        {/* Cap + center the content so it doesn't sit left-aligned with an
+            uneven right gutter on wide screens. flex justify-center (not
+            mx-auto: the global * { margin: 0 } reset overrides margin-inline). */}
+        <div className="flex justify-center">
+        <div className="w-full max-w-7xl">
         {/* Topbar */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
           <LanguageSelector />
@@ -80,14 +85,19 @@ export default function Dashboard() {
         {/* Quick actions */}
         <section style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginTop: 96, marginBottom: 24 }}>
           {/* Illustration overlaid above the middle "Parcourir" card so it looks like it walks on it */}
+          {/* Decorative only (aria-hidden). Hidden below 2xl: the centered art
+              collides with the left-aligned welcome name while the content
+              wrapper is narrow (<~1400px). display is owned by the classes —
+              no inline `display` (inline would override Tailwind `hidden`). */}
           <img
             src={tripIllustration}
             alt=""
             aria-hidden="true"
+            className="hidden 2xl:block"
             style={{
               position: "absolute", left: "50%", bottom: "100%",
               transform: "translate(-50%, 2px)",
-              width: 230, height: "auto", display: "block",
+              width: 230, height: "auto",
               pointerEvents: "none", zIndex: 2,
             }}
           />
@@ -107,6 +117,8 @@ export default function Dashboard() {
             </div>
           ))}
         </section>
+        </div>
+        </div>
       </main>
     </div>
   );

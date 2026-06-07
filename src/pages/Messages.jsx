@@ -540,6 +540,12 @@ export default function Messages() {
 
       <main style={{ padding: "22px 28px 28px", display: "flex", flexDirection: "column", minHeight: "100vh", background: "#F3EEE0" }}>
 
+        {/* Cap + center the messenger so the chat column doesn't sprawl on wide
+            screens. flex justify-center (not mx-auto: the global * { margin: 0 }
+            reset in index.css overrides Tailwind's margin-inline:auto). */}
+        <div className="flex justify-center flex-1 min-h-0">
+        <div className="flex flex-col w-full max-w-7xl min-h-0">
+
         {/* ── Topbar ── */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>{t("messages.title")}</h1>
@@ -555,7 +561,7 @@ export default function Messages() {
         </header>
 
         {/* ── 3-column messenger ── */}
-        <section style={{ flex: 1, display: "grid", gridTemplateColumns: "300px 1fr 320px", gap: 18, alignItems: "stretch", minHeight: 0 }}>
+        <section className="lg:grid-cols-[200px_minmax(0,1fr)_220px] xl:grid-cols-[300px_minmax(0,1fr)_320px]" style={{ flex: 1, display: "grid", gap: 18, alignItems: "stretch", minHeight: 0 }}>
 
           {/* ════ INBOX (LEFT) ════ */}
           <aside style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
@@ -1105,6 +1111,8 @@ export default function Messages() {
           </aside>
 
         </section>
+        </div>
+        </div>
       </main>
 
       {/* ── Delete-conversation confirmation ── */}
