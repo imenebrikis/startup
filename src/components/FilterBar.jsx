@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { SlidersHorizontal, Minus, Plus, MapPin, X } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+import { SlidersHorizontal, X } from "lucide-react";
 import { fr, enUS } from "date-fns/locale";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import "react-day-picker/style.css";
+import WilayaControl from "./filters/WilayaControl";
+import DateControl from "./filters/DateControl";
+import LogementControl from "./filters/LogementControl";
+import RoomsControl from "./filters/RoomsControl";
+import TypeControl from "./filters/TypeControl";
+import { TYPE_OPTIONS, LOGEMENT_OPTIONS } from "./filters/filterOptions";
 
 // `value` is the canonical value persisted to / filtered against the DB; `key`
 
@@ -20,20 +25,7 @@ import "react-day-picker/style.css";
 
 
 // only resolves the user-facing label, so translating never breaks filtering.
-const TYPE_OPTIONS = [
-  { value: "exchange", key: "exchange" },
-  { value: "sale", key: "sale" },
-  { value: "both", key: "both" },
-];
-
-// Values stored in listings.property_type (AddListing); key → translated label.
-const LOGEMENT_OPTIONS = [
-  { value: "maison", key: "maison" },
-  { value: "appart", key: "appart" },
-  { value: "villa", key: "villa" },
-  { value: "studio", key: "studio" },
-  { value: "penthouse", key: "penthouse" },
-];
+// TYPE_OPTIONS and LOGEMENT_OPTIONS now live in ./filters/filterOptions (imported above).
 
 // Mirrors the amenity vocabulary saved by AddListing (listings.amenities). The
 // `value` must stay in French to match stored data; `key` resolves the label.
@@ -63,8 +55,6 @@ const CHECK_RULES = [
 ];
 const SMOKING = [{ v: null, key: "any" }, { v: "Non-fumeur", key: "nonSmoker" }, { v: "Fumeur", key: "smoker" }];
 const PETS = [{ v: null, key: "any" }, { v: "Pas d'animaux", key: "noPets" }, { v: "Animaux acceptés", key: "petsAllowed" }];
-
-const ITEM = "rounded-xl text-sm text-gray-800 hover:bg-gray-100 cursor-pointer transition-colors";
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 function fmtDay(d, locale = fr) {
@@ -237,103 +227,35 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
 
         {/* Où → wilaya */}
         <FilterChip id="wilaya" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={300} label={t("filter.where")} value={wilaya || t("filter.anywhere")}>
-          <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: "auto" }}>
-            <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ wilaya: null }); setOpen(null); }}>
-              {t("filter.allWilayas")}
-            </div>
-            {wilayas.map((w) => (
-              <div key={w} className={ITEM} style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }} onClick={() => { onChange({ wilaya: w }); setOpen(null); }}>
-                <MapPin style={{ width: 14, height: 14, color: "#0A3D3D", flexShrink: 0 }} />
-                {w}
-              </div>
-            ))}
-          </div>
+          <WilayaControl value={wilaya} onChange={onChange} wilayas={wilayas} onSelect={() => setOpen(null)} />
         </FilterChip>
 
         {divider}
 
         {/* Quand → date range */}
         <FilterChip id="date" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={660} label={t("filter.when")} value={dateRange?.from ? dateLabel : t("filter.addDates")}>
-          <div className="fb-cal">
-            <DayPicker
-              mode="range"
-              numberOfMonths={2}
-              locale={dpLocale}
-              selected={dateRange?.from ? dateRange : undefined}
-              onSelect={(range) => onChange({ dateRange: range || { from: null, to: null } })}
-              disabled={[{ before: minDate }, { after: maxDate }]}
-              startMonth={minDate}
-              endMonth={maxDate}
-            />
-            {dateRange?.from && (
-              <button
-                type="button"
-                onClick={() => { onChange({ dateRange: { from: null, to: null } }); setOpen(null); }}
-                className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
-                style={{ marginTop: 6, marginLeft: 8 }}
-              >
-                {t("filter.clearDates")}
-              </button>
-            )}
-          </div>
+          <DateControl value={dateRange} onChange={onChange} months={2} minDate={minDate} maxDate={maxDate} locale={dpLocale} onSelect={() => setOpen(null)} />
         </FilterChip>
 
         {divider}
 
         {/* Logement */}
         <FilterChip id="logement" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={220} label={t("filter.logements")} value={logementOpt ? logementLabel : t("filter.allLogements")}>
-          <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: null }); setOpen(null); }}>
-            {t("filter.allLogements")}
-          </div>
-          {LOGEMENT_OPTIONS.map((o) => (
-            <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ logement: o.value }); setOpen(null); }}>
-              {t(`filter.logementOptions.${o.key}`)}
-            </div>
-          ))}
+          <LogementControl value={logement} onChange={onChange} onSelect={() => setOpen(null)} />
         </FilterChip>
 
         {divider}
 
         {/* Chambres (stepper) */}
         <FilterChip id="rooms" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={240} label={t("filter.rooms")} value={chambres > 0 ? roomsLabel : t("filter.anyRooms")}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
-            <span className="text-sm font-medium text-gray-800">{t("filter.roomsMin")}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button
-                type="button"
-                onClick={() => onChange({ chambres: Math.max(0, chambres - 1) })}
-                disabled={chambres === 0}
-                className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
-                style={{ width: 30, height: 30 }}
-              >
-                <Minus style={{ width: 14, height: 14 }} />
-              </button>
-              <span className="text-sm font-semibold text-gray-900" style={{ minWidth: 24, textAlign: "center" }}>{chambres}</span>
-              <button
-                type="button"
-                onClick={() => onChange({ chambres: Math.min(10, chambres + 1) })}
-                disabled={chambres === 10}
-                className="flex items-center justify-center rounded-full border border-gray-300 hover:border-gray-800 transition-colors disabled:opacity-40"
-                style={{ width: 30, height: 30 }}
-              >
-                <Plus style={{ width: 14, height: 14 }} />
-              </button>
-            </div>
-          </div>
+          <RoomsControl value={chambres} onChange={onChange} />
         </FilterChip>
 
         {divider}
 
         {/* Type (5th segment) */}
         <FilterChip id="type" open={open} setOpen={setOpen} hovered={hovered} setHovered={setHovered} width={220} label={t("filter.type")} value={typeOpt ? typeLabel : t("filter.allTypes")}>
-          <div className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: null }); setOpen(null); }}>
-            {t("filter.allTypes")}
-          </div>
-          {TYPE_OPTIONS.map((o) => (
-            <div key={o.value} className={ITEM} style={{ padding: "10px 14px" }} onClick={() => { onChange({ type: o.value }); setOpen(null); }}>
-              {t(`filter.typeOptions.${o.key}`)}
-            </div>
-          ))}
+          <TypeControl value={type} onChange={onChange} onSelect={() => setOpen(null)} />
         </FilterChip>
       </div>
 
