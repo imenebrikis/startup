@@ -198,7 +198,7 @@ export default function FilterBar({ filters, onChange, wilayas = [], onOpenSheet
   const divider = <span style={{ width: 1, height: 30, background: "#e5e7eb", flexShrink: 0 }} />;
 
   return (
-    <div ref={rowRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+    <div ref={rowRef} className="fb-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }

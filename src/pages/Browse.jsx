@@ -463,7 +463,6 @@ export default function Browse() {
       <header className="browse-hdr" style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: '#004949',
-        padding: '10px 32px',
         minHeight: '76px',
         display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', rowGap: '12px',
       }}>
@@ -668,7 +667,10 @@ export default function Browse() {
       <style>{`
         header input::placeholder { color: rgba(255,255,255,0.40); }
 
-        /* ── Header layout: desktop base (lg+) — reproduces the original single row ── */
+        /* ── Header layout: desktop base (lg+) — reproduces the original single row ──
+           Header padding lives here (not inline) so the phone media query can shrink it;
+           the desktop value (10px 32px) is unchanged. */
+        .browse-hdr { padding: 10px 32px; }
         .browse-hdr .hdr-cluster { display: flex; align-items: center; gap: 16px; }
         .browse-hdr .filterbar-slot { flex: 1; min-width: 0; }
 
@@ -676,9 +678,11 @@ export default function Browse() {
            DOM order is unchanged; only phone reorders via flex order. Logo + language
            are hidden below lg (they remain in the desktop base, which has no query). */
         @media (max-width: 1023px) {
+          header.browse-hdr { padding: 10px 14px; }
           header.browse-hdr .hdr-logo { display: none; }
           header.browse-hdr .filterbar-slot { order: 1; flex: 0 0 100%; width: 100%; }
-          header.browse-hdr .hdr-cluster { order: 2; flex: 0 0 100%; width: 100%; justify-content: flex-start; gap: 10px; }
+          header.browse-hdr .fb-root { width: 100%; }
+          header.browse-hdr .hdr-cluster { order: 2; flex: 0 0 100%; width: 100%; justify-content: center; gap: 10px; }
         }
       `}</style>
 
