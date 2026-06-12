@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Logo from '../components/Logo'
 import FilterBar from '../components/FilterBar'
+import FilterSheet from '../components/filters/FilterSheet'
+import { fr, enUS } from 'date-fns/locale' // date deps passed to FilterSheet's DateControl
 import LanguageSelector from '../components/LanguageSelector'
 import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft, Menu, LogOut, LayoutDashboard } from 'lucide-react'
 import {
@@ -342,7 +344,7 @@ function ListingCard({ listing, navigate, userId }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Browse() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [initials, setInitials] = useState('?')
   const [userId, setUserId] = useState(null)
@@ -360,6 +362,7 @@ export default function Browse() {
   })
   const patchFilters = (partial) => setActiveFilters((prev) => ({ ...prev, ...partial }))
   const [isMapView, setIsMapView] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -457,7 +460,7 @@ export default function Browse() {
       {/* ══════════════════════════════════════════════════
           BLACK TOP NAV — logo, search, favorites, chat
       ══════════════════════════════════════════════════ */}
-      <header style={{
+      <header className="browse-hdr" style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: '#004949',
         padding: '10px 32px',
@@ -466,7 +469,7 @@ export default function Browse() {
       }}>
 
         {/* Logo */}
-        <Link to="/" style={{
+        <Link to="/" className="hdr-logo" style={{
           fontSize: '18px', fontWeight: '700', color: '#ffffff',
           textDecoration: 'none', fontFamily: "'Bricolage Grotesque', sans-serif",
           flexShrink: 0, marginRight: '8px',
@@ -475,12 +478,19 @@ export default function Browse() {
         </Link>
 
         {/* CENTER — chip filter bar (inside the teal navbar) */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FilterBar filters={activeFilters} onChange={patchFilters} wilayas={WILAYAS} />
+        {/* flex:1 / min-width:0 live in the scoped <style> (.filterbar-slot) so the
+            phone media query can override them to flex:0 0 100% for the 2nd row. */}
+        <div className="filterbar-slot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FilterBar filters={activeFilters} onChange={patchFilters} wilayas={WILAYAS} onOpenSheet={() => setSheetOpen(true)} />
         </div>
 
-        {/* Language switcher (FR / EN) */}
-        <LanguageSelector />
+        {/* ── Compact controls cluster (right-aligned on phone, inline on desktop) ── */}
+        <div className="hdr-cluster">
+
+        {/* Language switcher (FR / EN) — hidden on phone, shown at lg+ */}
+        <div className="hidden lg:flex">
+          <LanguageSelector />
+        </div>
 
         {/* Carte / Liste toggle */}
         <button
@@ -499,7 +509,7 @@ export default function Browse() {
           {isMapView
             ? <List style={{ width: '14px', height: '14px' }} />
             : <MapIcon style={{ width: '14px', height: '14px' }} />}
-          {isMapView ? t('browse.nav.list') : t('browse.nav.map')}
+          <span className="hidden lg:inline">{isMapView ? t('browse.nav.list') : t('browse.nav.map')}</span>
         </button>
 
         {/* CTA */}
@@ -586,6 +596,7 @@ export default function Browse() {
             </Link>
           </div>
         )}
+        </div>
       </header>
 
       {/* ── Main content ── */}
@@ -656,7 +667,31 @@ export default function Browse() {
 
       <style>{`
         header input::placeholder { color: rgba(255,255,255,0.40); }
+
+        /* ── Header layout: desktop base (lg+) — reproduces the original single row ── */
+        .browse-hdr .hdr-cluster { display: flex; align-items: center; gap: 16px; }
+        .browse-hdr .filterbar-slot { flex: 1; min-width: 0; }
+
+        /* ── Header layout: phone (below lg) — search pill on top, controls beneath ──
+           DOM order is unchanged; only phone reorders via flex order. Logo + language
+           are hidden below lg (they remain in the desktop base, which has no query). */
+        @media (max-width: 1023px) {
+          header.browse-hdr .hdr-logo { display: none; }
+          header.browse-hdr .filterbar-slot { order: 1; flex: 0 0 100%; width: 100%; }
+          header.browse-hdr .hdr-cluster { order: 2; flex: 0 0 100%; width: 100%; justify-content: flex-start; gap: 10px; }
+        }
       `}</style>
+
+      <FilterSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        filters={activeFilters}
+        onChange={patchFilters}
+        wilayas={WILAYAS}
+        minDate={new Date(new Date().getFullYear() - 1, new Date().getMonth(), new Date().getDate())}
+        maxDate={new Date(new Date().getFullYear() + 1, new Date().getMonth(), new Date().getDate())}
+        locale={i18n.language === 'en' ? enUS : fr}
+      />
     </div>
   )
 }

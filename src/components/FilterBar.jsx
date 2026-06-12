@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, Search } from "lucide-react";
 import { fr, enUS } from "date-fns/locale";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -120,7 +120,7 @@ function FilterChip({ id, label, open, setOpen, hovered, setHovered, width = 260
   );
 }
 
-export default function FilterBar({ filters, onChange, wilayas = [] }) {
+export default function FilterBar({ filters, onChange, wilayas = [], onOpenSheet }) {
   const { t, i18n } = useTranslation();
   const dpLocale = i18n.language === "en" ? enUS : fr;
 
@@ -217,6 +217,9 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
         .fb-cal .rdp-chevron { fill: #0A3D3D; }
       `}</style>
 
+      {/* ── Desktop: full 5-segment pill + more filters (lg+ only) ── */}
+      <div className="hidden lg:flex" style={{ alignItems: "center", gap: 12 }}>
+
       {/* ── Airbnb-style segmented search bar ── */}
       <div style={{
         display: "flex", alignItems: "center",
@@ -272,6 +275,26 @@ export default function FilterBar({ filters, onChange, wilayas = [] }) {
       >
         <SlidersHorizontal style={{ width: 18, height: 18 }} />
       </button>
+      </div>
+
+      {/* ── Mobile: slim trigger pill (below lg only) — opens the FilterSheet ── */}
+      <div className="flex lg:hidden" style={{ width: "100%" }}>
+        <button
+          type="button"
+          onClick={onOpenSheet}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10,
+            background: "#ffffff", borderRadius: 999,
+            border: "1px solid #ebebeb", padding: "12px 18px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.10)",
+            cursor: "pointer", fontFamily: "'Inter', sans-serif",
+            fontSize: 14, fontWeight: 600, color: "#717182",
+          }}
+        >
+          <Search style={{ width: 18, height: 18, color: "#0A3D3D", flexShrink: 0 }} />
+          {t("filter.searchPlaceholder")}
+        </button>
+      </div>
 
       {/* ── Modal ── */}
       {modalOpen && (

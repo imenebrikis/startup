@@ -28,7 +28,6 @@ export default function LanguageSelector() {
           className="inline-flex h-9 items-center gap-2 rounded-full border border-[#E5DFCE] bg-white text-[13.5px] font-medium text-[#005B5B] transition-colors hover:bg-[#ADEBB3] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#005B5B]/40"
           style={{ padding: "0 14px" }}
         >
-          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{active.flag}</span>
           <span>{active.label.slice(0, 2).toUpperCase()}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </button>
