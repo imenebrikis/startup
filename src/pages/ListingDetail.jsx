@@ -349,6 +349,116 @@ export default function ListingDetail() {
   const isOwner = user && listing && user.id === listing.user_id;
   const showExchange = listing?.is_for_exchange && !isOwner;
 
+  const ownerCard = listing && (
+                <div style={{ background: "#ADEBB3", borderRadius: "20px", padding: "28px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#0A3D3D", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {t("details.owner")}
+                    </span>
+                    {showExchange && (
+                      exchangeSent ? (
+                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D", background: "rgba(10,61,61,0.12)", padding: "8px 16px", borderRadius: "999px" }}>
+                          {t("details.requestSent")}
+                        </span>
+                      ) : user ? (
+                        <SwapSheet
+                          listing={listing}
+                          user={user}
+                          onSuccess={() => setExchangeSent(true)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => navigate('/register')}
+                          style={{
+                            padding: "10px 22px", borderRadius: "999px",
+                            background: "#0A3D3D", color: "#ffffff",
+                            border: "none", fontSize: "13px", fontWeight: "700",
+                            cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                            transition: "background 0.18s",
+                          }}
+                        >
+                          {t("details.requestExchange")}
+                        </button>
+                      )
+                    )}
+                    {isOwner && (
+                      <span style={{ fontSize: "12px", color: "#0A3D3D80", fontStyle: "italic" }}>{t("details.yourListing")}</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "8px" }}>
+                    <Link
+                      to={`/profile/${listing.user_id}`}
+                      className="hover:opacity-80"
+                      style={{ textDecoration: "none", transition: "opacity 0.15s" }}
+                    >
+                      <div style={{
+                        width: "84px", height: "84px", background: "#0A3D3D",
+                        borderRadius: "50%", display: "flex", alignItems: "center",
+                        justifyContent: "center", color: "#ADEBB3",
+                        fontWeight: "700", fontSize: "30px",
+                        fontFamily: "'Bricolage Grotesque', sans-serif",
+                        marginBottom: "4px",
+                      }}>
+                        {initFrom(listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name : null) || "P")}
+                      </div>
+                    </Link>
+                    <Link to={`/profile/${listing.user_id}`} style={{ textDecoration: "none" }}>
+                      <p className="hover:underline" style={{
+                        fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
+                        fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
+                      }}>
+                        {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || t("details.ownerFallback")}
+                      </p>
+                    </Link>
+                    {listing.profiles?.wilaya && (
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#0A3D3D", fontWeight: "500" }}>
+                        <MapPin style={{ width: "13px", height: "13px" }} />
+                        {listing.profiles.wilaya}
+                      </span>
+                    )}
+                    {listing.profiles?.created_at && (
+                      <span style={{ fontSize: "12px", color: "rgba(10,61,61,0.6)" }}>
+                        {t("details.memberSince", { date: fmtDate(listing.profiles.created_at) })}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Sale contact */}
+                  {listing.is_for_sale && !isOwner && (
+                    saleSent ? (
+                      <div style={{
+                        marginTop: "20px", width: "100%", padding: "12px",
+                        borderRadius: "999px", border: "1.5px solid #0A3D3D",
+                        background: "rgba(10,61,61,0.1)", color: "#0A3D3D",
+                        fontSize: "14px", fontWeight: "700",
+                        fontFamily: "'Inter', sans-serif", textAlign: "center",
+                        boxSizing: "border-box",
+                      }}>
+                        {t("details.requestSent")}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleContactSeller}
+                        disabled={contactSaleLoading}
+                        style={{
+                          marginTop: "20px", width: "100%", padding: "12px",
+                          borderRadius: "999px", border: "1.5px solid #0A3D3D",
+                          background: "transparent", color: "#0A3D3D",
+                          fontSize: "14px", fontWeight: "700",
+                          cursor: contactSaleLoading ? "wait" : "pointer",
+                          fontFamily: "'Inter', sans-serif",
+                          opacity: contactSaleLoading ? 0.65 : 1,
+                          transition: "opacity 0.15s",
+                        }}
+                      >
+                        {contactSaleLoading ? t("details.loading") : t("details.contactSeller")}
+                      </button>
+                    )
+                  )}
+                </div>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: "#ffffff", fontFamily: "'Inter', sans-serif" }}>
@@ -448,7 +558,7 @@ export default function ListingDetail() {
             </div>
 
             {/* ── Bento grid ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px", alignItems: "start" }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2" style={{ display: "grid", gap: "18px", alignItems: "start" }}>
 
               {/* ════ LEFT COLUMN ════ */}
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -568,125 +678,19 @@ export default function ListingDetail() {
                 )}
 
                 {/* ── Owner card (green) ── */}
-                <div style={{ background: "#ADEBB3", borderRadius: "20px", padding: "28px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#0A3D3D", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {t("details.owner")}
-                    </span>
-                    {showExchange && (
-                      exchangeSent ? (
-                        <span style={{ fontSize: "13px", fontWeight: "600", color: "#0A3D3D", background: "rgba(10,61,61,0.12)", padding: "8px 16px", borderRadius: "999px" }}>
-                          {t("details.requestSent")}
-                        </span>
-                      ) : user ? (
-                        <SwapSheet
-                          listing={listing}
-                          user={user}
-                          onSuccess={() => setExchangeSent(true)}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => navigate('/register')}
-                          style={{
-                            padding: "10px 22px", borderRadius: "999px",
-                            background: "#0A3D3D", color: "#ffffff",
-                            border: "none", fontSize: "13px", fontWeight: "700",
-                            cursor: "pointer", fontFamily: "'Inter', sans-serif",
-                            transition: "background 0.18s",
-                          }}
-                        >
-                          {t("details.requestExchange")}
-                        </button>
-                      )
-                    )}
-                    {isOwner && (
-                      <span style={{ fontSize: "12px", color: "#0A3D3D80", fontStyle: "italic" }}>{t("details.yourListing")}</span>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "8px" }}>
-                    <Link
-                      to={`/profile/${listing.user_id}`}
-                      className="hover:opacity-80"
-                      style={{ textDecoration: "none", transition: "opacity 0.15s" }}
-                    >
-                      <div style={{
-                        width: "84px", height: "84px", background: "#0A3D3D",
-                        borderRadius: "50%", display: "flex", alignItems: "center",
-                        justifyContent: "center", color: "#ADEBB3",
-                        fontWeight: "700", fontSize: "30px",
-                        fontFamily: "'Bricolage Grotesque', sans-serif",
-                        marginBottom: "4px",
-                      }}>
-                        {initFrom(listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name : null) || "P")}
-                      </div>
-                    </Link>
-                    <Link to={`/profile/${listing.user_id}`} style={{ textDecoration: "none" }}>
-                      <p className="hover:underline" style={{
-                        fontSize: "22px", fontWeight: "700", color: "#0A3D3D",
-                        fontFamily: "'Bricolage Grotesque', sans-serif", margin: 0,
-                      }}>
-                        {listing.profiles?.full_name || (isOwner ? user?.user_metadata?.full_name || user?.email?.split("@")[0] : null) || t("details.ownerFallback")}
-                      </p>
-                    </Link>
-                    {listing.profiles?.wilaya && (
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#0A3D3D", fontWeight: "500" }}>
-                        <MapPin style={{ width: "13px", height: "13px" }} />
-                        {listing.profiles.wilaya}
-                      </span>
-                    )}
-                    {listing.profiles?.created_at && (
-                      <span style={{ fontSize: "12px", color: "rgba(10,61,61,0.6)" }}>
-                        {t("details.memberSince", { date: fmtDate(listing.profiles.created_at) })}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Sale contact */}
-                  {listing.is_for_sale && !isOwner && (
-                    saleSent ? (
-                      <div style={{
-                        marginTop: "20px", width: "100%", padding: "12px",
-                        borderRadius: "999px", border: "1.5px solid #0A3D3D",
-                        background: "rgba(10,61,61,0.1)", color: "#0A3D3D",
-                        fontSize: "14px", fontWeight: "700",
-                        fontFamily: "'Inter', sans-serif", textAlign: "center",
-                        boxSizing: "border-box",
-                      }}>
-                        {t("details.requestSent")}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleContactSeller}
-                        disabled={contactSaleLoading}
-                        style={{
-                          marginTop: "20px", width: "100%", padding: "12px",
-                          borderRadius: "999px", border: "1.5px solid #0A3D3D",
-                          background: "transparent", color: "#0A3D3D",
-                          fontSize: "14px", fontWeight: "700",
-                          cursor: contactSaleLoading ? "wait" : "pointer",
-                          fontFamily: "'Inter', sans-serif",
-                          opacity: contactSaleLoading ? 0.65 : 1,
-                          transition: "opacity 0.15s",
-                        }}
-                      >
-                        {contactSaleLoading ? t("details.loading") : t("details.contactSeller")}
-                      </button>
-                    )
-                  )}
-                </div>
+                <div className="hidden lg:block">{ownerCard}</div>
               </div>
 
               {/* ════ RIGHT COLUMN ════ */}
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
 
                 {/* ── Heart + Contact row ── */}
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   <button
                     onClick={handleToggleLike}
                     disabled={likeLoading}
                     style={{
-                      flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                      flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center",
                       gap: "8px", padding: "13px", borderRadius: "12px",
                       border: `1.5px solid ${isLiked ? "#fca5a5" : "#e5e7eb"}`,
                       background: isLiked ? "#fff1f2" : "#fff",
@@ -703,7 +707,7 @@ export default function ListingDetail() {
                       onClick={handleContact}
                       disabled={contactLoading}
                       style={{
-                        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                        flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center",
                         gap: "8px", padding: "13px", borderRadius: "12px",
                         border: "none", background: "#ADEBB3",
                         color: "#0A3D3D", fontSize: "14px", fontWeight: "700",
@@ -716,7 +720,7 @@ export default function ListingDetail() {
                       {contactLoading ? t("details.loading") : t("details.contact")}
                     </button>
                   )}
-                  <SocialButton style={{ flex: 1 }} />
+                  <SocialButton style={{ flex: 1, minWidth: "120px" }} />
                 </div>
 
                 {/* Availability / info card */}
@@ -795,7 +799,7 @@ export default function ListingDetail() {
                 {/* ── Stats bar (green) ── */}
                 <div style={{
                   background: "#ADEBB3", borderRadius: "16px",
-                  padding: "20px 24px", display: "flex", alignItems: "center",
+                  padding: "20px 24px", display: "flex", alignItems: "center", flexWrap: "wrap",
                 }}>
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px" }}>
                     <BedDouble style={{ width: "20px", height: "20px", color: "#0A3D3D" }} />
@@ -841,7 +845,7 @@ export default function ListingDetail() {
                 {listing.amenities?.length > 0 && (
                   <div style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px 24px" }}>
                     <p style={sectionLabel}>{t("details.amenities")}</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3" style={{ display: "grid", gap: "12px" }}>
                       {listing.amenities.map((name) => {
                         const Icon = AMENITY_ICONS[name] || Wifi;
                         return (
@@ -881,6 +885,8 @@ export default function ListingDetail() {
                 </div>
               </div>
             </div>
+
+            <div className="block lg:hidden">{ownerCard}</div>
 
             {/* ── Reviews — full width below grid ── */}
             <div style={{ marginTop: "40px" }}>

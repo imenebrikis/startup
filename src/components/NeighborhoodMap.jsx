@@ -18,7 +18,14 @@ function InvalidateOnMount() {
   const map = useMap();
   useEffect(() => {
     const t = setTimeout(() => map.invalidateSize(), 60);
-    return () => clearTimeout(t);
+    const handleResize = () => map.invalidateSize();
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
   }, [map]);
   return null;
 }
@@ -74,6 +81,7 @@ export default function NeighborhoodMap({ listing }) {
         >
           <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
           <Circle center={center} radius={400} pathOptions={circleStyle} />
+          <InvalidateOnMount />
         </MapContainer>
 
         {/* Expand hint */}
