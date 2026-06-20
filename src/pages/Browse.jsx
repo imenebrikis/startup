@@ -602,7 +602,10 @@ export default function Browse() {
       {/* Wrapper centers the capped <main> via flexbox. mx-auto can't be used here:
           the global `* { margin: 0 }` reset (index.css) overrides margin-inline:auto. */}
       <div className={isMapView ? 'contents' : 'flex justify-center'}>
-      <main className={isMapView ? '' : 'w-full max-w-7xl px-6 lg:px-12 pt-7 lg:pt-9 pb-20'}>
+      <main
+        className={isMapView ? '' : 'w-full max-w-7xl pt-7 lg:pt-9 pb-20'}
+        style={!isMapView ? { paddingLeft: '40px', paddingRight: '40px' } : {}}
+      >
 
         {isMapView ? (
           <Suspense fallback={
@@ -629,7 +632,7 @@ export default function Browse() {
 
             {/* Grid */}
             {loading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
               </div>
             ) : filteredProperties.length === 0 ? (
@@ -653,7 +656,7 @@ export default function Browse() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {filteredProperties.map(listing => (
                   <ListingCard key={listing.id} listing={listing} navigate={navigate} userId={userId} />
                 ))}
