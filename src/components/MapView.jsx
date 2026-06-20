@@ -19,6 +19,47 @@ function ZoomTracker({ onZoom }) {
   return null
 }
 
+// Leaflet caches the container's pixel size at init. When the map mounts into a
+// freshly-sized container (List→Map toggle) or the container resizes (window
+// resize, phone rotation, or a header-height change that shifts our height calc),
+// we must tell Leaflet to re-measure or tiles render gray/misaligned.
+// Mirrors NeighborhoodMap.jsx's InvalidateOnMount, with headerHeight added as a
+// dependency so a header resize re-triggers invalidateSize.
+function InvalidateOnMount({ headerHeight }) {
+  const map = useMap()
+  useEffect(() => {
+    const t = setTimeout(() => map.invalidateSize(), 60)
+    const handleResize = () => map.invalidateSize()
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [map, headerHeight])
+  return null
+}
+
+// Auto-frame the whole country to the actual screen on mount, instead of a
+// fixed zoom that only looks right on wide screens. Re-fits on resize/rotation
+// so narrow/tall viewports zoom out enough to show all of Algeria. The small
+// padding keeps edge markers off the screen edge.
+function FitAlgeriaOnMount() {
+  const map = useMap()
+  useEffect(() => {
+    const fit = () => map.fitBounds(ALGERIA_BOUNDS, { padding: [10, 10] })
+    fit()
+    window.addEventListener('resize', fit)
+    window.addEventListener('orientationchange', fit)
+    return () => {
+      window.removeEventListener('resize', fit)
+      window.removeEventListener('orientationchange', fit)
+    }
+  }, [map])
+  return null
+}
+
 function createPinIcon() {
   return L.divIcon({
     className: '',
@@ -98,7 +139,7 @@ function PopupContent({ listing, navigate }) {
   )
 }
 
-export default function MapView({ listings }) {
+export default function MapView({ listings, headerHeight = 76 }) {
   const navigate = useNavigate()
   const [zoom, setZoom] = useState(6)
 
@@ -109,11 +150,11 @@ export default function MapView({ listings }) {
   })
 
   return (
-    <div style={{ height: 'calc(100vh - 76px)', width: '100%', position: 'relative' }}>
+    <div style={{ height: `calc(100vh - ${headerHeight}px)`, width: '100%', position: 'relative' }}>
       <MapContainer
         center={ALGERIA_CENTER}
         zoom={6}
-        minZoom={6}
+        minZoom={3}
         maxZoom={16}
         maxBounds={ALGERIA_BOUNDS}
         maxBoundsViscosity={1.0}
@@ -121,6 +162,8 @@ export default function MapView({ listings }) {
         zoomControl={false}
       >
         <MapSettings />
+        <InvalidateOnMount headerHeight={headerHeight} />
+        <FitAlgeriaOnMount />
         <ZoomTracker onZoom={setZoom} />
         <ZoomControl position="bottomright" />
 

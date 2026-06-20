@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Logo from '../components/Logo'
@@ -364,6 +364,29 @@ export default function Browse() {
   const [isMapView, setIsMapView] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
 
+  // ── Measure the live header height so the map fills exactly the viewport
+  //    below it. The header is no longer a fixed 76px: it wraps to two rows on
+  //    phone (~118px) and stays one row on desktop, and may change with future
+  //    edits — so we measure rather than hardcode. 76 is only the SSR/first-paint
+  //    fallback before the observer fires. ──
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(76)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const measure = () => setHeaderHeight(el.offsetHeight)
+    measure() // initial, post-layout
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -460,7 +483,7 @@ export default function Browse() {
       {/* ══════════════════════════════════════════════════
           BLACK TOP NAV — logo, search, favorites, chat
       ══════════════════════════════════════════════════ */}
-      <header className="browse-hdr" style={{
+      <header ref={headerRef} className="browse-hdr" style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: '#004949',
         minHeight: '76px',
@@ -610,7 +633,7 @@ export default function Browse() {
         {isMapView ? (
           <Suspense fallback={
             <div style={{
-              height: 'calc(100vh - 76px)',
+              height: `calc(100vh - ${headerHeight}px)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: '#F7F7EC',
             }}>
@@ -619,7 +642,7 @@ export default function Browse() {
               </span>
             </div>
           }>
-            <MapView key={filteredMap.length} listings={filteredMap} />
+            <MapView key={filteredMap.length} listings={filteredMap} headerHeight={headerHeight} />
           </Suspense>
         ) : (
           <>
