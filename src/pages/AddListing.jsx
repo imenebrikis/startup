@@ -404,10 +404,27 @@ export default function AddListing() {
         )}
 
         {/* Wizard card */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 26, overflow: "hidden", display: "grid", gridTemplateColumns: "5fr 7fr", minHeight: 620 }}>
+        {/* Responsive shell, aside visibility, mobile progress bar, and form
+            padding are all class-owned via this literal <style> (immune to stale
+            Tailwind builds and the inline-beats-class trap). Desktop (lg+) is
+            pixel-identical to before: 5fr/7fr grid, aside flex, form padding. */}
+        <style>{`
+          .addlisting-shell { grid-template-columns: 1fr; }
+          .addlisting-aside { display: none; }
+          .addlisting-mobile-progress { display: block; }
+          .addlisting-form { padding: 20px 16px 24px; }
+          @media (min-width: 1024px) {
+            .addlisting-shell { grid-template-columns: 5fr 7fr; }
+            .addlisting-aside { display: flex; }
+            .addlisting-mobile-progress { display: none; }
+            .addlisting-form { padding: 40px 44px 28px; }
+          }
+        `}</style>
+        <div className="addlisting-shell" style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 26, overflow: "hidden", display: "grid", minHeight: 620 }}>
 
-          {/* Left: illustration */}
-          <aside style={{ background: "#EEF3DF", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 32, position: "relative" }}>
+          {/* Left: illustration — hidden below lg (replaced by the slim mobile
+              progress bar inside the form); flex at lg+ exactly as before. */}
+          <aside className="addlisting-aside" style={{ background: "#EEF3DF", flexDirection: "column", justifyContent: "space-between", padding: 32, position: "relative" }}>
             <div style={{ fontSize: 14, color: "#005B5B", fontWeight: 600, letterSpacing: "0.02em" }}>
               <Logo size={14} color="#005B5B" />{" "}
               <span style={{ background: "#ADEBB3", color: "#005B5B", padding: "2px 8px", borderRadius: 6, marginLeft: 6, fontSize: 11, letterSpacing: "0.04em" }}>
@@ -444,16 +461,46 @@ export default function AddListing() {
           </aside>
 
           {/* Right: form */}
-          <section style={{ background: "#FAF6E9", padding: "40px 44px 28px", display: "flex", flexDirection: "column" }}>
+          <section className="addlisting-form" style={{ background: "#FAF6E9", display: "flex", flexDirection: "column" }}>
+
+            {/* Slim mobile-only progress bar (lg:hidden via .addlisting-mobile-progress).
+                Replaces the aside's progress dots on phone — conveys the same
+                "which step / how many" info. Step label is derived dynamically
+                from the same i18n key each step's own <h2> uses, so it can't
+                drift out of sync; count reuses the existing stepLabel key (i18n
+                FR/EN safe). */}
+            <div className="addlisting-mobile-progress" style={{ marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#0F2A2A", letterSpacing: "-0.01em", lineHeight: 1.2 }}>
+                  {t(`addListing.steps.s${step}.heading`)}
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "#6E7B79", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {t("addListing.stepLabel", { current: String(step).padStart(2, "0"), total: String(TOTAL).padStart(2, "0") })}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {Array.from({ length: TOTAL }).map((_, i) => (
+                  <div key={i} style={{ flex: 1, height: 4, borderRadius: 999, background: i < step ? "#005B5B" : "#D6CDB4", transition: "background 0.25s ease" }} />
+                ))}
+              </div>
+            </div>
 
             {/* Step 1 — Listing type */}
             {step === 1 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s1.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s1.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s1.hint")}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                {/* Tile columns are class-owned (literal <style>, immune to stale
+                    Tailwind builds): stacked 1-up below 480px, 3-up at 480px+. */}
+                <style>{`
+                  .addlisting-step1-tiles { grid-template-columns: 1fr; }
+                  @media (min-width: 480px) {
+                    .addlisting-step1-tiles { grid-template-columns: repeat(3, 1fr); }
+                  }
+                `}</style>
+                <div className="addlisting-step1-tiles" style={{ display: "grid", gap: 12 }}>
                   {[
                     { val: "exchange", labelKey: "exchange", subKey: "exchangeSub", icon: <><path d="M7 7h11l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><path d="M17 17H6l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /></> },
                     { val: "sale",     labelKey: "sale",     subKey: "saleSub",     icon: <><path d="M3 10h18M5 10V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M5 10v9h14v-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" /><circle cx="12" cy="15" r="2" stroke="currentColor" strokeWidth="1.8" fill="none" /></> },
@@ -478,7 +525,7 @@ export default function AddListing() {
             {step === 2 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s2.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s2.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s2.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -502,10 +549,19 @@ export default function AddListing() {
             {step === 3 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s3.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s3.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s3.hint")}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {/* Wilaya + commune columns are class-owned (literal <style>, immune
+                    to stale Tailwind builds): stacked full-width below 640px (no
+                    squeeze on long wilaya names), side-by-side at 640px+. */}
+                <style>{`
+                  .addlisting-location-grid { grid-template-columns: 1fr; }
+                  @media (min-width: 640px) {
+                    .addlisting-location-grid { grid-template-columns: 1fr 1fr; }
+                  }
+                `}</style>
+                <div className="addlisting-location-grid" style={{ display: "grid", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s3.wilayaLabel")} <span style={{ color: "#004848" }}>*</span></label>
                     <DropdownMenu>
@@ -515,7 +571,7 @@ export default function AddListing() {
                           <ChevronDown style={{ width: 14, height: 14, flexShrink: 0 }} />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent style={{ backgroundColor: "#fff", border: "1px solid #E5DFCE", borderRadius: 12, padding: 6, minWidth: 240, maxHeight: 260, overflowY: "auto", scrollbarWidth: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 9999 }}>
+                      <DropdownMenuContent style={{ backgroundColor: "#fff", border: "1px solid #E5DFCE", borderRadius: 12, padding: 6, minWidth: "min(240px, 90vw)", maxHeight: 260, overflowY: "auto", scrollbarWidth: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 9999 }}>
                         <DropdownMenuRadioGroup value={wilaya} onValueChange={setWilaya}>
                           <DropdownMenuRadioItem value="" style={{ padding: "9px 36px 9px 12px", borderRadius: 8, fontSize: 13, cursor: "pointer", color: "#B0B5B3", fontFamily: "inherit" }}>{t("addListing.steps.s3.wilayaPlaceholder")}</DropdownMenuRadioItem>
                           {WILAYAS.map((w, i) => (
@@ -556,12 +612,20 @@ export default function AddListing() {
             {step === 4 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s4.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s4.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s4.hint")}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.propertyTypeLabel")}</label>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                  {/* Tile columns are class-owned (literal <style>, immune to stale
+                      Tailwind builds): 2-up on phone (short tiles fit fine), 4-up at 480px+. */}
+                  <style>{`
+                    .addlisting-step4-types { grid-template-columns: repeat(2, 1fr); }
+                    @media (min-width: 480px) {
+                      .addlisting-step4-types { grid-template-columns: repeat(4, 1fr); }
+                    }
+                  `}</style>
+                  <div className="addlisting-step4-types" style={{ display: "grid", gap: 12 }}>
                     {PROPERTY_TYPES.map(({ value, labelKey }) => {
                       const on = propertyType === value;
                       return (
@@ -572,7 +636,15 @@ export default function AddListing() {
                     })}
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                {/* Rooms/area/floor columns are class-owned (literal <style>, immune
+                    to stale Tailwind builds): stacked full-width on phone, 3-up at 480px+. */}
+                <style>{`
+                  .addlisting-step4-fields { grid-template-columns: 1fr; }
+                  @media (min-width: 480px) {
+                    .addlisting-step4-fields { grid-template-columns: repeat(3, 1fr); }
+                  }
+                `}</style>
+                <div className="addlisting-step4-fields" style={{ display: "grid", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s4.roomsLabel")}</label>
                     <input type="number" min={propertyType === "studio" ? "1" : "0"} max={propertyType === "studio" ? "1" : "20"} value={rooms} onChange={(e) => { const v = e.target.value; if (v === "") return setRooms(""); const n = Number(v); if (Number.isNaN(n)) return; const studio = propertyType === "studio"; const lo = studio ? 1 : 0; const hi = studio ? 1 : 20; setRooms(String(Math.min(hi, Math.max(lo, n)))); }} placeholder={t("addListing.steps.s4.roomsPlaceholder")} style={inp}
@@ -607,10 +679,18 @@ export default function AddListing() {
             {step === 5 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s5.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s5.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s5.hint")}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                {/* Amenity chip columns are class-owned (literal <style>, immune to
+                    stale Tailwind builds): 2-up on phone, 3-up at 480px+. */}
+                <style>{`
+                  .addlisting-step5-amenities { grid-template-columns: repeat(2, 1fr); }
+                  @media (min-width: 480px) {
+                    .addlisting-step5-amenities { grid-template-columns: repeat(3, 1fr); }
+                  }
+                `}</style>
+                <div className="addlisting-step5-amenities" style={{ display: "grid", gap: 10 }}>
                   {AMENITIES.map(({ name, key, Icon }) => {
                     const on = amenities.includes(name);
                     return (
@@ -628,10 +708,18 @@ export default function AddListing() {
             {step === 6 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s6.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s6.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s6.hint")}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                {/* House-rule chip columns are class-owned (literal <style>, immune to
+                    stale Tailwind builds): 2-up on phone, 3-up at 480px+. */}
+                <style>{`
+                  .addlisting-step6-rules { grid-template-columns: repeat(2, 1fr); }
+                  @media (min-width: 480px) {
+                    .addlisting-step6-rules { grid-template-columns: repeat(3, 1fr); }
+                  }
+                `}</style>
+                <div className="addlisting-step6-rules" style={{ display: "grid", gap: 10 }}>
                   {RULES_OPTIONS.map(({ value, key }) => {
                     const on = selectedRules.includes(value);
                     return (
@@ -656,10 +744,20 @@ export default function AddListing() {
             {step === 7 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s7.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s7.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s7.hint")}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {/* Date columns are class-owned (literal <style>, immune to stale
+                    Tailwind builds): stacked full-width on phone (native date inputs
+                    have a hard intrinsic min width and overflow when squeezed),
+                    side-by-side at 640px+. */}
+                <style>{`
+                  .addlisting-step7-dates { grid-template-columns: 1fr; }
+                  @media (min-width: 640px) {
+                    .addlisting-step7-dates { grid-template-columns: 1fr 1fr; }
+                  }
+                `}</style>
+                <div className="addlisting-step7-dates" style={{ display: "grid", gap: 16 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 13.5, fontWeight: 600, color: "#005B5B" }}>{t("addListing.steps.s7.fromLabel")} <span style={{ color: "#004848" }}>*</span></label>
                     <input type="date" value={availableFrom} min={today} max={oneYearFromToday}
@@ -694,7 +792,7 @@ export default function AddListing() {
             {step === 8 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s8.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s8.heading")}</h2>
                   <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{t("addListing.steps.s8.hint")}</span>
                 </div>
 
@@ -813,7 +911,7 @@ export default function AddListing() {
             {step === 9 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s9.heading")}</h2>
+                  <h2 className="hidden lg:block" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0F2A2A" }}>{t("addListing.steps.s9.heading")}</h2>
                 </div>
                 {existingImages.length + photos.length < 20 && (
                 <label
@@ -836,8 +934,18 @@ export default function AddListing() {
                   <input id="photoUpload" ref={fileInputRef} type="file" multiple accept="image/png,image/jpeg,image/jpg" style={{ display: "none" }} onChange={(e) => handleFiles(e.target.files)} />
                 </label>
                 )}
+                {/* Preview thumbnail columns (shared by the photo + 360° grids) are
+                    class-owned (literal <style>, immune to stale Tailwind builds):
+                    3-up on phone (4-up made ~60px thumbs the delete button nearly
+                    covered), 4-up at 480px+. */}
+                <style>{`
+                  .addlisting-step9-previews { grid-template-columns: repeat(3, 1fr); }
+                  @media (min-width: 480px) {
+                    .addlisting-step9-previews { grid-template-columns: repeat(4, 1fr); }
+                  }
+                `}</style>
                 {[...existingImages, ...previews].length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                <div className="addlisting-step9-previews" style={{ display: "grid", gap: 10 }}>
                   {[...existingImages, ...previews].map((src, i) => (
                     <div key={i} style={{ position: "relative", aspectRatio: 1, borderRadius: 12, overflow: "hidden", background: "#E5DFCE", border: "1px solid #D5E9D8" }}>
                       <img src={src} alt={`Photo ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -889,7 +997,7 @@ export default function AddListing() {
                     </label>
                   )}
                   {(existing360Urls.length > 0 || tour360Files.length > 0) && (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                    <div className="addlisting-step9-previews" style={{ display: "grid", gap: 8 }}>
                       {existing360Urls.map((url, i) => (
                         <div
                           key={`ex360-${i}`}
@@ -976,22 +1084,47 @@ export default function AddListing() {
                 </div>
               )}
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              {/* Footer button padding is class-owned (literal <style>, immune to
+                  stale Tailwind builds): tighter on phone to reclaim width before
+                  wrap, full padding at 480px+. Both rows wrap instead of forcing
+                  overflow when the last step shows 3 buttons (Back+Cancel+Submit). */}
+              <style>{`
+                .addlisting-footer-btn { padding: 11px 16px; }
+                @media (min-width: 480px) {
+                  .addlisting-footer-btn { padding: 11px 22px; }
+                }
+                /* Phone: wrapper collapses (display:contents) so Back/Cancel/Submit
+                   are 3 direct children of the space-between row — Back left, Cancel
+                   center, Submit right. At >=640px (laptop) it's a flex group again,
+                   restoring the previous layout (Cancel+Submit grouped at the right). */
+                .addlisting-footer-actions { display: contents; }
+                @media (min-width: 640px) {
+                  .addlisting-footer-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+                }
+                /* Phone: the long Submit button wraps to its own line; auto side
+                   margins center it there. Reset at >=640px so the laptop grouped
+                   layout is unaffected. */
+                .addlisting-submit-center { margin-left: auto; margin-right: auto; }
+                @media (min-width: 640px) {
+                  .addlisting-submit-center { margin-left: 0; margin-right: 0; }
+                }
+              `}</style>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                 <button
                   type="button"
                   onClick={() => { setStepError(""); setStep((s) => Math.max(1, s - 1)); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "transparent", color: "#005B5B", border: "none", cursor: step === 1 ? "default" : "pointer", visibility: step === 1 ? "hidden" : "visible" }}
+                  className="addlisting-footer-btn" style={{ display: "inline-flex", alignItems: "center", gap: 8,borderRadius: 999, fontSize: 14, fontWeight: 600, background: "transparent", color: "#005B5B", border: "none", cursor: step === 1 ? "default" : "pointer", visibility: step === 1 ? "hidden" : "visible" }}
                 >
                   <ChevronLeft style={{ width: 14, height: 14 }} />
                   {t("addListing.nav.back")}
                 </button>
 
-                <div style={{ display: "flex", gap: 10 }}>
-                  {step < TOTAL ? (
+                <div className="addlisting-footer-actions">
+                {step < TOTAL ? (
                     <button
                       type="button"
                       onClick={handleNext}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer" }}
+                      className="addlisting-footer-btn" style={{ display: "inline-flex", alignItems: "center", gap: 8,borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#ADEBB3", border: "none", cursor: "pointer" }}
                     >
                       {t("addListing.nav.next")}
                       <ChevronRight style={{ width: 14, height: 14 }} />
@@ -1001,7 +1134,7 @@ export default function AddListing() {
                       <button
                         type="button"
                         onClick={() => navigate(isEdit ? "/profile" : "/dashboard")}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                        className="addlisting-footer-btn" style={{ display: "inline-flex", alignItems: "center", gap: 8,borderRadius: 999, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
                       >
                         {t("addListing.nav.cancel")}
                       </button>
@@ -1009,7 +1142,7 @@ export default function AddListing() {
                         type="button"
                         onClick={handleSubmitValidated}
                         disabled={loading || success}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 22px", borderRadius: 999, fontSize: 14, fontWeight: 600, background: loading || success ? "#6E7B79" : "#005B5B", color: "#ADEBB3", border: "none", cursor: loading || success ? "not-allowed" : "pointer" }}
+                        className="addlisting-footer-btn addlisting-submit-center" style={{ display: "inline-flex", alignItems: "center", gap: 8,borderRadius: 999, fontSize: 14, fontWeight: 600, background: loading || success ? "#6E7B79" : "#005B5B", color: "#ADEBB3", border: "none", cursor: loading || success ? "not-allowed" : "pointer" }}
                       >
                         <Check style={{ width: 14, height: 14 }} />
                         {loading ? t("addListing.nav.submitting") : isEdit ? t("addListing.nav.update") : t("addListing.nav.submit")}
