@@ -104,7 +104,13 @@ export default function Dashboard() {
 
         {/* Welcome */}
         <section style={{ margin: "6px 0 24px" }}>
-          <h1 style={{ fontSize: 42, lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>
+          <style>{`
+            .dbd-welcome-heading { font-size: 30px; }
+            @media (min-width: 1024px) {
+              .dbd-welcome-heading { font-size: 42px; }
+            }
+          `}</style>
+          <h1 className="dbd-welcome-heading" style={{ lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>
             {t("dashboard.welcome")},{" "}
             <span style={{ background: "#ADEBB3", padding: "0 0.18em", borderRadius: 6, color: "#005B5B" }}>
               {displayName}
