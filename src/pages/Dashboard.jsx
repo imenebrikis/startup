@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plus, Search, Repeat, LogOut } from "lucide-react";
+import { Plus, Search, Repeat, LogOut, Menu } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import NotificationBell from "../components/NotificationBell";
-import LanguageSelector from "../components/LanguageSelector";
 import tripIllustration from "../assets/Trip-bro.svg";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [profileName, setProfileName] = useState(null);
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -47,8 +47,27 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
-      <Sidebar active="Parcourir" />
+    <div
+      className="dbd-dashboard-grid"
+      style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}
+    >
+      {/* Responsive grid via a literal <style> (not a Tailwind arbitrary class):
+          inline display:grid stays, but grid-template-columns is class-owned so
+          it can switch at the breakpoint. Phone = single column (the sidebar is
+          a fixed drawer, out of flow); desktop (lg+) = auto/1fr, identical to
+          before. A <style> tag ships with the component, so it can't be dropped
+          by a stale Tailwind build. */}
+      <style>{`
+        .dbd-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+        @media (min-width: 1024px) {
+          .dbd-dashboard-grid { grid-template-columns: auto minmax(0, 1fr); }
+        }
+      `}</style>
+      <Sidebar
+        active="Parcourir"
+        mobileOpen={sidebarMobileOpen}
+        onMobileClose={() => setSidebarMobileOpen(false)}
+      />
 
       <main style={{ padding: "26px 42px 56px" }}>
         {/* Cap + center the content so it doesn't sit left-aligned with an
@@ -57,14 +76,25 @@ export default function Dashboard() {
         <div className="flex justify-center">
         <div className="w-full max-w-7xl">
         {/* Topbar */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
-          <LanguageSelector />
+        <header style={{ display: "flex", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
+          {/* Hamburger — phone only; opens the sidebar drawer. Sits at the start
+              of the row (marginRight:auto pushes the rest to flex-end). Display
+              is class-owned (inline-flex / lg:hidden) — no inline `display`, or
+              it would beat the lg:hidden utility. */}
+          <button
+            onClick={() => setSidebarMobileOpen(true)}
+            aria-label="Ouvrir le menu"
+            className="inline-flex items-center justify-center lg:hidden"
+            style={{ marginRight: "auto", width: 40, height: 40, borderRadius: 10, background: "none", border: "none", cursor: "pointer", color: "#005B5B", padding: 0 }}
+          >
+            <Menu style={{ width: 22, height: 22 }} />
+          </button>
           <button
             onClick={handleLogout}
             style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "#005B5B", padding: "8px 12px", borderRadius: 999, background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
           >
             <LogOut style={{ width: 14, height: 14 }} />
-            {t("dashboard.logout")}
+            <span className="hidden lg:inline">{t("dashboard.logout")}</span>
           </button>
           <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
@@ -83,7 +113,21 @@ export default function Dashboard() {
         </section>
 
         {/* Quick actions */}
-        <section style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginTop: 96, marginBottom: 24 }}>
+        {/* Columns + top margin are class-owned (literal <style>, immune to stale
+            Tailwind builds): 1-up below 768px, 3-up at 768px+ (cards have no
+            min-width, so they shrink cleanly). The 96px top margin only exists
+            to clear the decorative illustration, which is hidden below 2xl
+            (1536px) — so reserve it only there, and use 24px below. */}
+        <section className="dbd-quick-actions" style={{ position: "relative", display: "grid", gap: 18, marginBottom: 24 }}>
+          <style>{`
+            .dbd-quick-actions { grid-template-columns: 1fr; margin-top: 24px; }
+            @media (min-width: 768px) {
+              .dbd-quick-actions { grid-template-columns: repeat(3, 1fr); }
+            }
+            @media (min-width: 1536px) {
+              .dbd-quick-actions { margin-top: 96px; }
+            }
+          `}</style>
           {/* Illustration overlaid above the middle "Parcourir" card so it looks like it walks on it */}
           {/* Decorative only (aria-hidden). Hidden below 2xl: the centered art
               collides with the left-aligned welcome name while the content

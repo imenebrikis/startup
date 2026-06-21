@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, MessageCircle, ArrowLeftRight, Home, Star, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -63,6 +64,19 @@ export default function NotificationBell({ userId }) {
   const [loading, setLoading] = useState(true);
   const [pinging, setPinging] = useState(false);
   const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Phone vs desktop gate for the dropdown's positioning strategy. Desktop keeps
+  // the bell-anchored panel; phone uses a fixed, viewport-centered, portaled one.
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const unreadCount = items.reduce((n, x) => (x.read_at ? n : n + 1), 0);
 
@@ -111,7 +125,13 @@ export default function NotificationBell({ userId }) {
   // ── Close on outside click ──────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
-    const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    // The panel may be portaled to <body> on phone, so it's outside wrapRef —
+    // check panelRef too, or a click inside the dropdown would close it.
+    const onDown = (e) => {
+      const inWrap = wrapRef.current && wrapRef.current.contains(e.target);
+      const inPanel = panelRef.current && panelRef.current.contains(e.target);
+      if (!inWrap && !inPanel) setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
@@ -171,15 +191,29 @@ export default function NotificationBell({ userId }) {
       </button>
 
       {/* Dropdown */}
-      {open && (
-        <div
-          style={{
-            position: "absolute", top: "calc(100% + 12px)", right: 0, width: 360, maxWidth: "calc(100vw - 24px)",
-            background: "#FBF8EF", border: "1px solid #E5DFCE", borderRadius: 20,
-            boxShadow: "0 16px 40px rgba(0,0,0,0.16)", zIndex: 400, overflow: "hidden",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
+      {open && (() => {
+        const panelStyle = isDesktop
+          // DESKTOP (lg+) — UNCHANGED: anchored to the bell, opens down from its
+          // right edge. Same values as before this change.
+          ? {
+              position: "absolute", top: "calc(100% + 12px)", right: 0, width: 360, maxWidth: "calc(100vw - 24px)",
+              background: "#FBF8EF", border: "1px solid #E5DFCE", borderRadius: 20,
+              boxShadow: "0 16px 40px rgba(0,0,0,0.16)", zIndex: 400, overflow: "hidden",
+              fontFamily: "'Inter', sans-serif",
+            }
+          // PHONE (below lg) — fixed + viewport-centered so it's always fully
+          // on-screen regardless of where the bell sits. top:70 clears the
+          // (non-sticky) topbar; it's a fixed offset since this component has no
+          // header ref — bump it if the topbar height changes.
+          : {
+              position: "fixed", top: 70, left: "50%", transform: "translateX(-50%)",
+              width: "calc(100vw - 32px)", maxWidth: 400,
+              background: "#FBF8EF", border: "1px solid #E5DFCE", borderRadius: 20,
+              boxShadow: "0 16px 40px rgba(0,0,0,0.16)", zIndex: 1100, overflow: "hidden",
+              fontFamily: "'Inter', sans-serif",
+            };
+        const panel = (
+          <div ref={panelRef} style={panelStyle}>
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 16px", borderBottom: "1px solid #ECE4D2" }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "#0F2A2A" }}>{t("notifications.title")}</span>
@@ -244,8 +278,11 @@ export default function NotificationBell({ userId }) {
               })
             )}
           </div>
-        </div>
-      )}
+          </div>
+        );
+        // Phone: portal to <body> to escape any parent transform/overflow trap.
+        return isDesktop ? panel : createPortal(panel, document.body);
+      })()}
     </div>
   );
 }
