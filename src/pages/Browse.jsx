@@ -5,7 +5,6 @@ import Logo from '../components/Logo'
 import FilterBar from '../components/FilterBar'
 import FilterSheet from '../components/filters/FilterSheet'
 import { fr, enUS } from 'date-fns/locale' // date deps passed to FilterSheet's DateControl
-import LanguageSelector from '../components/LanguageSelector'
 import { MapPin, Calendar, Search, Home, Plus, X, Heart, MessageSquare, User, Map as MapIcon, List, ChevronDown, ArrowRightLeft, Menu, LogOut, LayoutDashboard } from 'lucide-react'
 import {
   DropdownMenu,
@@ -508,11 +507,6 @@ export default function Browse() {
 
         {/* ── Compact controls cluster (right-aligned on phone, inline on desktop) ── */}
         <div className="hdr-cluster">
-
-        {/* Language switcher (FR / EN) — hidden on phone, shown at lg+ */}
-        <div className="hidden lg:flex">
-          <LanguageSelector />
-        </div>
 
         {/* Carte / Liste toggle */}
         <button

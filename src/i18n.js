@@ -1829,14 +1829,19 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: "fr", // default language
-    fallbackLng: "en", // fallback when a key is missing
+    // No hardcoded `lng` — that would override the detector on every load and
+    // reset the language to a fixed value on refresh. Letting LanguageDetector
+    // run means: a saved choice (localStorage) wins first, otherwise we follow
+    // the browser's language.
+    fallbackLng: "en", // used when a key is missing or the browser locale isn't supported
     supportedLngs: ["fr", "en"],
     interpolation: {
       escapeValue: false, // React already escapes against XSS
     },
     detection: {
-      // Remember the user's choice, but start from French.
+      // localStorage first (remembers the user's pick across refresh/return),
+      // then the browser's language for first-time visitors. The pick is cached
+      // back to localStorage whenever changeLanguage() runs.
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],
     },

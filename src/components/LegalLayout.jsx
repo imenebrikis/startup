@@ -1,5 +1,4 @@
 import Logo from "./Logo";
-import LanguageSelector from "./LanguageSelector";
 import Footer from "./Footer";
 
 // Shared shell for legal/static pages (Terms, Privacy). Creamy page background,
@@ -10,7 +9,6 @@ export default function LegalLayout({ title, children }) {
       {/* Header */}
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", maxWidth: 1200, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         <Logo to="/" size={22} color="#0A3D3D" />
-        <LanguageSelector />
       </header>
 
       {/* Content card */}

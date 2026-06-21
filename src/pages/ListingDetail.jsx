@@ -7,7 +7,6 @@ const ReactPhotoSphereViewer = lazy(() =>
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Logo from "../components/Logo";
-import LanguageSelector from "../components/LanguageSelector";
 import SocialButton from "../components/ui/social-button";
 import {
   ChevronLeft,
@@ -477,7 +476,6 @@ export default function ListingDetail() {
           flexShrink: 0,
         }}><Logo size={22} color="#0A3D3D" /></Link>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <LanguageSelector />
           {user && (
             <div style={{
               width: "40px", height: "40px", background: "#4B3FD8", borderRadius: "50%",

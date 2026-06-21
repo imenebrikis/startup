@@ -3,7 +3,6 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MapPin, Home, Calendar, ArrowLeft, User } from "lucide-react";
 import Logo from "../components/Logo";
-import LanguageSelector from "../components/LanguageSelector";
 import { supabase } from "../lib/supabase";
 
 // ── Helpers (mirrors Browse.jsx) ────────────────────────────────────────────
@@ -186,8 +185,6 @@ export default function PublicProfile() {
           {t("details.back")}
         </Link>
 
-        <div style={{ flex: 1 }} />
-        <LanguageSelector />
       </header>
 
       <main style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 24px 80px" }}>

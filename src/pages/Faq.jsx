@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import Logo from "../components/Logo";
-import LanguageSelector from "../components/LanguageSelector";
 import Footer from "../components/Footer";
 
 // Two-column FAQ: left intro (sticky on desktop), right accordion list grouped
@@ -29,7 +28,6 @@ export default function Faq() {
       {/* ── Header ── */}
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 32px", maxWidth: 1200, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         <Logo to="/" size={22} color="#0A3D3D" />
-        <LanguageSelector />
       </header>
 
       {/* ── Main ── */}
