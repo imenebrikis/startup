@@ -170,6 +170,7 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes overlay-out { from { opacity: 1 } to { opacity: 0 } }
 @keyframes sheet-in    { from { transform: translateX(100%) } to { transform: translateX(0) } }
 @keyframes sheet-out   { from { transform: translateX(0) } to { transform: translateX(100%) } }
+@keyframes sheet-up    { from { transform: translateY(100%) } to { transform: translateY(0) } }
 @keyframes pop         { 0% { transform: scale(.7) } 80% { transform: scale(1.12) } 100% { transform: scale(1) } }
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.5 } }
 .skeleton-pulse { background: #E5E7EB; animation: skeleton-pulse 1.5s ease-in-out infinite; }
@@ -178,6 +179,7 @@ h1, h2, h3, h4, h5, h6 {
 .anim-overlay-out { animation: overlay-out 0.25s ease forwards; }
 .anim-sheet-in    { animation: sheet-in  0.28s cubic-bezier(.32,1,.58,1) forwards; }
 .anim-sheet-out   { animation: sheet-out 0.25s cubic-bezier(.4,0,1,1)   forwards; }
+.anim-sheet-up    { animation: sheet-up  0.28s cubic-bezier(.32,1,.58,1) forwards; }
 .pop              { animation: pop 0.30s cubic-bezier(.32,1,.58,1) forwards; }
 .nice-scroll      { scrollbar-width: thin; scrollbar-color: #ADEBB3 transparent; }
 

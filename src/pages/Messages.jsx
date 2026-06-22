@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Calendar, Check, X, Trash2, ArrowLeft } from "lucide-react";
+import { MessageCircle, Calendar, Check, X, Trash2, ArrowLeft, Pin, PinOff, Info } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import NotificationBell from "../components/NotificationBell";
@@ -19,6 +20,24 @@ const EXCHANGE_SELECT = `id, status, requester_id, receiver_id, listing_id, offe
 
 const initFrom = (name) =>
   name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "?";
+
+// Per-user pin state. Pinning is per-participant: participant_one's pin lives in
+// pinned_by_one, participant_two's in pinned_by_two. Which column is "mine"
+// depends on which side of the conversation the current user sits on — never
+// read or write the other participant's column.
+const myPin = (conv, userId) =>
+  conv.participant_one === userId ? conv.pinned_by_one : conv.pinned_by_two;
+const myPinColumn = (conv, userId) =>
+  conv.participant_one === userId ? "pinned_by_one" : "pinned_by_two";
+
+// Sort the current user's pinned conversations to the top, then newest-first
+// within each group. Uses the derived per-user flag (not a raw column).
+const sortConversations = (list, userId) =>
+  [...list].sort((a, b) => {
+    const ap = myPin(a, userId), bp = myPin(b, userId);
+    if (ap !== bp) return ap ? -1 : 1;
+    return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+  });
 
 // Date helpers take the active locale (and `t` for word-based labels) so
 // timestamps adapt to the current language.
@@ -96,6 +115,12 @@ export default function Messages() {
   const [hoveredMsgId, setHoveredMsgId]   = useState(null);
   const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
   const [deleteConvTarget, setDeleteConvTarget] = useState(null);
+  // Phone long-press → bottom action sheet (Pin/Unpin · Delete) for a conversation.
+  const [actionSheetConv, setActionSheetConv] = useState(null);
+  // Phone third-pane toggle. The 3-column desktop grid shows the context aside
+  // permanently; on phone the panes are a 3-level stack (Inbox → Chat → Context)
+  // and this flag is what promotes Context to full-screen. Ignored on desktop.
+  const [contextOpen, setContextOpen] = useState(false);
 
   // Phone single-pane navigation: below lg the 3-column grid would stack and
   // scroll, so we render exactly one pane at a time (Inbox when no conversation
@@ -115,6 +140,8 @@ export default function Messages() {
   const messagesEndRef   = useRef(null);
   const channelRef       = useRef(null);
   const didAutoSelect    = useRef(false);
+  const longPressTimer   = useRef(null);
+  const longPressFired   = useRef(false);
   const imageInputRef    = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
@@ -123,6 +150,11 @@ export default function Messages() {
   // Keep a ref of the open conversation so the inbox subscription (which is set up
   // once per user) can tell whether an incoming message belongs to the open thread.
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
+
+  // Phone: opening, switching, or closing a conversation always lands on the Chat
+  // pane (or Inbox when null) — never the Context pane. Reset the third-pane toggle
+  // whenever the active thread changes so a different thread never opens in Context.
+  useEffect(() => { setContextOpen(false); }, [activeConvId]);
 
   const markConvRead = useCallback((convId) => {
     setUnreadConvIds((prev) => {
@@ -182,7 +214,7 @@ export default function Messages() {
       return { ...c, partner };
     });
 
-    setConversations(mapped);
+    setConversations(sortConversations(mapped, user.id));
     setLoadingConvs(false);
   }, [user]);
 
@@ -503,6 +535,46 @@ export default function Messages() {
     setMessages([]);
   };
 
+  // ── Phone long-press → action sheet ────────────────────────────────────────
+  // Hold ~500ms without scrolling to open the Pin/Delete sheet for a row. A
+  // short tap still opens the chat (longPressFired guards the click that fires
+  // after touchend). Touch-only + phone-only — desktop uses the chat-header trash.
+  const startLongPress = (conv) => {
+    if (isDesktop) return;
+    longPressFired.current = false;
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      if (navigator.vibrate) navigator.vibrate(8);
+      setActionSheetConv(conv);
+    }, 500);
+  };
+  const cancelLongPress = () => clearTimeout(longPressTimer.current);
+  const handleRowClick = (conv) => {
+    // Suppress the synthetic click that follows a completed long-press.
+    if (longPressFired.current) { longPressFired.current = false; return; }
+    selectConversation(conv);
+  };
+
+  // Toggle the current user's own pin column, optimistically re-sorting. Never
+  // touches the other participant's column. (RLS conv_update already permits
+  // either participant to update their row.)
+  const handleTogglePin = async (conv) => {
+    if (!conv || !user) return;
+    const col = myPinColumn(conv, user.id);
+    const next = !myPin(conv, user.id);
+    setActionSheetConv(null);
+    const prevConvs = conversations;
+    setConversations((prev) =>
+      sortConversations(prev.map((c) => (c.id === conv.id ? { ...c, [col]: next } : c)), user.id)
+    );
+    const { error } = await supabase.from("conversations").update({ [col]: next }).eq("id", conv.id);
+    if (error) {
+      console.error("[handleTogglePin]", error);
+      setConversations(prevConvs); // restore on failure
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(newMessage); }
   };
@@ -560,12 +632,14 @@ export default function Messages() {
   const userInitials = initFrom(user?.user_metadata?.full_name || user?.email);
 
   // Phone single-pane gating. Desktop (lg+) always renders all three panes via
-  // the existing grid → identical to before. On phone, exactly one shows:
-  // Inbox when no conversation is open, Chat once one is. The context pane is
-  // phone-hidden for now (its phone entry point is a later step).
+  // the existing grid → identical to before (contextOpen ignored). On phone the
+  // panes are a 3-level stack, exactly one visible at a time:
+  //   no conversation              → Inbox
+  //   conversation, !contextOpen   → Chat
+  //   conversation,  contextOpen   → Context
   const showInboxPane   = isDesktop || !activeConvId;
-  const showChatPane    = isDesktop || !!activeConvId;
-  const showContextPane = isDesktop;
+  const showChatPane    = isDesktop || (!!activeConvId && !contextOpen);
+  const showContextPane = isDesktop || (!!activeConvId && contextOpen);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -593,6 +667,11 @@ export default function Messages() {
              screen. */
           .msg-tabrow { display: none; }
           .msg-pane { border: none; border-radius: 0; }
+          /* Phone-first: the voice-message <audio> control fills its bubble with
+             no fixed min that exceeds the bubble interior — on a ~320-360px screen
+             the bubble (maxWidth 78%) is narrower than 220px, so a hard min would
+             overflow/clip. Desktop restores the comfortable 220px below. */
+          .msg-audio { min-width: 0; width: 100%; }
           /* Phone: below lg the section has no column template (lg:/xl: classes
              only kick in at 1024px+), so it falls back to an implicit auto track
              that content-sizes and packs left, leaving a beige gap on the right.
@@ -617,6 +696,7 @@ export default function Messages() {
             }
             .msg-tabrow { display: flex; }
             .msg-pane { border: 1px solid #E5DFCE; border-radius: 22px; }
+            .msg-audio { min-width: 220px; width: auto; }
           }
         `}</style>
 
@@ -627,6 +707,11 @@ export default function Messages() {
         <div className="flex flex-col w-full max-w-7xl min-h-0">
 
         {/* ── Topbar ── */}
+        {/* Phone: hide this global "Messages" topbar once a conversation is open
+            (Chat or Context) — the chat's own header (back + partner + info chip)
+            replaces it, so we avoid two stacked headers and reclaim the vertical
+            space for the full-screen pane. Desktop (lg+) always shows it. */}
+        {(isDesktop || !activeConvId) && (
         <header className="msg-heading" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>{t("messages.title")}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -655,6 +740,7 @@ export default function Messages() {
             </div>
           </div>
         </header>
+        )}
 
         {/* ── 3-column messenger ── */}
         <section className="msg-pane-grid lg:grid-cols-[200px_minmax(0,1fr)_220px] xl:grid-cols-[300px_minmax(0,1fr)_320px]" style={{ flex: 1, display: "grid", gap: 18, alignItems: "stretch", minHeight: 0 }}>
@@ -697,10 +783,15 @@ export default function Messages() {
                   const { partner } = conv;
                   const isActive = conv.id === activeConvId;
                   const isUnread = !isActive && unreadConvIds.has(conv.id);
+                  const isPinned = myPin(conv, user?.id);
                   return (
                     <div
                       key={conv.id}
-                      onClick={() => selectConversation(conv)}
+                      onClick={() => handleRowClick(conv)}
+                      onTouchStart={() => startLongPress(conv)}
+                      onTouchMove={cancelLongPress}
+                      onTouchEnd={cancelLongPress}
+                      onTouchCancel={cancelLongPress}
                       style={{
                         display: "grid", gridTemplateColumns: "42px 1fr auto", gap: 12,
                         alignItems: "center", padding: isActive ? "11px 11px" : "12px 12px",
@@ -709,6 +800,7 @@ export default function Messages() {
                         border: `1px solid ${isActive ? "#D5E9D8" : "transparent"}`,
                         transition: "background 0.15s",
                         marginBottom: 2,
+                        WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none",
                       }}
                       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#FAF7EC"; }}
                       onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
@@ -729,11 +821,17 @@ export default function Messages() {
                           {conv.last_message_preview?.includes(".webm") || conv.last_message_preview?.startsWith("https://") ? t("messages.voiceMessage") : (conv.last_message_preview || t("messages.startConversation"))}
                         </p>
                       </div>
-                      {isUnread ? (
-                        <span aria-label={t("messages.unread")} style={{ width: 9, height: 9, borderRadius: "50%", background: "#005B5B", flexShrink: 0, alignSelf: "center" }} />
-                      ) : (
-                        <div />
-                      )}
+                      {/* Pin indicator (per-user state) + unread dot. Third grid
+                          column is auto-width, so it collapses when both are off.
+                          The pin reflects state and is harmless on desktop too. */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, alignSelf: "center" }}>
+                        {isPinned && (
+                          <Pin aria-label={t("messages.pin")} style={{ width: 13, height: 13, color: "#005B5B", fill: "#005B5B" }} />
+                        )}
+                        {isUnread && (
+                          <span aria-label={t("messages.unread")} style={{ width: 9, height: 9, borderRadius: "50%", background: "#005B5B" }} />
+                        )}
+                      </div>
                     </div>
                   );
                 })
@@ -781,17 +879,37 @@ export default function Messages() {
 
                   <div style={{ flex: 1 }} />
 
-                  {/* Delete this conversation */}
+                  {/* Header trailing slot — phone/desktop split, same position.
+                      DESKTOP (lg+): delete-conversation trash, unchanged. Display
+                      is class-owned (hidden lg:inline-flex) so the inline style
+                      carries no `display` that could beat the hide. */}
                   <button
                     type="button"
                     onClick={() => setDeleteConvTarget({ id: activeConvId, name: activePartner?.full_name })}
                     aria-label={t("messages.deleteConversation")}
                     title={t("messages.deleteConversation")}
-                    style={{ width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#6E7B79", background: "none", border: "none", cursor: "pointer", flexShrink: 0, transition: "background 0.15s, color 0.15s" }}
+                    className="hidden lg:inline-flex items-center justify-center"
+                    style={{ width: 38, height: 38, borderRadius: "50%", color: "#6E7B79", background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: 0, transition: "background 0.15s, color 0.15s" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(193,60,38,0.10)"; e.currentTarget.style.color = "#C13C26"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#6E7B79"; }}
                   >
                     <Trash2 style={{ width: 18, height: 18 }} />
+                  </button>
+                  {/* PHONE (below lg): open the Context pane (3rd-level full screen).
+                      Delete already lives in the inbox long-press sheet on phone, so
+                      this slot is free. Accent green chip with a teal Info icon so it
+                      reads as a tappable "details" affordance, not a flat glyph. */}
+                  <button
+                    type="button"
+                    onClick={() => setContextOpen(true)}
+                    aria-label={t("messages.exchangeDetails")}
+                    title={t("messages.exchangeDetails")}
+                    className="lg:hidden inline-flex items-center justify-center"
+                    style={{ width: 38, height: 38, borderRadius: 999, color: "#005B5B", background: "#ADEBB3", border: "none", cursor: "pointer", flexShrink: 0, padding: 8, transition: "background 0.15s, transform 0.15s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#9BE0A2")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#ADEBB3")}
+                  >
+                    <Info style={{ width: 19, height: 19 }} />
                   </button>
                 </header>
 
@@ -873,7 +991,8 @@ export default function Messages() {
                                 <audio
                                   controls
                                   src={msg.content}
-                                  style={{ display: "block", minWidth: 220, maxWidth: "100%", accentColor: isOwn ? "#ADEBB3" : "#005B5B" }}
+                                  className="msg-audio"
+                                  style={{ display: "block", maxWidth: "100%", accentColor: isOwn ? "#ADEBB3" : "#005B5B" }}
                                 />
                               ) : (
                                 msg.content
@@ -970,6 +1089,29 @@ export default function Messages() {
           {/* ════ CONTEXT (RIGHT) ════ */}
           {showContextPane && (
           <aside className="msg-pane" style={{ background: "#FFFFFF", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+            {/* Phone-only context header: back to Chat + screen title, so the
+                full-screen Context pane reads as its own step in the stack. Desktop
+                renders the context as the permanent 3rd column with no header — the
+                lg:hidden hides this entirely there (display: none), leaving the
+                desktop layout pixel-identical. Title is the listing name when known,
+                else the generic "exchange details" label. */}
+            <header className="lg:hidden" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid #E5DFCE", flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setContextOpen(false)}
+                aria-label={t("messages.back")}
+                title={t("messages.back")}
+                className="inline-flex items-center justify-center"
+                style={{ width: 38, height: 38, borderRadius: "50%", color: "#005B5B", background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: 0, marginLeft: -6 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,91,91,0.06)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <ArrowLeft style={{ width: 20, height: 20 }} />
+              </button>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0F2A2A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {activeConvListing?.title || t("messages.exchangeDetails")}
+              </p>
+            </header>
             <div style={{ padding: 14, gap: 14, display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
               {activeConvId ? (
                 <>
@@ -1034,94 +1176,49 @@ export default function Messages() {
                           )}
                         </div>
 
-                        {/* Shared decision: pill buttons while a decision is still pending, badge once final */}
-                        <div style={{ padding: "12px 16px 16px" }}>
-                          {(status === "pending" || status === "accepted") && (
-                            <>
-                              <p style={{ margin: "0 0 8px", textAlign: "center", fontSize: 12, color: "#6E7B79" }}>
-                                {t("messages.confirmHint")}
-                              </p>
-                              <div style={{ marginBottom: 10 }}>
-                                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#0F2A2A", marginBottom: 6 }}>
-                                  {t("messages.exchangeDateLabel")}
-                                </label>
-                                <div style={{ display: "flex", gap: 8 }}>
-                                  <div style={{ flex: 1 }}>
-                                    <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Du</label>
-                                    <input
-                                      type="date"
-                                      value={confirmStartDate}
-                                      onChange={(e) => {
-                                        setConfirmStartDate(e.target.value);
-                                        if (confirmEndDate && e.target.value > confirmEndDate) setConfirmEndDate("");
-                                      }}
-                                      min={start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0]}
-                                      max="2027-12-31"
-                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
-                                    />
-                                  </div>
-                                  <div style={{ flex: 1 }}>
-                                    <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Au</label>
-                                    <input
-                                      type="date"
-                                      value={confirmEndDate}
-                                      onChange={(e) => setConfirmEndDate(e.target.value)}
-                                      min={confirmStartDate || (start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0])}
-                                      max="2027-12-31"
-                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
+                        {/* Shared decision (date pickers only): the Cancel/Confirm
+                            actions and the confirmed/cancelled status badge now live
+                            BELOW the match-icon row (outside this card). The pickers
+                            stay here, next to the proposed dates, while pending. */}
+                        {(status === "pending" || status === "accepted") && (
+                          <div style={{ padding: "12px 16px 16px" }}>
+                            <p style={{ margin: "0 0 8px", textAlign: "center", fontSize: 12, color: "#6E7B79" }}>
+                              {t("messages.confirmHint")}
+                            </p>
+                            <div>
+                              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#0F2A2A", marginBottom: 6 }}>
+                                {t("messages.exchangeDateLabel")}
+                              </label>
                               <div style={{ display: "flex", gap: 8 }}>
-                                <button
-                                  onClick={() => handleExchangeAction("cancelled")}
-                                  disabled={exchangeLoading}
-                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #D9D4C4", background: "#FFFFFF", color: "#6E7B79", opacity: exchangeLoading ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
-                                  onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#F7F4EA"; e.currentTarget.style.borderColor = "#CFC9B7"; } }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.borderColor = "#D9D4C4"; }}
-                                >
-                                  <X style={{ width: 14, height: 14 }} /> {t("messages.cancel")}
-                                </button>
-                                <button
-                                  onClick={() => handleExchangeAction("confirmed")}
-                                  disabled={exchangeLoading || !confirmStartDate || !confirmEndDate}
-                                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
-                                  onMouseEnter={(e) => { if (!exchangeLoading && confirmStartDate && confirmEndDate) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
-                                  onMouseLeave={(e) => { e.currentTarget.style.background = "#F4C84B"; e.currentTarget.style.borderColor = "#E7B73A"; }}
-                                >
-                                  <Check style={{ width: 14, height: 14 }} /> {t("messages.confirm")}
-                                </button>
-                              </div>
-                            </>
-                          )}
-                          {status === "confirmed" && (
-                            <>
-                              <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
-                                {t("messages.exchangeConfirmed")}
-                              </div>
-                              {(activeExchange.start_date || activeExchange.end_date) && (
-                                <div style={{ marginTop: 10, padding: "11px 14px", borderRadius: 12, background: "#F7F4EA", border: "1px solid #E5DFCE", display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#6E7B79" }}>
-                                    {t("messages.agreedExchangeDate")}
-                                  </span>
-                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>
-                                    <Calendar style={{ width: 14, height: 14, color: "#005B5B" }} />
-                                    {[
-                                      activeExchange.start_date && new Date(activeExchange.start_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
-                                      activeExchange.end_date && new Date(activeExchange.end_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
-                                    ].filter(Boolean).join(" – ")}
-                                  </span>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Du</label>
+                                  <input
+                                    type="date"
+                                    value={confirmStartDate}
+                                    onChange={(e) => {
+                                      setConfirmStartDate(e.target.value);
+                                      if (confirmEndDate && e.target.value > confirmEndDate) setConfirmEndDate("");
+                                    }}
+                                    min={start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0]}
+                                    max="2027-12-31"
+                                    style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
+                                  />
                                 </div>
-                              )}
-                            </>
-                          )}
-                          {status === "cancelled" && (
-                            <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#F7DCD8", color: "#C0392B", border: "1px solid #F2C9C2" }}>
-                              {t("messages.exchangeCancelled")}
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ display: "block", fontSize: 11, color: "#6E7B79", marginBottom: 3 }}>Au</label>
+                                  <input
+                                    type="date"
+                                    value={confirmEndDate}
+                                    onChange={(e) => setConfirmEndDate(e.target.value)}
+                                    min={confirmStartDate || (start_date ? start_date.split("T")[0] : new Date().toISOString().split("T")[0])}
+                                    max="2027-12-31"
+                                    style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #D9D4C4", background: "#F7F4EA", fontSize: 13, fontFamily: "inherit", color: "#0F2A2A", boxSizing: "border-box" }}
+                                  />
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </section>
                     );
                   })()}
@@ -1217,6 +1314,68 @@ export default function Messages() {
                     </div>
                   </div>
 
+                  {/* ── Shared decision actions (moved below the match row) ── */}
+                  {/* Relocated out of the exchange card so the Cancel/Confirm pills
+                      (pending) — or the confirmed/cancelled status badge — sit under
+                      the match-icon row. Same gating and conditional logic as before,
+                      just a sibling here instead of inside the card. Re-destructures
+                      activeExchange since the card's IIFE scope ended above. */}
+                  {activeExchange && activeConvListing?.is_for_exchange && (() => {
+                    const { status } = activeExchange;
+                    return (
+                      <div>
+                        {(status === "pending" || status === "accepted") && (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handleExchangeAction("cancelled")}
+                              disabled={exchangeLoading}
+                              style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: exchangeLoading ? "not-allowed" : "pointer", border: "1px solid #D9D4C4", background: "#FFFFFF", color: "#6E7B79", opacity: exchangeLoading ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                              onMouseEnter={(e) => { if (!exchangeLoading) { e.currentTarget.style.background = "#F7F4EA"; e.currentTarget.style.borderColor = "#CFC9B7"; } }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.borderColor = "#D9D4C4"; }}
+                            >
+                              <X style={{ width: 14, height: 14 }} /> {t("messages.cancel")}
+                            </button>
+                            <button
+                              onClick={() => handleExchangeAction("confirmed")}
+                              disabled={exchangeLoading || !confirmStartDate || !confirmEndDate}
+                              style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 12px", borderRadius: 999, fontSize: 13.5, fontWeight: 700, cursor: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? "not-allowed" : "pointer", border: "1px solid #E7B73A", background: "#F4C84B", color: "#3D2E00", opacity: (exchangeLoading || !confirmStartDate || !confirmEndDate) ? 0.6 : 1, transition: "background 0.15s, border-color 0.15s" }}
+                              onMouseEnter={(e) => { if (!exchangeLoading && confirmStartDate && confirmEndDate) { e.currentTarget.style.background = "#EFBE33"; e.currentTarget.style.borderColor = "#D9A92B"; } }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "#F4C84B"; e.currentTarget.style.borderColor = "#E7B73A"; }}
+                            >
+                              <Check style={{ width: 14, height: 14 }} /> {t("messages.confirm")}
+                            </button>
+                          </div>
+                        )}
+                        {status === "confirmed" && (
+                          <>
+                            <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#ADEBB3", color: "#005B5B", border: "1px solid #8FD89A" }}>
+                              {t("messages.exchangeConfirmed")}
+                            </div>
+                            {(activeExchange.start_date || activeExchange.end_date) && (
+                              <div style={{ marginTop: 10, padding: "11px 14px", borderRadius: 12, background: "#F7F4EA", border: "1px solid #E5DFCE", display: "flex", flexDirection: "column", gap: 4 }}>
+                                <span style={{ fontSize: 11.5, fontWeight: 600, color: "#6E7B79" }}>
+                                  {t("messages.agreedExchangeDate")}
+                                </span>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#0F2A2A" }}>
+                                  <Calendar style={{ width: 14, height: 14, color: "#005B5B" }} />
+                                  {[
+                                    activeExchange.start_date && new Date(activeExchange.start_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
+                                    activeExchange.end_date && new Date(activeExchange.end_date).toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" }),
+                                  ].filter(Boolean).join(" – ")}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {status === "cancelled" && (
+                          <div style={{ padding: "11px 14px", borderRadius: 999, textAlign: "center", fontSize: 13.5, fontWeight: 700, background: "#F7DCD8", color: "#C0392B", border: "1px solid #F2C9C2" }}>
+                            {t("messages.exchangeCancelled")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                 </>
               ) : (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#6E7B79", fontSize: 13, textAlign: "center" }}>
@@ -1253,6 +1412,77 @@ export default function Messages() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Phone long-press action sheet (Pin/Unpin · Delete) ── */}
+      {/* Bottom sheet, portaled to <body> like the app's other sheets: fixed
+          backdrop + slide-up panel. Opened by a long-press on an inbox row.
+          Delete reuses the existing AlertDialog flow (setDeleteConvTarget). */}
+      {actionSheetConv && createPortal(
+        <div
+          onClick={() => setActionSheetConv(null)}
+          className="anim-overlay-in"
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "flex-end" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="anim-sheet-up"
+            style={{
+              width: "100%", background: "#FFFFFF",
+              borderTopLeftRadius: 20, borderTopRightRadius: 20,
+              padding: "8px 10px calc(12px + env(safe-area-inset-bottom))",
+              boxShadow: "0 -8px 30px rgba(0,0,0,0.18)",
+              fontFamily: "'Geist Variable', ui-sans-serif, sans-serif",
+            }}
+          >
+            {/* Grabber */}
+            <div style={{ width: 40, height: 4, borderRadius: 999, background: "#E5DFCE", margin: "6px auto 10px" }} />
+            {/* Context label — whose conversation this acts on */}
+            <p style={{ textAlign: "center", fontSize: 13, fontWeight: 600, color: "#6E7B79", margin: "0 0 8px" }}>
+              {actionSheetConv.partner?.full_name || t("messages.userFallback")}
+            </p>
+
+            {/* Pin / Unpin */}
+            <button
+              type="button"
+              onClick={() => handleTogglePin(actionSheetConv)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "15px 14px", borderRadius: 14, background: "none", border: "none", cursor: "pointer", fontSize: 15.5, fontWeight: 600, color: "#0F2A2A", textAlign: "left" }}
+              onTouchStart={(e) => (e.currentTarget.style.background = "#F3EEE0")}
+              onTouchEnd={(e) => (e.currentTarget.style.background = "none")}
+            >
+              {myPin(actionSheetConv, user?.id)
+                ? <PinOff style={{ width: 20, height: 20, color: "#005B5B", flexShrink: 0 }} />
+                : <Pin style={{ width: 20, height: 20, color: "#005B5B", flexShrink: 0 }} />}
+              {myPin(actionSheetConv, user?.id) ? t("messages.unpin") : t("messages.pin")}
+            </button>
+
+            {/* Delete — hands off to the existing confirmation dialog */}
+            <button
+              type="button"
+              onClick={() => {
+                const conv = actionSheetConv;
+                setActionSheetConv(null);
+                setDeleteConvTarget({ id: conv.id, name: conv.partner?.full_name });
+              }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "15px 14px", borderRadius: 14, background: "none", border: "none", cursor: "pointer", fontSize: 15.5, fontWeight: 600, color: "#C13C26", textAlign: "left" }}
+              onTouchStart={(e) => (e.currentTarget.style.background = "rgba(193,60,38,0.08)")}
+              onTouchEnd={(e) => (e.currentTarget.style.background = "none")}
+            >
+              <Trash2 style={{ width: 20, height: 20, flexShrink: 0 }} />
+              {t("messages.deleteConversation")}
+            </button>
+
+            {/* Cancel */}
+            <button
+              type="button"
+              onClick={() => setActionSheetConv(null)}
+              style={{ width: "100%", marginTop: 6, padding: "14px", borderRadius: 14, background: "#F3EEE0", border: "none", cursor: "pointer", fontSize: 15, fontWeight: 700, color: "#0F2A2A" }}
+            >
+              {t("messages.cancel")}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
