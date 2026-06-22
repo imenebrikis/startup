@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MessageCircle, Calendar, Check, X, Trash2 } from "lucide-react";
+import { MessageCircle, Calendar, Check, X, Trash2, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
 import NotificationBell from "../components/NotificationBell";
@@ -96,6 +96,21 @@ export default function Messages() {
   const [hoveredMsgId, setHoveredMsgId]   = useState(null);
   const [unreadConvIds, setUnreadConvIds] = useState(() => new Set());
   const [deleteConvTarget, setDeleteConvTarget] = useState(null);
+
+  // Phone single-pane navigation: below lg the 3-column grid would stack and
+  // scroll, so we render exactly one pane at a time (Inbox when no conversation
+  // is open, Chat once one is). Desktop (lg+) keeps the untouched 3-column grid.
+  // matchMedia mirrors Sidebar.jsx's approach so the breakpoint stays consistent
+  // (inline styles/widths would beat a class, hence a JS flag, not a CSS class).
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const messagesEndRef   = useRef(null);
   const channelRef       = useRef(null);
@@ -477,6 +492,17 @@ export default function Messages() {
     fetchConversations();
   };
 
+  // Phone back button: deselect the open conversation so the Inbox pane shows
+  // again. Same state-reset the delete flow already does when the active thread
+  // goes away (activeConvId/partner/listing/exchange/messages).
+  const handleBackToInbox = () => {
+    setActiveConvId(null);
+    setActivePartner(null);
+    setActiveConvListing(null);
+    setActiveExchange(null);
+    setMessages([]);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(newMessage); }
   };
@@ -533,12 +559,66 @@ export default function Messages() {
 
   const userInitials = initFrom(user?.user_metadata?.full_name || user?.email);
 
+  // Phone single-pane gating. Desktop (lg+) always renders all three panes via
+  // the existing grid → identical to before. On phone, exactly one shows:
+  // Inbox when no conversation is open, Chat once one is. The context pane is
+  // phone-hidden for now (its phone entry point is a later step).
+  const showInboxPane   = isDesktop || !activeConvId;
+  const showChatPane    = isDesktop || !!activeConvId;
+  const showContextPane = isDesktop;
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", minHeight: "100vh", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+    <div className="msg-page-grid" style={{ display: "grid", minHeight: "100vh", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
       <Sidebar active="Messages" />
 
-      <main style={{ padding: "22px 28px 28px", display: "flex", flexDirection: "column", minHeight: "100vh", background: "#F3EEE0" }}>
+      <main className="msg-main" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#F3EEE0" }}>
+        {/* Phone full-bleed: panes fill edge-to-edge (no white card floating in
+            beige). Class-owned so it switches at lg without inline beating it —
+            phone strips the page padding, the pane border/radius, and insets only
+            the heading; lg+ restores the exact desktop card chrome. */}
+        <style>{`
+          .msg-main { padding: 0; }
+          /* Phone: heading becomes the screen's white top bar (continuous with
+             the white list below) with a hairline divider, instead of a beige
+             band floating above a white card. safe-area top keeps the title
+             clear of the notch. */
+          .msg-heading {
+            padding-left: 16px; padding-right: 16px;
+            padding-top: calc(14px + env(safe-area-inset-top, 0px));
+            background: #FFFFFF; border-bottom: 1px solid #E5DFCE;
+          }
+          /* Phone: hide the in-pane Inbox/search tab row — its search moves up
+             into the heading control cluster and "Messages" already titles the
+             screen. */
+          .msg-tabrow { display: none; }
+          .msg-pane { border: none; border-radius: 0; }
+          /* Phone: below lg the section has no column template (lg:/xl: classes
+             only kick in at 1024px+), so it falls back to an implicit auto track
+             that content-sizes and packs left, leaving a beige gap on the right.
+             Force one full-width track. Scoped to max-width:1023px so it can never
+             touch the desktop lg:/xl: grid-cols templates. */
+          @media (max-width: 1023px) {
+            /* Root cause of the inbox right gap: on phone the Sidebar is
+               position:fixed (out of flow), so <main> lands in the page grid's
+               first (auto) column and content-sizes, leaving the 1fr column empty
+               on the right. Collapse the page grid to one full-width column on
+               phone so <main> fills the viewport. */
+            .msg-page-grid { grid-template-columns: minmax(0, 1fr); }
+            .msg-pane-grid { grid-template-columns: minmax(0, 1fr); }
+            .msg-pane { box-sizing: border-box; }
+          }
+          @media (min-width: 1024px) {
+            .msg-page-grid { grid-template-columns: auto 1fr; }
+            .msg-main { padding: 22px 28px 28px; }
+            .msg-heading {
+              padding-left: 0; padding-right: 0; padding-top: 0;
+              background: transparent; border-bottom: none;
+            }
+            .msg-tabrow { display: flex; }
+            .msg-pane { border: 1px solid #E5DFCE; border-radius: 22px; }
+          }
+        `}</style>
 
         {/* Cap + center the messenger so the chat column doesn't sprawl on wide
             screens. flex justify-center (not mx-auto: the global * { margin: 0 }
@@ -547,9 +627,25 @@ export default function Messages() {
         <div className="flex flex-col w-full max-w-7xl min-h-0">
 
         {/* ── Topbar ── */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
+        <header className="msg-heading" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, paddingBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#0F2A2A" }}>{t("messages.title")}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Phone-only search — grouped with the bell + avatar so the top-right
+                controls read as one cluster. The desktop search stays in the tab
+                row (which is hidden on phone). Display is class-owned (lg:hidden)
+                so no inline `display` beats the hide. */}
+            <button
+              type="button"
+              aria-label={t("messages.search")}
+              className="inline-flex items-center justify-center lg:hidden"
+              style={{ width: 38, height: 38, borderRadius: "50%", color: "#005B5B", background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: 0 }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,91,91,0.06)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+              </svg>
+            </button>
             <NotificationBell userId={user?.id} />
             <div
               style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}
@@ -561,12 +657,13 @@ export default function Messages() {
         </header>
 
         {/* ── 3-column messenger ── */}
-        <section className="lg:grid-cols-[200px_minmax(0,1fr)_220px] xl:grid-cols-[300px_minmax(0,1fr)_320px]" style={{ flex: 1, display: "grid", gap: 18, alignItems: "stretch", minHeight: 0 }}>
+        <section className="msg-pane-grid lg:grid-cols-[200px_minmax(0,1fr)_220px] xl:grid-cols-[300px_minmax(0,1fr)_320px]" style={{ flex: 1, display: "grid", gap: 18, alignItems: "stretch", minHeight: 0 }}>
 
           {/* ════ INBOX (LEFT) ════ */}
-          <aside style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          {showInboxPane && (
+          <aside className="msg-pane" style={{ background: "#FFFFFF", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
 
-            <div style={{ padding: "18px 18px 12px", display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid #E5DFCE" }}>
+            <div className="msg-tabrow" style={{ padding: "18px 18px 12px", alignItems: "center", gap: 14, borderBottom: "1px solid #E5DFCE" }}>
               <div style={{ display: "flex", gap: 14, flex: 1 }}>
                 <button style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 2px", fontSize: 14, fontWeight: 600, color: "#005B5B", background: "none", border: "none", borderBottom: "2px solid #005B5B", cursor: "pointer" }}>
                   <svg style={{ width: 16, height: 16 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -587,7 +684,7 @@ export default function Messages() {
               </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "10px 10px 14px" }}>
+            <div className="nice-scroll" style={{ flex: 1, overflowY: "auto", padding: "10px 10px 14px" }}>
               {loadingConvs ? (
                 Array.from({ length: 5 }).map((_, i) => <SkeletonConversation key={i} />)
               ) : conversations.length === 0 ? (
@@ -643,13 +740,30 @@ export default function Messages() {
               )}
             </div>
           </aside>
+          )}
 
           {/* ════ CHAT (CENTER) ════ */}
-          <section style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          {showChatPane && (
+          <section className="msg-pane" style={{ background: "#FFFFFF", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
             {activeConvId ? (
               <>
                 {/* Chat header */}
                 <header style={{ padding: "14px 22px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #E5DFCE" }}>
+                  {/* Back to inbox — phone only (lg:hidden). Display is class-owned
+                      (inline-flex / lg:hidden) so no inline `display` beats the
+                      hide; desktop never renders it. */}
+                  <button
+                    type="button"
+                    onClick={handleBackToInbox}
+                    aria-label={t("messages.back")}
+                    title={t("messages.back")}
+                    className="inline-flex items-center justify-center lg:hidden"
+                    style={{ width: 38, height: 38, borderRadius: "50%", color: "#005B5B", background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: 0, marginLeft: -6 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,91,91,0.06)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <ArrowLeft style={{ width: 20, height: 20 }} />
+                  </button>
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14, flexShrink: 0 }}>
                     {initFrom(activePartner?.full_name)}
                   </div>
@@ -851,9 +965,11 @@ export default function Messages() {
               </div>
             )}
           </section>
+          )}
 
           {/* ════ CONTEXT (RIGHT) ════ */}
-          <aside style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+          {showContextPane && (
+          <aside className="msg-pane" style={{ background: "#FFFFFF", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
             <div style={{ padding: 14, gap: 14, display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
               {activeConvId ? (
                 <>
@@ -1109,6 +1225,7 @@ export default function Messages() {
               )}
             </div>
           </aside>
+          )}
 
         </section>
         </div>
