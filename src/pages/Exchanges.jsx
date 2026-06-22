@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   MapPin, Calendar, ArrowLeft, ArrowRight, Check, X,
-  Loader2, Home, MessageSquare, Send, Inbox, AlertCircle, BedDouble,
+  Loader2, Home, MessageSquare, Send, Inbox, AlertCircle, BedDouble, Menu,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Sidebar from "../components/Sidebar";
@@ -74,13 +74,13 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
   const refused = ex.status === "refused";
 
   return (
-    <article style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22, padding: 22, marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
+    <article className="exchange-card" style={{ background: "#FFFFFF", border: "1px solid #E5DFCE", borderRadius: 22 }}>
+      <div className="exchange-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <StatusBadge status={ex.status} />
         <span style={{ fontSize: 12.5, color: "#6E7B79" }}>{dateStr}</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 22 }}>
+      <div className="exchange-card-grid" style={{ display: "grid" }}>
         {/* Left: photo + title + user — Option 3 whole-block link */}
         <div>
           {heroHouse ? (
@@ -124,7 +124,8 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
             to={partnerProfile?.id ? `/profile/${partnerProfile.id}` : "#"}
             onMouseEnter={() => setNameHover(true)}
             onMouseLeave={() => setNameHover(false)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 12, marginTop: 18, textDecoration: "none" }}
+            className="exchange-card-partner"
+            style={{ display: "inline-flex", alignItems: "center", gap: 12, textDecoration: "none" }}
           >
             <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 15, flexShrink: 0 }}>
               {initials(partnerName)}
@@ -173,13 +174,13 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
             </InfoBlock>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+          <div className="exchanges-action-row" style={{ display: "flex", gap: 10, marginTop: 4 }}>
             {mode === "sent" && (
               <>
                 <button
                   type="button"
                   onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName, listingId: ex.listing_id } })}
-                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
                 >
                   <MessageSquare style={{ width: 15, height: 15 }} />
                   {t("exchanges.sendMessage")}
@@ -188,7 +189,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
                   <button
                     onClick={() => onCancel(ex.id)}
                     disabled={busy}
-                    style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                    style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                   >
                     {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <X style={{ width: 14, height: 14 }} />}
                     {t("exchanges.cancelRequest")}
@@ -202,7 +203,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
                 <button
                   onClick={() => onAccept(ex.id)}
                   disabled={busy}
-                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#005B5B", color: "#F3EEE0", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, fontWeight: 600, background: "#005B5B", color: "#F3EEE0", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                 >
                   {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <Check style={{ width: 14, height: 14 }} />}
                   {t("exchanges.accept")}
@@ -210,7 +211,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
                 <button
                   onClick={() => onRefuse(ex.id)}
                   disabled={busy}
-                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, fontWeight: 600, background: "#C0392B", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1 }}
                 >
                   {busy ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> : <X style={{ width: 14, height: 14 }} />}
                   {t("exchanges.refuse")}
@@ -222,7 +223,7 @@ function ExchangeCard({ ex, mode, onAccept, onRefuse, onCancel, actionLoading })
               <button
                 type="button"
                 onClick={() => navigate("/messages", { state: { activeChatUserId: partnerProfile?.id, activeChatUserName: partnerName, listingId: ex.listing_id } })}
-                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
+                style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, fontWeight: 600, background: "#FFFFFF", border: "1px solid #E5DFCE", color: "#005B5B", cursor: "pointer" }}
               >
                 <MessageSquare style={{ width: 15, height: 15 }} />
                 {t("exchanges.sendMessage")}
@@ -262,6 +263,7 @@ export default function Exchanges() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [dbError, setDbError] = useState(null);
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
 
   const fetchExchanges = useCallback(async (uid) => {
     setLoading(true);
@@ -321,12 +323,28 @@ export default function Exchanges() {
   const current = tab === "sent" ? sent : received;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", gridTemplateColumns: "auto 1fr", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
-      <Sidebar active="Mes échanges" />
+    <div className="exchanges-page-grid" style={{ minHeight: "100vh", background: "#F3EEE0", display: "grid", fontFamily: "'Geist Variable', ui-sans-serif, sans-serif" }}>
+      <Sidebar
+        active="Mes échanges"
+        mobileOpen={sidebarMobileOpen}
+        onMobileClose={() => setSidebarMobileOpen(false)}
+      />
 
-      <main style={{ padding: "26px 42px 56px", maxWidth: 1440, width: "100%" }}>
+      <main className="exchanges-main" style={{ maxWidth: 1440, width: "100%" }}>
         {/* Topbar avatar */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingBottom: 22 }}>
+          {/* Hamburger — phone only; opens the sidebar drawer. Sits at the start
+              of the row (marginRight:auto pushes the rest to flex-end). Display
+              is class-owned (inline-flex / lg:hidden) — no inline `display`, or
+              it would beat the lg:hidden utility. */}
+          <button
+            onClick={() => setSidebarMobileOpen(true)}
+            aria-label="Ouvrir le menu"
+            className="inline-flex items-center justify-center lg:hidden"
+            style={{ marginRight: "auto", width: 40, height: 40, borderRadius: 10, background: "none", border: "none", cursor: "pointer", color: "#005B5B", padding: 0 }}
+          >
+            <Menu style={{ width: 22, height: 22 }} />
+          </button>
           <NotificationBell userId={user?.id} />
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#005B5B", color: "#ADEBB3", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 14 }}>
             {initials(user?.user_metadata?.full_name || user?.email || "")}
@@ -335,7 +353,7 @@ export default function Exchanges() {
 
         {/* Page header */}
         <section style={{ margin: "6px 0 22px" }}>
-          <h1 style={{ fontSize: 42, lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>{t("exchanges.title")}</h1>
+          <h1 className="exchanges-title" style={{ lineHeight: 1.08, letterSpacing: "-0.025em", fontWeight: 700, margin: 0, color: "#0F2A2A" }}>{t("exchanges.title")}</h1>
           <p style={{ margin: "10px 0 0", color: "#6E7B79", fontSize: 15 }}>{t("exchanges.subtitle")}</p>
         </section>
 
@@ -350,7 +368,7 @@ export default function Exchanges() {
         )}
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+        <div className="exchanges-tab-row" style={{ display: "flex", marginBottom: 22 }}>
           {[
             { id: "sent",     label: t("exchanges.tabs.sent"),     icon: <ArrowRight style={{ width: 14, height: 14 }} />, count: sent.length },
             { id: "received", label: t("exchanges.tabs.received"), icon: <ArrowLeft style={{ width: 14, height: 14 }} />,  count: received.length },
@@ -360,17 +378,18 @@ export default function Exchanges() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
+                className="exchanges-tab-btn"
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 10, padding: "11px 18px", borderRadius: 999,
+                  display: "inline-flex", alignItems: "center", borderRadius: 999,
                   background: on ? "#E4F6E6" : "#FFFFFF", border: on ? "1px solid #8FD89A" : "1px solid #E5DFCE",
-                  fontSize: 14, fontWeight: 500, color: "#005B5B", cursor: "pointer",
+                  fontWeight: 500, color: "#005B5B", cursor: "pointer",
                 }}
               >
                 {icon}
                 {label}
-                <span style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 22, height: 22, padding: "0 7px",
-                  borderRadius: 999, fontSize: 12, fontWeight: 600,
+                <span className="exchanges-tab-badge" style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 999, fontWeight: 600,
                   background: on ? "#005B5B" : "rgba(0,91,91,0.08)", color: on ? "#ADEBB3" : "#005B5B",
                 }}>
                   {count}
@@ -403,7 +422,56 @@ export default function Exchanges() {
         )}
       </main>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {/* Page-level styles — defined ONCE here (not inside ExchangeCard), so the
+          .exchange-card-grid rule is shared by every card, never re-injected per
+          card. Literal media queries (class-owned, robust against stale Tailwind
+          builds), mirroring the Dashboard/Messages mobile pattern. */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Phone-first: single full-width column. The Sidebar is a fixed drawer
+           (out of flow) on phone, so a left "auto" track would content-size and
+           leave a gap on the right — force one full-width track instead. */
+        .exchanges-page-grid { grid-template-columns: minmax(0, 1fr); }
+        .exchanges-main { padding: 18px 16px 48px; }
+        /* Card body stacks: photo+title on top, info blocks + buttons below. */
+        .exchange-card-grid { grid-template-columns: 1fr; }
+
+        /* Phone size reductions — proportionate to the narrower single-column
+           layout. Inline padding/fontSize were removed from these elements so
+           the class owns them (inline would otherwise beat the rule). */
+        .exchanges-title { font-size: 29px; }
+        .exchanges-tab-row { gap: 8px; }
+        /* Tabs read as a balanced pair on phone: equal-width pills, centered
+           content, tighter internal gap; count badge sized down to stop crowding
+           the label. */
+        .exchanges-tab-btn { padding: 9px 12px; font-size: 13px; flex: 1; justify-content: center; gap: 8px; }
+        .exchanges-tab-badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: 11.5px; }
+        .exchanges-action-row button { padding: 8px 12px; font-size: 12px; }
+
+        /* Phone vertical rhythm — even out the card's section spacing into a
+           consistent tier: 16px card inset, 14px header gap, 16px sub-item gaps
+           (title/partner), 18px between the stacked column-sections. */
+        .exchange-card { padding: 16px; margin-bottom: 14px; }
+        .exchange-card-header { margin-bottom: 14px; }
+        .exchange-card-grid { gap: 18px; }
+        .exchange-card-partner { margin-top: 16px; }
+
+        @media (min-width: 1024px) {
+          .exchanges-page-grid { grid-template-columns: auto minmax(0, 1fr); }
+          .exchanges-main { padding: 26px 42px 56px; }
+          .exchange-card-grid { grid-template-columns: 1.05fr 1fr; gap: 22px; }
+          /* Restore the original desktop sizes exactly (pixel-identical). */
+          .exchanges-title { font-size: 42px; }
+          .exchanges-tab-row { gap: 10px; }
+          .exchanges-tab-btn { padding: 11px 18px; font-size: 14px; flex: 0 1 auto; justify-content: flex-start; gap: 10px; }
+          .exchanges-tab-badge { min-width: 22px; height: 22px; padding: 0 7px; font-size: 12px; }
+          .exchanges-action-row button { padding: 13px 16px; font-size: 14px; }
+          .exchange-card { padding: 22px; margin-bottom: 18px; }
+          .exchange-card-header { margin-bottom: 18px; }
+          .exchange-card-partner { margin-top: 18px; }
+        }
+      `}</style>
     </div>
   );
 }
