@@ -41,7 +41,14 @@ export default function Hero() {
   const headlineParts = t("home.hero.headlineParts", { returnObjects: true });
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
+    const onScroll = () => {
+      const isScrolled = window.scrollY > 10;
+      setScrolled(isScrolled);
+      // Keep the mobile browser status bar in sync with the navbar (Android Chrome):
+      // cream at the top, green once scrolled. Guard — the tag may be absent.
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", isScrolled ? "#004949" : "#F3EEE0");
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -58,8 +65,8 @@ export default function Hero() {
         <div className="w-full h-full flex flex-row">
           {/* Logo — desktop: left 55% column w/ 100px inset. Phone: flex-1 w/ small inset. */}
           <div
-            className="flex-1 md:w-[55%] md:flex-none flex items-center md:pl-[100px]"
-            style={{ paddingLeft: isPhone ? 48 : undefined }}
+            className="flex-1 min-w-0 md:w-[55%] md:flex-none flex items-center md:min-w-0"
+            style={{ paddingLeft: isPhone ? 16 : 100 }}
           >
             <Logo to="/" size={24} color={scrolled ? "#ffffff" : "#0A3D3D"} />
           </div>

@@ -164,8 +164,8 @@ export default function HowItWorks() {
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "flex-start",
-                textAlign: "left",
+                alignItems: isPhone ? "center" : "flex-start",
+                textAlign: isPhone ? "center" : "left",
               }}
             >
               <span
