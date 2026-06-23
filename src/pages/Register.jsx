@@ -263,9 +263,10 @@ export default function Register() {
       if (!signInError && signInData?.session) return; // onAuthStateChange handles navigation
     }
 
-    // Email confirmation is still required — tell the user to check their inbox.
+    // Fallback only: sign-in didn't auto-complete. Email confirmation is disabled,
+    // so the account is active — just direct the user to log in.
     setSuccess(
-      "Inscription réussie ! Veuillez vérifier votre boîte mail pour confirmer votre compte.",
+      "Inscription réussie ! Vous pouvez maintenant vous connecter.",
     );
     setFirstName("");
     setLastName("");
