@@ -44,22 +44,27 @@ export default function Hero() {
     const onScroll = () => {
       const isScrolled = window.scrollY > 10;
       setScrolled(isScrolled);
-      // Keep the mobile browser status bar in sync with the navbar (Android Chrome):
-      // cream at the top, green once scrolled. Guard — the tag may be absent.
+      // Keep the mobile browser status bar in sync with the navbar (Android Chrome).
+      // On phone the navbar is green from the start, so the status bar is green
+      // immediately too; on desktop it's cream at the top, green once scrolled.
       const themeMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeMeta) themeMeta.setAttribute("content", isScrolled ? "#004949" : "#F3EEE0");
+      if (themeMeta) themeMeta.setAttribute("content", isScrolled || isPhone ? "#004949" : "#F3EEE0");
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isPhone]);
+
+  // On phone the navbar wears its green "scrolled" look from the moment the page
+  // opens (no cream-over-hero phase); on desktop it stays driven by scroll.
+  const greenNav = scrolled || isPhone;
 
   return (
     <div className="w-full relative z-50 bg-[#F3EEE0]">
       {/* ── Dynamic Navbar ── */}
       <nav
         className={`absolute md:fixed top-0 left-0 w-full z-[100] h-[84px] flex items-end pb-4 transition-colors duration-300 ${
-          scrolled ? "bg-[#004949] shadow-md" : "bg-transparent"
+          greenNav ? "bg-[#004949] shadow-md" : "bg-transparent"
         }`}
       >
         <div className="w-full h-full flex flex-row">
@@ -68,7 +73,7 @@ export default function Hero() {
             className="flex-1 min-w-0 md:w-[55%] md:flex-none flex items-center md:min-w-0"
             style={{ paddingLeft: isPhone ? 16 : 100 }}
           >
-            <Logo to="/" size={24} color={scrolled ? "#ffffff" : "#0A3D3D"} />
+            <Logo to="/" size={24} color={greenNav ? "#ffffff" : "#0A3D3D"} />
           </div>
 
           {/* DESKTOP (md+) — right 45% column, 4 inline links. Unchanged from before. */}
@@ -106,7 +111,7 @@ export default function Hero() {
               aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
               aria-expanded={menuOpen}
               className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors duration-200 ${
-                scrolled ? "text-white hover:bg-white/10" : "text-[#0A3D3D] hover:bg-[#0A3D3D]/10"
+                greenNav ? "text-white hover:bg-white/10" : "text-[#0A3D3D] hover:bg-[#0A3D3D]/10"
               }`}
             >
               {menuOpen ? <X size={26} /> : <Menu size={26} />}
