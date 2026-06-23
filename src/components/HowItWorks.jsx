@@ -15,6 +15,19 @@ export default function HowItWorks() {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Phone detection — same matchMedia convention as Hero.jsx, so the decorative
+  // top-left map can be dropped on phone (where it overlaps the heading) while
+  // desktop stays pixel-identical.
+  const [isPhone, setIsPhone] = useState(
+    () => (typeof window !== "undefined" ? window.matchMedia("(max-width: 767.98px)").matches : false)
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767.98px)");
+    const onChange = (e) => setIsPhone(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setIsAuthenticated(true);
@@ -33,42 +46,46 @@ export default function HowItWorks() {
         position: "relative",
         zIndex: 2,
         width: "100%",
-        minHeight: "100vh",
+        minHeight: isPhone ? "auto" : "100vh",
         backgroundColor: "transparent",
+        borderTop: isPhone ? "1px solid rgba(0, 0, 0, 0.16)" : "none",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-        padding: "96px 24px",
+        justifyContent: isPhone ? "flex-start" : "center",
+        overflow: isPhone ? "visible" : "hidden",
+        padding: isPhone ? "28px 24px 200px" : "96px 24px",
         boxSizing: "border-box",
       }}
     >
-      {/* Top-left corner asset */}
-      <img
-        src={paperMapSvg}
-        alt={t("home.howItWorks.mapAlt")}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: "clamp(24px, 5vw, 80px)",
-          width: "clamp(176px, 22vw, 307px)",
-          objectFit: "contain",
-          objectPosition: "top left",
-          zIndex: 0,
-          pointerEvents: "none",
-          opacity: 0.95,
-        }}
-      />
+      {/* Top-left corner asset — hidden on phone (overlaps the heading at narrow widths) */}
+      {!isPhone && (
+        <img
+          src={paperMapSvg}
+          alt={t("home.howItWorks.mapAlt")}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "clamp(24px, 5vw, 80px)",
+            width: "clamp(176px, 22vw, 307px)",
+            objectFit: "contain",
+            objectPosition: "top left",
+            zIndex: 0,
+            pointerEvents: "none",
+            opacity: 0.95,
+          }}
+        />
+      )}
 
-      {/* Bottom-right corner asset */}
+      {/* Bottom-right corner asset — on phone, smaller and resting in the freed
+          bottom band: clear of the CTA above, above the footer. */}
       <img
         src={tripSvg}
         alt={t("home.howItWorks.travelerAlt")}
         style={{
           position: "absolute",
-          bottom: 0,
+          bottom: isPhone ? "-8px" : 0,
           right: 0,
-          width: "clamp(176px, 22vw, 307px)",
+          width: isPhone ? "168px" : "clamp(176px, 22vw, 307px)",
           objectFit: "contain",
           objectPosition: "bottom right",
           zIndex: 0,
@@ -90,17 +107,35 @@ export default function HowItWorks() {
           alignItems: "center",
         }}
       >
+        {/* Eyebrow — phone only (keeps desktop identical to deployed) */}
+        {isPhone && (
+          <span
+            style={{
+              fontFamily: "'Satoshi', sans-serif",
+              fontWeight: 700,
+              fontSize: "13px",
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#357A20",
+              textAlign: "center",
+              margin: "0 0 16px 0",
+            }}
+          >
+            {t("home.howItWorks.eyebrow")}
+          </span>
+        )}
+
         {/* Title */}
         <h2
           style={{
             fontFamily: "'Satoshi', sans-serif",
             fontWeight: 900,
-            fontSize: "clamp(2rem, 5vw, 3.25rem)",
+            fontSize: isPhone ? "clamp(1.375rem, 6vw, 1.875rem)" : "clamp(2rem, 5vw, 3.25rem)",
             lineHeight: 1.1,
             letterSpacing: "-0.02em",
             color: BRAND_TEAL,
             textAlign: "center",
-            margin: "0 0 96px 0",
+            margin: isPhone ? "0 0 40px 0" : "0 0 96px 0",
           }}
         >
           {Array.isArray(headlineParts)
@@ -118,9 +153,9 @@ export default function HowItWorks() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "48px",
+            gap: isPhone ? "24px" : "48px",
             width: "100%",
-            marginBottom: "80px",
+            marginBottom: isPhone ? "48px" : "80px",
           }}
         >
           {(Array.isArray(steps) ? steps : []).map((step, i) => (
@@ -141,8 +176,8 @@ export default function HowItWorks() {
                   width: "56px",
                   height: "56px",
                   borderRadius: "50%",
-                  backgroundColor: "#C5E8F2",
-                  color: "#4A1518",
+                  backgroundColor: isPhone ? "#DCF1DF" : "#C5E8F2",
+                  color: isPhone ? "#005B5B" : "#4A1518",
                   fontFamily: "'Fraunces', serif",
                   fontWeight: 600,
                   fontStyle: "italic",
@@ -186,9 +221,7 @@ export default function HowItWorks() {
 
         {/* CTA */}
         <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-          <button type="button" onClick={handleCta} style={{ display: "inline-block", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-            <MotionButton label={t("home.howItWorks.cta")} fillClassName="bg-[#adebb3]" />
-          </button>
+          <MotionButton label={t("home.howItWorks.cta")} fillClassName="bg-[#adebb3]" onClick={handleCta} />
         </div>
       </div>
     </section>

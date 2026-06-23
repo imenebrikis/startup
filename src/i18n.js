@@ -890,10 +890,11 @@ const resources = {
           imgAlt: "Maisons contemporaines lumineuses en Algérie",
         },
         howItWorks: {
-          headlineParts: ["Loyers trop chers ?", "Essayez l'échange", "à la place."],
+          eyebrow: "Comment ça marche",
+          headlineParts: ["Loyers trop chers ?", "Essayez l'échange", "à la place."],
           steps: [
             { title: "Publiez ce que vous avez.", desc: "Créez un profil et listez votre maison gratuitement. Quelques photos et détails, c'est tout ce qu'il faut." },
-            { title: "Trouvez ce que vous cherchez.", desc: "Explorez des centaines de maisons vérifiées à travers les 58 wilayas et trouvez votre coup de cœur." },
+            { title: "Trouvez ce que vous cherchez.", desc: "Explorez des centaines de maisons vérifiées à travers les 69 wilayas et trouvez votre coup de cœur." },
             { title: "Puis voyagez gratuitement.", desc: "Contactez le propriétaire, convenez des détails, échangez les clés, et partez sans payer pour l'hébergement." },
           ],
           mapAlt: "Illustration d'une carte papier",
@@ -1800,10 +1801,11 @@ const resources = {
           imgAlt: "Contemporary bright homes in Algeria",
         },
         howItWorks: {
+          eyebrow: "How it works",
           headlineParts: ["Rent too expensive?", "Try swapping", "instead."],
           steps: [
             { title: "List what you have.", desc: "Create a profile and list your home for free. A few photos and details — that's all it takes." },
-            { title: "Find what you're looking for.", desc: "Browse hundreds of verified homes across all 58 wilayas and find your perfect match." },
+            { title: "Find what you're looking for.", desc: "Browse hundreds of verified homes across all 69 wilayas and find your perfect match." },
             { title: "Then travel for free.", desc: "Contact the owner, agree on the details, swap keys, and travel without paying for accommodation." },
           ],
           mapAlt: "Paper map illustration",

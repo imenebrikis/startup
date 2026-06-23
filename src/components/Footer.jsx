@@ -31,7 +31,7 @@ const SOCIALS = [
 ];
 
 const linkClass =
-  "text-[#005B5B]/75 hover:text-[#005B5B] transition-colors duration-200 text-sm";
+  "inline-block py-1 text-[#2E4747] hover:text-[#005B5B] hover:underline underline-offset-2 transition-colors duration-200 text-sm rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005B5B]";
 
 export default function Footer() {
   const { t } = useTranslation();
@@ -60,7 +60,7 @@ export default function Footer() {
           {/* Column 1 — brand + tagline + socials */}
           <div className="flex flex-col gap-4">
             <Logo size={24} color="#005B5B" />
-            <p className="text-[#005B5B]/75 text-sm leading-relaxed" style={{ maxWidth: 260 }}>
+            <p className="text-[#2E4747] text-sm leading-relaxed" style={{ maxWidth: 260 }}>
               {t("home.footer.tagline")}
             </p>
             <div className="flex items-center gap-3" style={{ marginTop: 4 }}>
@@ -70,8 +70,8 @@ export default function Footer() {
                   href={href}
                   aria-label={label}
                   {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className="flex items-center justify-center rounded-full border border-[#005B5B]/25 text-[#005B5B] hover:bg-[#005B5B] hover:text-[#ADEBB3] transition-colors duration-200"
-                  style={{ width: 38, height: 38 }}
+                  className="flex items-center justify-center rounded-full bg-[#2E4747] text-[#ADEBB3] hover:bg-[#005B5B] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005B5B]"
+                  style={{ width: 44, height: 44 }}
                 >
                   <Icon style={{ width: 17, height: 17 }} />
                 </a>
@@ -113,7 +113,7 @@ export default function Footer() {
           className="flex flex-col md:flex-row items-center justify-between gap-3 border-t border-[#005B5B]/20"
           style={{ marginTop: 48, paddingTop: 24 }}
         >
-          <p className="text-[#005B5B]/60 text-xs">
+          <p className="text-[#2E4747] text-xs">
             {t("home.footer.copyright")}
           </p>
           <div className="flex items-center gap-5">

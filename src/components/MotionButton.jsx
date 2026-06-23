@@ -10,6 +10,8 @@ const MotionButton = ({
   label = "Join for free",
   className,
   fillClassName = "bg-[#F3EEE0]",
+  onClick,
+  type = "button",
   // Hover color of the text + arrow. Defaults preserve the original behavior;
   // pass overrides (e.g. the Hero passes dark teal) without touching defaults.
   hoverTextClassName = "group-hover:text-[#005B5B]",
@@ -17,8 +19,11 @@ const MotionButton = ({
 }) => {
   return (
     <button
+      type={type}
+      onClick={onClick}
       className={cn(
-        'group relative h-14 w-60 cursor-pointer rounded-full border-none p-1 outline-none bg-[#005B5B] shadow-md hover:shadow-xl transition-all overflow-hidden',
+        'group relative h-14 w-60 cursor-pointer rounded-full border-none p-1 bg-[#005B5B] shadow-md hover:shadow-xl transition-all overflow-hidden',
+        'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005B5B]',
         className
       )}
     >
