@@ -1,69 +1,83 @@
-import { MapContainer, TileLayer, Marker, Circle, Popup, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
-import MarkerClusterGroup from 'react-leaflet-cluster'
-import { useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Circle,
+  Popup,
+  ZoomControl,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-const ALGERIA_BOUNDS = [[18.96, -8.67], [41.0, 11.98]]
-const ALGERIA_CENTER = [28.0, 2.6]
+const ALGERIA_BOUNDS = [
+  [18.96, -8.67],
+  [41.0, 11.98],
+];
+const ALGERIA_CENTER = [28.0, 2.6];
 
 function MapSettings() {
-  const map = useMap()
-  useEffect(() => { map.options.closePopupOnClick = false }, [map])
-  return null
-}
-
-function ZoomTracker({ onZoom }) {
-  useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) })
-  return null
-}
-
-// Leaflet caches the container's pixel size at init. When the map mounts into a
-// freshly-sized container (List→Map toggle) or the container resizes (window
-// resize, phone rotation, or a header-height change that shifts our height calc),
-// we must tell Leaflet to re-measure or tiles render gray/misaligned.
-// Mirrors NeighborhoodMap.jsx's InvalidateOnMount, with headerHeight added as a
-// dependency so a header resize re-triggers invalidateSize.
-function InvalidateOnMount({ headerHeight }) {
-  const map = useMap()
+  const map = useMap();
   useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 60)
-    const handleResize = () => map.invalidateSize()
-    window.addEventListener('resize', handleResize)
-    window.addEventListener('orientationchange', handleResize)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
+    if (map && map.options) {
+      map.options.closePopupOnClick = false;
     }
-  }, [map, headerHeight])
-  return null
-}
+  }, [map]);
 
-// Auto-frame the whole country to the actual screen on mount, instead of a
-// fixed zoom that only looks right on wide screens. Re-fits on resize/rotation
-// so narrow/tall viewports zoom out enough to show all of Algeria. The small
-// padding keeps edge markers off the screen edge.
-function FitAlgeriaOnMount() {
-  const map = useMap()
-  useEffect(() => {
-    const fit = () => map.fitBounds(ALGERIA_BOUNDS, { padding: [10, 10] })
-    fit()
-    window.addEventListener('resize', fit)
-    window.addEventListener('orientationchange', fit)
-    return () => {
-      window.removeEventListener('resize', fit)
-      window.removeEventListener('orientationchange', fit)
-    }
-  }, [map])
-  return null
-}
+  function ZoomTracker({ onZoom }) {
+    useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
+    return null;
+  }
 
-function createPinIcon() {
-  return L.divIcon({
-    className: '',
-    html: `<div style="
+  // Leaflet caches the container's pixel size at init. When the map mounts into a
+  // freshly-sized container (List→Map toggle) or the container resizes (window
+  // resize, phone rotation, or a header-height change that shifts our height calc),
+  // we must tell Leaflet to re-measure or tiles render gray/misaligned.
+  // Mirrors NeighborhoodMap.jsx's InvalidateOnMount, with headerHeight added as a
+  // dependency so a header resize re-triggers invalidateSize.
+  function InvalidateOnMount({ headerHeight }) {
+    const map = useMap();
+    useEffect(() => {
+      const t = setTimeout(() => map.invalidateSize(), 60);
+      const handleResize = () => map.invalidateSize();
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("orientationchange", handleResize);
+      return () => {
+        clearTimeout(t);
+        window.removeEventListener("resize", handleResize);
+        window.removeEventListener("orientationchange", handleResize);
+      };
+    }, [map, headerHeight]);
+    return null;
+  }
+
+  // Auto-frame the whole country to the actual screen on mount, instead of a
+  // fixed zoom that only looks right on wide screens. Re-fits on resize/rotation
+  // so narrow/tall viewports zoom out enough to show all of Algeria. The small
+  // padding keeps edge markers off the screen edge.
+  function FitAlgeriaOnMount() {
+    const map = useMap();
+    useEffect(() => {
+      const fit = () => map.fitBounds(ALGERIA_BOUNDS, { padding: [10, 10] });
+      fit();
+      window.addEventListener("resize", fit);
+      window.addEventListener("orientationchange", fit);
+      return () => {
+        window.removeEventListener("resize", fit);
+        window.removeEventListener("orientationchange", fit);
+      };
+    }, [map]);
+    return null;
+  }
+
+  function createPinIcon() {
+    return L.divIcon({
+      className: "",
+      html: `<div style="
       width:38px;height:38px;
       background:#1a1a1a;
       border-radius:50%;
@@ -75,18 +89,18 @@ function createPinIcon() {
         <path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z"/>
       </svg>
     </div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 38],
-    popupAnchor: [0, -10],
-  })
-}
+      iconSize: [38, 38],
+      iconAnchor: [19, 38],
+      popupAnchor: [0, -10],
+    });
+  }
 
-function createClusterIcon(cluster) {
-  const count = cluster.getChildCount()
-  const size = count >= 20 ? 52 : count >= 10 ? 46 : 40
-  return L.divIcon({
-    className: '',
-    html: `<div style="
+  function createClusterIcon(cluster) {
+    const count = cluster.getChildCount();
+    const size = count >= 20 ? 52 : count >= 10 ? 46 : 40;
+    return L.divIcon({
+      className: "",
+      html: `<div style="
       width:${size}px;height:${size}px;
       background:#1a1a1a;
       border-radius:50%;
@@ -98,119 +112,169 @@ function createClusterIcon(cluster) {
       font-weight:700;
       color:#ffffff;
     ">${count}</div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  })
-}
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+  }
 
-function PopupContent({ listing, navigate }) {
-  return (
-    <div style={{ fontFamily: "'Inter',sans-serif", width: '180px', padding: '2px' }}>
-      {listing.images?.[0] && (
-        <img
-          src={listing.images[0]}
-          alt={listing.title}
-          style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '10px', marginBottom: '10px', display: 'block' }}
-        />
-      )}
-      <p style={{ fontWeight: '700', margin: '0 0 3px', fontSize: '13px', color: '#1a1a1a', lineHeight: 1.3 }}>
-        {listing.title || listing.wilaya}
-      </p>
-      <p style={{ color: '#717182', fontSize: '11px', margin: '0 0 8px' }}>
-        {[listing.wilaya, listing.city || listing.quartier].filter(Boolean).join(', ')}
-      </p>
-      {listing.is_for_sale && listing.price && (
-        <p style={{ color: '#4B3FD8', fontWeight: '700', fontSize: '12px', margin: '0 0 10px' }}>
-          {new Intl.NumberFormat('fr-DZ').format(listing.price)} DZD
-        </p>
-      )}
-      <button
-        onClick={() => navigate(`/listing/${listing.id}`)}
+  function PopupContent({ listing, navigate }) {
+    return (
+      <div
         style={{
-          width: '100%', padding: '8px 0', border: 'none',
-          borderRadius: '999px', background: '#004949', color: '#fff',
-          fontSize: '12px', fontWeight: '600', cursor: 'pointer',
           fontFamily: "'Inter',sans-serif",
+          width: "180px",
+          padding: "2px",
         }}
       >
-        Voir les détails
-      </button>
-    </div>
-  )
-}
-
-export default function MapView({ listings, headerHeight = 76 }) {
-  const navigate = useNavigate()
-  const [zoom, setZoom] = useState(6)
-
-  const valid = listings.filter(l => {
-    const lat = Number(l.latitude)
-    const lng = Number(l.longitude)
-    return l.latitude && l.longitude && !isNaN(lat) && !isNaN(lng)
-  })
-
-  return (
-    <div style={{ height: `calc(100vh - ${headerHeight}px)`, width: '100%', position: 'relative' }}>
-      <MapContainer
-        center={ALGERIA_CENTER}
-        zoom={6}
-        minZoom={3}
-        maxZoom={16}
-        maxBounds={ALGERIA_BOUNDS}
-        maxBoundsViscosity={1.0}
-        style={{ height: '100%', width: '100%' }}
-        zoomControl={false}
-      >
-        <MapSettings />
-        <InvalidateOnMount headerHeight={headerHeight} />
-        <FitAlgeriaOnMount />
-        <ZoomTracker onZoom={setZoom} />
-        <ZoomControl position="bottomright" />
-
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={19}
-        />
-
-        {zoom >= 13 ? (
-          valid.map(listing => (
-            <Circle
-              key={listing.id}
-              center={[Number(listing.latitude), Number(listing.longitude)]}
-              radius={500}
-              pathOptions={{ color: '#0A3D3D', fillColor: '#0A3D3D', fillOpacity: 0.20, weight: 2, opacity: 0.65 }}
-            >
-              <Popup autoClose={false} closeOnClick={false}>
-                <PopupContent listing={listing} navigate={navigate} />
-              </Popup>
-            </Circle>
-          ))
-        ) : (
-          <MarkerClusterGroup
-            iconCreateFunction={createClusterIcon}
-            maxClusterRadius={60}
-            chunkedLoading
-            showCoverageOnHover={false}
-            zoomToBoundsOnClick
+        {listing.images?.[0] && (
+          <img
+            src={listing.images[0]}
+            alt={listing.title}
+            style={{
+              width: "100%",
+              height: "100px",
+              objectFit: "cover",
+              borderRadius: "10px",
+              marginBottom: "10px",
+              display: "block",
+            }}
+          />
+        )}
+        <p
+          style={{
+            fontWeight: "700",
+            margin: "0 0 3px",
+            fontSize: "13px",
+            color: "#1a1a1a",
+            lineHeight: 1.3,
+          }}
+        >
+          {listing.title || listing.wilaya}
+        </p>
+        <p style={{ color: "#717182", fontSize: "11px", margin: "0 0 8px" }}>
+          {[listing.wilaya, listing.city || listing.quartier]
+            .filter(Boolean)
+            .join(", ")}
+        </p>
+        {listing.is_for_sale && listing.price && (
+          <p
+            style={{
+              color: "#4B3FD8",
+              fontWeight: "700",
+              fontSize: "12px",
+              margin: "0 0 10px",
+            }}
           >
-            {valid.map(listing => (
-              <Marker
+            {new Intl.NumberFormat("fr-DZ").format(listing.price)} DZD
+          </p>
+        )}
+        <button
+          onClick={() => navigate(`/listing/${listing.id}`)}
+          style={{
+            width: "100%",
+            padding: "8px 0",
+            border: "none",
+            borderRadius: "999px",
+            background: "#004949",
+            color: "#fff",
+            fontSize: "12px",
+            fontWeight: "600",
+            cursor: "pointer",
+            fontFamily: "'Inter',sans-serif",
+          }}
+        >
+          Voir les détails
+        </button>
+      </div>
+    );
+  }
+
+  export default function MapView({ listings, headerHeight = 76 }) {
+    const navigate = useNavigate();
+    const [zoom, setZoom] = useState(6);
+
+    const valid = listings.filter((l) => {
+      const lat = Number(l.latitude);
+      const lng = Number(l.longitude);
+      return l.latitude && l.longitude && !isNaN(lat) && !isNaN(lng);
+    });
+
+    return (
+      <div
+        style={{
+          height: `calc(100vh - ${headerHeight}px)`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        <MapContainer
+          center={ALGERIA_CENTER}
+          zoom={6}
+          minZoom={3}
+          maxZoom={16}
+          maxBounds={ALGERIA_BOUNDS}
+          maxBoundsViscosity={1.0}
+          style={{ height: "100%", width: "100%" }}
+          zoomControl={false}
+        >
+          <MapSettings />
+          <InvalidateOnMount headerHeight={headerHeight} />
+          <FitAlgeriaOnMount />
+          <ZoomTracker onZoom={setZoom} />
+          <ZoomControl position="bottomright" />
+
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
+          />
+
+          {zoom >= 13 ? (
+            valid.map((listing) => (
+              <Circle
                 key={listing.id}
-                position={[Number(listing.latitude), Number(listing.longitude)]}
-                icon={createPinIcon()}
+                center={[Number(listing.latitude), Number(listing.longitude)]}
+                radius={500}
+                pathOptions={{
+                  color: "#0A3D3D",
+                  fillColor: "#0A3D3D",
+                  fillOpacity: 0.2,
+                  weight: 2,
+                  opacity: 0.65,
+                }}
               >
                 <Popup autoClose={false} closeOnClick={false}>
                   <PopupContent listing={listing} navigate={navigate} />
                 </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
-        )}
-      </MapContainer>
+              </Circle>
+            ))
+          ) : (
+            <MarkerClusterGroup
+              iconCreateFunction={createClusterIcon}
+              maxClusterRadius={60}
+              chunkedLoading
+              showCoverageOnHover={false}
+              zoomToBoundsOnClick
+            >
+              {valid.map((listing) => (
+                <Marker
+                  key={listing.id}
+                  position={[
+                    Number(listing.latitude),
+                    Number(listing.longitude),
+                  ]}
+                  icon={createPinIcon()}
+                >
+                  <Popup autoClose={false} closeOnClick={false}>
+                    <PopupContent listing={listing} navigate={navigate} />
+                  </Popup>
+                </Marker>
+              ))}
+            </MarkerClusterGroup>
+          )}
+        </MapContainer>
 
-      <style>{`
+        <style>{`
         .leaflet-popup-content-wrapper {
           border-radius: 14px !important;
           box-shadow: 0 8px 30px rgba(0,0,0,0.14) !important;
@@ -238,6 +302,7 @@ export default function MapView({ listings, headerHeight = 76 }) {
           transition: transform 0.3s ease-out, opacity 0.3s ease-in;
         }
       `}</style>
-    </div>
-  )
+      </div>
+    );
+  }
 }

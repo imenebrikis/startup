@@ -1,21 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
-import { MapContainer, TileLayer, Circle, ZoomControl, useMap, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Circle,
+  ZoomControl,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 // Fix Leaflet's broken default icon asset resolution in Vite builds
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl:       "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl:     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ALGERIA_BOUNDS = [
-  [18.9, -8.7],  // SW
-  [39.5, 12.0],  // NE — extended north into Mediterranean for search bar dead space
+  [18.9, -8.7], // SW
+  [39.5, 12.0], // NE — extended north into Mediterranean for search bar dead space
 ];
 
 const CIRCLE_STYLE = {
@@ -91,7 +101,8 @@ function SearchBox({ onPick }) {
         { headers: { "Accept-Language": "fr" } },
       );
       const data = await res.json();
-      if (data.length === 0) setNotice("Aucun résultat. Cliquez directement sur la carte.");
+      if (data.length === 0)
+        setNotice("Aucun résultat. Cliquez directement sur la carte.");
       else setResults(data);
     } catch {
       setNotice("Erreur réseau. Cliquez directement sur la carte.");
@@ -122,8 +133,13 @@ function SearchBox({ onPick }) {
     <div
       ref={containerRef}
       style={{
-        position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
-        zIndex: 1000, width: "91.666%", maxWidth: 440,
+        position: "absolute",
+        top: 8,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 1000,
+        width: "91.666%",
+        maxWidth: 440,
       }}
     >
       {/* Input row */}
@@ -131,27 +147,50 @@ function SearchBox({ onPick }) {
         <div style={{ flex: 1, position: "relative" }}>
           <input
             value={query}
-            onChange={(e) => { setQuery(e.target.value); if (!e.target.value) clear(); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (!e.target.value) clear();
+            }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); search(); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                search();
+              }
               if (e.key === "Escape") clear();
             }}
             placeholder="Rechercher une adresse en Algérie…"
             style={{
-              width: "100%", padding: "9px 34px 9px 13px", borderRadius: 10,
-              border: "1px solid #E5DFCE", fontSize: 13, fontFamily: "inherit",
-              background: "#FFFFFF", outline: "none", color: "#0F2A2A",
-              boxSizing: "border-box", boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+              width: "100%",
+              padding: "9px 34px 9px 13px",
+              borderRadius: 10,
+              border: "1px solid #E5DFCE",
+              fontSize: 13,
+              fontFamily: "inherit",
+              background: "#FFFFFF",
+              outline: "none",
+              color: "#0F2A2A",
+              boxSizing: "border-box",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
             }}
           />
           {query && (
             <button
               type="button"
-              onClick={() => { setQuery(""); clear(); }}
+              onClick={() => {
+                setQuery("");
+                clear();
+              }}
               style={{
-                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", cursor: "pointer", color: "#6E7B79",
-                padding: 2, lineHeight: 1,
+                position: "absolute",
+                right: 8,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#6E7B79",
+                padding: 2,
+                lineHeight: 1,
               }}
               aria-label="Effacer"
             >
@@ -164,11 +203,16 @@ function SearchBox({ onPick }) {
           onClick={search}
           disabled={loading || !query.trim()}
           style={{
-            padding: "9px 15px", borderRadius: 10, border: "none",
+            padding: "9px 15px",
+            borderRadius: 10,
+            border: "none",
             background: loading || !query.trim() ? "#9CA3AF" : "#005B5B",
-            color: "#ADEBB3", fontSize: 13, fontWeight: 600,
+            color: "#ADEBB3",
+            fontSize: 13,
+            fontWeight: 600,
             cursor: loading || !query.trim() ? "default" : "pointer",
-            flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            flexShrink: 0,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
             transition: "background 0.15s",
           }}
         >
@@ -178,21 +222,33 @@ function SearchBox({ onPick }) {
 
       {/* Notice */}
       {notice && (
-        <div style={{
-          marginTop: 4, padding: "8px 12px", background: "#FFFFFF", borderRadius: 8,
-          fontSize: 12, color: "#6E7B79", boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-        }}>
+        <div
+          style={{
+            marginTop: 4,
+            padding: "8px 12px",
+            background: "#FFFFFF",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "#6E7B79",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
           {notice}
         </div>
       )}
 
       {/* Results dropdown */}
       {results.length > 0 && (
-        <div style={{
-          marginTop: 4, background: "#FFFFFF", borderRadius: 12,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.16)", border: "1px solid #E5DFCE",
-          overflow: "hidden",
-        }}>
+        <div
+          style={{
+            marginTop: 4,
+            background: "#FFFFFF",
+            borderRadius: 12,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.16)",
+            border: "1px solid #E5DFCE",
+            overflow: "hidden",
+          }}
+        >
           {results.map((r, i) => {
             const parts = r.display_name.split(",");
             const name = parts[0].trim();
@@ -203,22 +259,53 @@ function SearchBox({ onPick }) {
                 type="button"
                 onClick={() => select(r)}
                 style={{
-                  display: "block", width: "100%", padding: "10px 14px", textAlign: "left",
-                  border: "none", borderBottom: i < results.length - 1 ? "1px solid #F3EEE0" : "none",
-                  background: "none", cursor: "pointer", fontFamily: "inherit",
+                  display: "block",
+                  width: "100%",
+                  padding: "10px 14px",
+                  textAlign: "left",
+                  border: "none",
+                  borderBottom:
+                    i < results.length - 1 ? "1px solid #F3EEE0" : "none",
+                  background: "none",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#F3EEE0")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#F3EEE0")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "none")
+                }
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#005B5B" strokeWidth="2" style={{ flexShrink: 0 }}>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#005B5B"
+                    strokeWidth="2"
+                    style={{ flexShrink: 0 }}
+                  >
                     <path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z" />
                     <circle cx="12" cy="9" r="2.5" />
                   </svg>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#0F2A2A" }}>{name}</span>
+                  <span
+                    style={{ fontSize: 13, fontWeight: 600, color: "#0F2A2A" }}
+                  >
+                    {name}
+                  </span>
                 </span>
                 {sub && (
-                  <span style={{ fontSize: 11, color: "#6E7B79", marginTop: 2, display: "block", paddingLeft: 20 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#6E7B79",
+                      marginTop: 2,
+                      display: "block",
+                      paddingLeft: 20,
+                    }}
+                  >
                     {sub}
                   </span>
                 )}
@@ -240,18 +327,42 @@ export default function LocationPicker({ lat, lng, onChange }) {
   return (
     <div>
       {/* Click-to-drop hint */}
-      <p style={{ fontSize: 12, color: "#6E7B79", margin: "0 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#00a699" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+      <p
+        style={{
+          fontSize: 12,
+          color: "#6E7B79",
+          margin: "0 0 6px",
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+        }}
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#00a699"
+          strokeWidth="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-        Recherchez une adresse ou cliquez directement sur la carte pour placer la zone.
+        Recherchez une adresse ou cliquez directement sur la carte pour placer
+        la zone.
       </p>
 
-      <div style={{
-        borderRadius: 16, overflow: "hidden", border: "1px solid #E5DFCE",
-        height: mapHeight, position: "relative",
-        transition: "height 0.25s ease",
-      }}>
+      <div
+        style={{
+          borderRadius: 16,
+          overflow: "hidden",
+          border: "1px solid #E5DFCE",
+          height: mapHeight,
+          position: "relative",
+          transition: "height 0.25s ease",
+        }}
+      >
         <MapContainer
           center={[34.0, 3.0]}
           zoom={5}
@@ -271,7 +382,11 @@ export default function LocationPicker({ lat, lng, onChange }) {
           <ClickHandler onPick={onChange} />
           <MapResizer expanded={expanded} />
           {lat != null && lng != null && (
-            <Circle center={[lat, lng]} radius={400} pathOptions={CIRCLE_STYLE} />
+            <Circle
+              center={[lat, lng]}
+              radius={400}
+              pathOptions={CIRCLE_STYLE}
+            />
           )}
         </MapContainer>
 
@@ -281,22 +396,45 @@ export default function LocationPicker({ lat, lng, onChange }) {
           onClick={() => setExpanded((v) => !v)}
           title={expanded ? "Réduire la carte" : "Agrandir la carte"}
           style={{
-            position: "absolute", bottom: 10, left: 10, zIndex: 1001,
-            width: 32, height: 32, borderRadius: 6,
-            border: "1px solid #d1d5db", background: "#FFFFFF",
-            cursor: "pointer", display: "flex", alignItems: "center",
-            justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            position: "absolute",
+            bottom: 10,
+            left: 10,
+            zIndex: 1001,
+            width: 32,
+            height: 32,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            background: "#FFFFFF",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
           }}
         >
           {expanded ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F2A2A" strokeWidth="2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#0F2A2A"
+              strokeWidth="2"
+            >
               <polyline points="4 14 10 14 10 20" />
               <polyline points="20 10 14 10 14 4" />
               <line x1="10" y1="14" x2="3" y2="21" />
               <line x1="21" y1="3" x2="14" y2="10" />
             </svg>
           ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0F2A2A" strokeWidth="2">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#0F2A2A"
+              strokeWidth="2"
+            >
               <polyline points="15 3 21 3 21 9" />
               <polyline points="9 21 3 21 3 15" />
               <line x1="21" y1="3" x2="14" y2="10" />
@@ -307,7 +445,8 @@ export default function LocationPicker({ lat, lng, onChange }) {
       </div>
 
       <p style={{ fontSize: 12, color: "#6E7B79", margin: "8px 0 0" }}>
-        Votre adresse exacte restera privée. Les voyageurs ne verront que cette zone de 400 m.
+        Votre adresse exacte restera privée. Les voyageurs ne verront que cette
+        zone de 400 m.
       </p>
     </div>
   );
