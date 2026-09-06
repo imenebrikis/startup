@@ -27,6 +27,8 @@ function MapSettings() {
       map.options.closePopupOnClick = false;
     }
   }, [map]);
+  return null;
+}
 
   function ZoomTracker({ onZoom }) {
     useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
@@ -305,4 +307,3 @@ function MapSettings() {
       </div>
     );
   }
-}
